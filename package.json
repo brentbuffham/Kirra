@@ -1,20 +1,15 @@
 {
-  "name": "kirra",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "kirra-copy",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/brentbuffham/Kirra.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/brentbuffham/Kirra/issues"
-  },
-  "homepage": "https://github.com/brentbuffham/Kirra#readme"
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
 }
