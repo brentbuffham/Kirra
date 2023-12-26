@@ -6,13 +6,13 @@ export const createScene = () => {
 	const scene = new THREE.Scene();
 
 	const renderer = new THREE.WebGLRenderer();
-	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setSize(window.innerWidth, window.innerHeight - 20);
 	document.body.appendChild(renderer.domElement);
 
 	const frustumSize = 50; // Adjust this value based on your scene size
 
 	const aspect = window.innerWidth / window.innerHeight;
-	const camera = new THREE.OrthographicCamera(
+	const camera = new OrthographicCamera(
 		frustumSize * aspect / -2, // left
 		frustumSize * aspect / 2, // right
 		frustumSize / 2, // top
