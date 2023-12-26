@@ -1,5 +1,5 @@
 import './style.css'
-import {createHole} from "./threeTrail/holeScene.js";
+import {renderLeftPanel} from "./leftPanel.js";
 
 document.querySelector('#app').innerHTML = `
   <div id="header">header</div>
@@ -8,5 +8,4 @@ document.querySelector('#app').innerHTML = `
   <div id="right-panel">right panel</div>
   <div id="bottom">bottom</div>
 `
-
-createHole();
+renderLeftPanel();
