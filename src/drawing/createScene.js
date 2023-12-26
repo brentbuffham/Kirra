@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { PerspectiveCamera } from "three";
 import { OrthographicCamera } from "three";
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
 export const createScene = () => {
 	const scene = new THREE.Scene();
@@ -21,6 +21,24 @@ export const createScene = () => {
 		0.001, // near
 		1000 // far
 	);
+
+	// Add controls
+	const controls = new OrbitControls(camera, renderer.domElement);
+	controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+	controls.dampingFactor = 0.25;
+	controls.screenSpacePanning = false;
+
+	// Animation loop
+	const animate = () => {
+		requestAnimationFrame(animate);
+
+		// Add animation logic here if needed
+		controls.update(); // only required if controls.enableDamping = true, or if controls.autoRotate = true
+
+		renderer.render(scene, camera);
+	};
+
+	animate();
 
 	//const camera = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 1000);
 

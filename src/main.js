@@ -1,5 +1,6 @@
 import './style.css'
 import {renderLeftPanel} from "./leftPanel.js";
+import {drawDummy} from "./drawing/drawDummy.js";
 
 document.querySelector('#app').innerHTML = `
   <div id="header">header</div>
@@ -9,3 +10,4 @@ document.querySelector('#app').innerHTML = `
   <div id="bottom">bottom</div>
 `
 renderLeftPanel();
+drawDummy();
