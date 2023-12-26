@@ -1,5 +1,5 @@
-import { drawHole } from "../threeTrail/drawhole.js";
-import { createScene } from "../threeTrail/createScene.js";
+import { drawHole } from "./drawhole.js";
+import { createScene } from "./createScene.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 export function createHole() {

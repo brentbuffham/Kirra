@@ -6,8 +6,9 @@ export const createScene = () => {
 	const scene = new THREE.Scene();
 
 	const renderer = new THREE.WebGLRenderer();
-	renderer.setSize(window.innerWidth, window.innerHeight - 20);
-	document.body.appendChild(renderer.domElement);
+	const canvas = document.querySelector('#canvas');
+	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+	document.querySelector('#canvas').appendChild(renderer.domElement);
 
 	const frustumSize = 50; // Adjust this value based on your scene size
 
