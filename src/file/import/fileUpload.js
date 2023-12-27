@@ -3,6 +3,7 @@ import { drawDummy } from "../../drawing/entities/drawDummy.js";
 import { controls } from "../../drawing/createScene.js";
 import { drawHole } from "../../drawing/entities/drawHole.js";
 import { Vector3 } from "three";
+import { drawText } from "../../drawing/entities/drawText.js";
 
 export function renderFileUpload(containerId, canvas) {
 	const container = document.querySelector(containerId);
@@ -44,6 +45,7 @@ function handleFileUpload(event, canvas) {
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
 				drawDummy(canvas.scene, colour, point.startXLocation, point.startYLocation, point.startZLocation);
+				drawText(canvas.scene, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
 				colour = getRandomColor();
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
@@ -52,6 +54,7 @@ function handleFileUpload(event, canvas) {
 				const toeVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
 				const intervalVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
 				drawHole(canvas.scene, colour, collarVector, intervalVector, toeVector);
+				drawText(canvas.scene, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
 				colour = getRandomColor();
 			}
 		}
@@ -70,7 +73,16 @@ function handleFileUpload(event, canvas) {
 	reader.readAsText(file);
 }
 
-//test fuction to help with recognition of the display of the drawing
+// //test fuction to help with recognition of the display of the drawing
+// function getRandomColor() {
+// 	const letters = "0123456789ABCDEF";
+// 	let color = "#";
+// 	for (let i = 0; i < 6; i++) {
+// 		color += letters[Math.floor(Math.random() * 16)];
+// 	}
+
+// 	return color;
+// }
 function getRandomColor() {
 	const letters = "0123456789ABCDEF";
 	let color = "#";
@@ -78,5 +90,20 @@ function getRandomColor() {
 		color += letters[Math.floor(Math.random() * 16)];
 	}
 
-	return color;
+	// Convert hex to RGB
+	const hex = color.substring(1); // Remove the '#' character
+	const bigint = parseInt(hex, 16);
+	const r = (bigint >> 16) & 255;
+	const g = (bigint >> 8) & 255;
+	const b = bigint & 255;
+
+	// Adjust brightness (make it 20% whiter)
+	const adjustedR = Math.min(255, r + 0.2 * (255 - r));
+	const adjustedG = Math.min(255, g + 0.2 * (255 - g));
+	const adjustedB = Math.min(255, b + 0.2 * (255 - b));
+
+	// Convert back to hex
+	const adjustedColor = "#" + Math.round(adjustedR).toString(16).padStart(2, "0") + Math.round(adjustedG).toString(16).padStart(2, "0") + Math.round(adjustedB).toString(16).padStart(2, "0");
+
+	return adjustedColor;
 }
