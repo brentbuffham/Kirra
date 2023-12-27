@@ -29,37 +29,20 @@ export function parseCSV(data) {
     return points;
 }
 
-export function getCentroid(data) {
-    if (typeof data !== "string") {
-        console.error("Data is not a string:", data);
-        return {x: 0, y: 0, z: 0}; // Provide default values or handle the error appropriately
-    }
+export function getCentroid(points) {
+    let sumX = 0, sumY = 0, sumZ = 0;
 
-    const lines = data.split("\n");
-
-    let sumX = 0;
-    let sumY = 0;
-    let sumZ = 0;
-
-    const points = lines.map(line => {
-        const values = line.split(",");
-        return {
-            pointId: values[0],
-            startXLocation: parseFloat(values[1]),
-            startYLocation: parseFloat(values[2]),
-            startZLocation: parseFloat(values[3])
-        };
+    points.forEach(point => {
+        sumX += point.x;
+        sumY += point.y;
+        sumZ += point.z;
     });
 
-    for (let i = 0; i < points.length; i++) {
-        sumX += points[i].startXLocation;
-        sumY += points[i].startYLocation;
-        sumZ += points[i].startZLocation;
-    }
+    const centroid = {
+        x: sumX / points.length,
+        y: sumY / points.length,
+        z: sumZ / points.length
+    };
 
-    const centroidX = sumX / points.length;
-    const centroidY = sumY / points.length;
-    const centroidZ = sumZ / points.length;
-
-    return {x: centroidX, y: centroidY, z: centroidZ};
+    return centroid;
 }

@@ -1,23 +1,17 @@
 //drawDummy.js
-import {BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, Vector3, WebGLRenderer} from "three";
+import {createLine} from "./createLine.js";
 
 export function drawDummy(scene, x, y, z) {
-    const radius = 10;
-    //create a blue LineBasicMaterial
-    const material = new LineBasicMaterial({color: 0xffffff});
+    const size = 0.5;
 
-    const dummyXYZ = new Vector3(x, y, z);
-    const topLeftLoc = new Vector3(x - radius, y + radius, z);
-    const bottomRightLoc = new Vector3(x + radius, y - radius, z);
-    const topRightLoc = new Vector3(x + radius, y + radius, z);
-    const bottomLeftLoc = new Vector3(x - radius, y - radius, z);
+    const points = {
+        topLeft: {x: x - size, y: y + size, z},
+        topRight: {x: x + size, y: y + size, z},
+        bottomLeft: {x: x - size, y: y - size, z},
+        bottomRight: {x: x + size, y: y - size, z}
+    };
 
-    const geometry1 = new BufferGeometry().setFromPoints(topLeftLoc, dummyXYZ, bottomRightLoc);
-    const geometry2 = new BufferGeometry().setFromPoints(bottomLeftLoc, dummyXYZ, topRightLoc);
-
-    const line1 = new Line(geometry1, material);
-    const line2 = new Line(geometry2, material);
-
-    scene.add(line1);
-    scene.add(line2);
+    createLine(scene, points.topLeft, points.bottomRight);
+    createLine(scene, points.bottomLeft, points.topRight, 'blue');
 }
+
