@@ -1,9 +1,13 @@
-// Import parseCSV function
+//fileUpload.js
 import { updateScene } from "../../drawing/createScene.js";
 import { parseCSV } from "./csvHandler.js";
 
-export const renderFileUpload = containerId => {
-	const container = document.querySelector(containerId); // or '#left-panel' if it's an id
+let sceneObject; // Variable to store the scene object
+
+export function renderFileUpload(containerId, initialSceneObject) {
+	sceneObject = initialSceneObject; // Set the initial scene object
+
+	const container = document.querySelector(containerId);
 	const fileUpload = `
     <div id="file-upload">
          <input type="file" id="file-input" />
@@ -16,8 +20,9 @@ export const renderFileUpload = containerId => {
 	container.appendChild(tempContainer);
 
 	document.getElementById("file-input").addEventListener("change", handleFileUpload);
-};
-const handleFileUpload = (event, scene, camera, renderer) => {
+}
+
+function handleFileUpload(event) {
 	const file = event.target.files[0];
 	if (!file) {
 		return;
@@ -32,12 +37,12 @@ const handleFileUpload = (event, scene, camera, renderer) => {
 		if (!file.name.toLowerCase().endsWith(".csv")) {
 			return;
 		}
-		points = parseCSV(data);
-		updateScene(points, scene, camera, renderer);
+		points = parseCSV(data, sceneObject);
+		updateScene(points, sceneObject); // Update the scene with new points
 	};
-	reader.readAsText(file);
-};
 
+	reader.readAsText(file);
+}
 export function getCentroid(data) {
 	if (typeof data !== "string") {
 		console.error("Data is not a string:", data);

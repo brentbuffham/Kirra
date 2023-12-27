@@ -1,3 +1,4 @@
+//drawDummy.js
 import { BufferGeometry, Float32BufferAttribute, Line, LineBasicMaterial, Vector3, WebGLRenderer } from "three";
 
 export function drawDummy(x, y, z, radius) {

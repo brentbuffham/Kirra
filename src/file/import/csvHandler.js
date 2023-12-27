@@ -1,6 +1,7 @@
+//csvHandler.js
 import { updateScene } from "../../drawing/createScene";
 
-export function parseCSV(data) {
+export function parseCSV(data, sceneObject) {
 	const lines = data.split("\n");
 	let minX = Infinity;
 	let minY = Infinity;
@@ -28,6 +29,7 @@ export function parseCSV(data) {
 		}
 	}
 	console.log("Points: ", points);
+	updateScene(points, sceneObject);
 
 	return points;
 }
