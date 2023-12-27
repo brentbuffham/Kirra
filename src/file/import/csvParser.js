@@ -18,7 +18,7 @@ export function parseCSV(data) {
                     pointID,
                     startXLocation,
                     startYLocation,
-                    startZLocation
+                    startZLocation,
                 });
                 minX = Math.min(minX, startXLocation);
                 minY = Math.min(minY, startYLocation);

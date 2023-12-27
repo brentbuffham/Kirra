@@ -1,9 +1,5 @@
-//main.js
 import "./style.css";
-import { renderLeftPanel } from "./leftPanel.js";
-import { drawDummy } from "./drawing/drawDummy.js";
 import { createScene } from "./drawing/createScene.js";
-import { parseCSV } from "./file/import/csvHandler.js"; // Import parseCSV function directly here
 import { renderFileUpload } from "./file/import/fileUpload.js";
 
 document.querySelector("#app").innerHTML = `
@@ -15,5 +11,4 @@ document.querySelector("#app").innerHTML = `
 `;
 
 const scene = createScene();
-
 renderFileUpload("#left-panel", scene);
