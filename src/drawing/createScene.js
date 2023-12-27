@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OrthographicCamera } from "three";
+import {OrthographicCamera, Vector3} from "three";
 import {OrbitControls} from "three/addons";
 
 export function createScene() {
@@ -10,7 +10,7 @@ export function createScene() {
 	document.querySelector("#canvas").appendChild(renderer.domElement);
 
 	const frustumSize = 50;
-	const aspect = window.innerWidth / window.innerHeight;
+	const aspect = canvas.offsetWidth / canvas.offsetHeight;
 	const camera = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.001, 1000);
 
 	const controls = new OrbitControls(camera, renderer.domElement);
@@ -26,8 +26,7 @@ export function createScene() {
 
 	animate();
 
-
-	camera.position.set(0, 0, 100);
+	camera.position.set(0, 0, 50);
 	camera.lookAt(0, 0, 0);
 
 	return {scene, camera};
