@@ -14,6 +14,6 @@ document.querySelector("#app").innerHTML = `
   <div id="bottom">bottom</div>
 `;
 
-const sceneObject = createScene();
+const scene = createScene();
 
-renderFileUpload("#left-panel", sceneObject);
+renderFileUpload("#left-panel", scene);
