@@ -62,6 +62,9 @@ export function updateScene(data, sceneObject) {
 
 	for (const d of data) {
 		drawDummy(d.startXLocation, d.startYLocation, d.startZLocation, 5);
+		centroid = getCentroid(data);
+		console.log("Centroid: ", centroid);
+		console.log("Data point: ", d);
 	}
 
 	renderer.render(scene, camera);
