@@ -24,7 +24,7 @@ export function renderFileUpload(containerId, canvas) {
 	// });
 }
 
-function handleFileUpload(event, canvas) {
+export function handleFileUpload(event, canvas) {
 	const file = event.target.files[0];
 	if (!file) {
 		return;
