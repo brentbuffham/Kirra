@@ -45,7 +45,7 @@ function handleFileUpload(event, canvas) {
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
 				drawDummy(canvas.scene, colour, point.startXLocation, point.startYLocation, point.startZLocation);
-				drawText(canvas.scene, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
+				drawText(canvas.scene, colour, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
 				colour = getRandomColor();
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
@@ -54,35 +54,26 @@ function handleFileUpload(event, canvas) {
 				const toeVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
 				const intervalVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
 				drawHole(canvas.scene, colour, collarVector, intervalVector, toeVector);
-				drawText(canvas.scene, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
+				drawText(canvas.scene, colour, { x: point.startXLocation + 0.1, y: point.startYLocation + 0.1, z: point.startZLocation + 0.1 }, point.pointID);
 				colour = getRandomColor();
 			}
 		}
 
 		const { x, y, z } = getCentroid(points);
 
-		console.log(x, y, z);
+		//console.log(x, y, z);
 
 		canvas.camera.position.set(x, y, z + 100);
 		canvas.camera.lookAt(x, y, z);
 		controls.target.set(x, y, z);
-		console.log(controls.target);
+		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
+		//console.log(controls.target);
 		canvas.camera.updateMatrixWorld();
 	};
 
 	reader.readAsText(file);
 }
 
-// //test fuction to help with recognition of the display of the drawing
-// function getRandomColor() {
-// 	const letters = "0123456789ABCDEF";
-// 	let color = "#";
-// 	for (let i = 0; i < 6; i++) {
-// 		color += letters[Math.floor(Math.random() * 16)];
-// 	}
-
-// 	return color;
-// }
 function getRandomColor() {
 	const letters = "0123456789ABCDEF";
 	let color = "#";

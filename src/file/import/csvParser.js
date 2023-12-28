@@ -65,9 +65,9 @@ export function getCentroid(points) {
 	});
 
 	const centroid = {
-		x: sumX / points.length,
-		y: sumY / points.length,
-		z: sumZ / points.length
+		x: parseFloat((sumX / points.length).toFixed(3)),
+		y: parseFloat((sumY / points.length).toFixed(3)),
+		z: parseFloat((sumZ / points.length).toFixed(3))
 	};
 
 	console.log("Centroid in getCentroid: ", centroid);

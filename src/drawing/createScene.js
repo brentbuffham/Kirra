@@ -1,6 +1,7 @@
 import * as THREE from "three";
+import { TrackballControls } from "three/addons/controls/TrackballControls.js";
+import { PerspectiveCamera } from "three";
 import { OrthographicCamera } from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"; // Import from the correct path
 
 let controls;
 
@@ -15,22 +16,18 @@ export function createScene() {
 
 	const frustumSize = 100;
 	const aspect = canvas.offsetWidth / canvas.offsetHeight;
-	const camera = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 500);
+	//const camera = new PerspectiveCamera(75, aspect, 0.1, 1000);
+	const camera = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
 
-	// Set a new rotation (in radians)
-	const newRotation = new THREE.Euler(Math.PI / 4, 0, 0); // Rotate 45 degrees around the X-axis
-	controls = new OrbitControls(camera, renderer.domElement);
-	controls.dampingFactor = 0.25; // Adjust the damping factor to your liking
-	controls.enableDamping = true; // Enable damping
-	// Set properties to remove constraints
-	controls.minPolarAngle = -(2 * Math.PI); // Minimum polar angle in radians
-	controls.maxPolarAngle = 2 * Math.PI; // Maximum polar angle in radians (180 degrees)
-	controls.minAzimuthAngle = -Infinity; // No minimum azimuth angle
-	controls.maxAzimuthAngle = Infinity; // No maximum azimuth angle
+	controls = new TrackballControls(camera, renderer.domElement);
+	controls.rotateSpeed = 20.0;
+	controls.zoomSpeed = 0.5;
+	controls.panSpeed = 1;
+	controls.dynamicDampingFactor = 0.3;
 
 	function animate() {
 		requestAnimationFrame(animate);
-		controls.update(); // Update the controls in the animation loop
+		controls.update();
 		renderer.render(scene, camera);
 	}
 
