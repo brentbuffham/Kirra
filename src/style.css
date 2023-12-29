@@ -15,7 +15,7 @@ body {
     overflow-x: hidden;
 }
 
-#app {
+/*#app {
     display: grid;
     grid-template-columns: 1fr 7fr 1fr;
     grid-template-rows: 1fr 5fr 1fr;
@@ -38,10 +38,32 @@ body {
     grid-area: canvas;
 }
 
+
 #right-panel {
     grid-area: right-panel;
 }
 
 #bottom {
     grid-area: bottom;
+}
+*/
+#canvas {
+    block-size: 95vh;
+    inline-size: 99vw;
+
+}
+
+#header {
+    block-size: 2.5vh;
+    inline-size: 99vw;
+    background-color: var(--primary-color);
+    color: var(--primary-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-content: center;
+    padding-top: 10px;
+    padding-left: 5px;
+    padding-right: 5px;
+    padding-bottom: -5px;
 }

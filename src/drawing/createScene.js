@@ -1,26 +1,30 @@
+//createScene.js
 import * as THREE from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { PerspectiveCamera } from "three";
 import { OrthographicCamera } from "three";
 import Stats from "stats.js";
 import { GUI } from "lil-gui";
-import { renderFileUpload } from "../file/import/fileUpload";
-
-// ...
+import { drawHoles } from "./entities/drawHoles";
+import { handleFileUpload, handleFileUploadNoEvent } from "../file/import/fileUpload";
 
 let controls, camera, scene, renderer, stats;
 
 const gui = new GUI();
 
-const params = {
+export const params = {
 	cameraPerspective: false,
 	upDirection: "Z",
-	rotationAngle: 0
+	rotationAngle: 0,
+	holeDisplay: "cross",
+	holeText: "Off"
+	// holeColour: "white",
+	// holeSubdrillColour: "red"
 };
 
 export { controls };
 
-export function createScene() {
+export function createScene(points) {
 	const scene = new THREE.Scene();
 	const renderer = new THREE.WebGLRenderer({ antialias: false }); // Add the antialias parameter here
 	const canvas = document.querySelector("#canvas");
@@ -57,23 +61,24 @@ export function createScene() {
 		frustumSize: 100
 	};
 
-	// Add a reset Camera button to the GUI
-	gui
-		.add(
-			{
-				resetCamera: function() {
-					// Reset the rotation angle
-					params.rotationAngle = 0;
-					// Reset the camera type
-					params.cameraPerspective = false;
-					// Reset the up direction
-					params.upDirection = "Z";
-					setControls();
-				}
-			},
-			"resetCamera"
-		)
-		.name("Reset Camera");
+	// Function to handle the file input
+	function triggerFileInput() {
+		const fileInput = document.createElement("input");
+		fileInput.type = "file";
+		fileInput.accept = ".csv";
+		fileInput.style.display = "none"; // Hide the file input
+
+		fileInput.onchange = e => {
+			if (e.target.files && e.target.files[0]) {
+				handleFileUploadNoEvent(e.target.files[0], { scene, camera });
+			}
+		};
+
+		document.body.appendChild(fileInput); // Add file input to the document
+		fileInput.click(); // Trigger the file input
+		document.body.removeChild(fileInput); // Remove the file input after use
+	}
+	gui.add({ triggerFileUpload: triggerFileInput }, "triggerFileUpload").name("Upload CSV");
 
 	gui.add(params, "cameraPerspective").name("Use Perspective Camera").onChange(function() {
 		// Update camera when the perspective checkbox changes
@@ -157,6 +162,40 @@ export function createScene() {
 	orthographicFolder.add(cameraOrthographic, "far", 0.1, 1000).name("Far Plane").onChange(function() {
 		cameraOrthographic.updateProjectionMatrix();
 	});
+
+	//NOT FUNCTIONING YET
+	let holeObjects = []; // Array to keep track of hole objects
+
+	function clearHoles() {
+		console.log("Clearing holes");
+		console.log(holeObjects);
+		holeObjects.forEach(obj => scene.remove(obj));
+		holeObjects = []; // Reset the array after removing objects
+	}
+
+	// Callback for redrawing holes
+	function redrawHoles() {
+		clearHoles(); // Clear existing holes
+		console.log("Redrawing holes");
+		for (const point of points) {
+			drawHoles(scene, colour, point, 1000, 1);
+			holeObjects.push(hole); // Store the new hole object
+		}
+	}
+	///////////////////////
+	//Only functions prior to upload of the csv file
+	if (points !== null || points.length > 0) {
+		const holeFolder = gui.addFolder("Hole Options");
+		holeFolder.close();
+		const holeOptions = ["cross", "circle", "diamond", "square"];
+		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(redrawHoles);
+		const holeTextOptions = ["Off", "ID", "Length"];
+		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(redrawHoles);
+		// const holeColourOptions = ["Random", "White", "Red", "Green", "Blue"];
+		// holeFolder.add(params, "holeColour", holeColourOptions).name("Hole Colour").onChange(redrawHoles);
+		// const subdrilColourOptions = ["Random", "White", "Red", "Green", "Blue"];
+		// holeFolder.add(params, "holeSubdrillColour", subdrilColourOptions).name("Subdrill Colour").onChange(redrawHoles);
+	}
 
 	function rollCamera(angle) {
 		// Store the current camera position

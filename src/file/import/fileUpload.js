@@ -1,9 +1,7 @@
+//fileUpload.js
 import { getCentroid, parseCSV } from "./csvParser.js";
-import { drawDummy } from "../../drawing/entities/drawDummy.js";
 import { controls } from "../../drawing/createScene.js";
-import { drawHole } from "../../drawing/entities/drawHole.js";
-import { Vector3 } from "three";
-import { drawText } from "../../drawing/entities/drawText.js";
+import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 
 export function renderFileUpload(containerId, canvas) {
 	const container = document.querySelector(containerId);
@@ -19,9 +17,14 @@ export function renderFileUpload(containerId, canvas) {
 	container.appendChild(tempContainer);
 
 	document.getElementById("file-input").addEventListener("change", e => handleFileUpload(e, canvas));
-	// document.getElementById("file-input").addEventListener("change", function (e) {
-	// 	handleFileUpload(e, scene)
-	// });
+}
+
+export function createLilGuiFileUpload(canvas) {
+	const fileInput = document.createElement("input");
+	fileInput.type = "file";
+	fileInput.style.display = "none";
+	fileInput.addEventListener("change", e => handleFileUpload(e.target.files[0], canvas));
+	document.body.appendChild(fileInput);
 }
 
 export function handleFileUpload(event, canvas) {
@@ -44,18 +47,13 @@ export function handleFileUpload(event, canvas) {
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
-				drawDummy(canvas.scene, colour, point.startXLocation, point.startYLocation, point.startZLocation);
-				drawText(canvas.scene, colour, { x: point.startXLocation, y: point.startYLocation, z: point.startZLocation }, point.pointID);
-				colour = getRandomColor();
+				//console.log("fileUpload/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				drawDummys(canvas.scene, colour, point);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
-				const collarVector = new Vector3(point.startXLocation, point.startYLocation, point.startZLocation);
-				const toeVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
-				const intervalVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
-				drawHole(canvas.scene, colour, collarVector, intervalVector, toeVector);
-				drawText(canvas.scene, colour, { x: point.startXLocation + 0.1, y: point.startYLocation + 0.1, z: point.startZLocation + 0.1 }, point.pointID);
-				colour = getRandomColor();
+				//console.log("fileUpload/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				drawHoles(canvas.scene, colour, point, 1000, 1);
 			}
 		}
 
@@ -73,28 +71,48 @@ export function handleFileUpload(event, canvas) {
 
 	reader.readAsText(file);
 }
-
-function getRandomColor() {
-	const letters = "0123456789ABCDEF";
-	let color = "#";
-	for (let i = 0; i < 6; i++) {
-		color += letters[Math.floor(Math.random() * 16)];
+export function handleFileUploadNoEvent(file, canvas) {
+	//console.log(canvas);
+	if (!file) {
+		return;
 	}
+	const reader = new FileReader();
 
-	// Convert hex to RGB
-	const hex = color.substring(1); // Remove the '#' character
-	const bigint = parseInt(hex, 16);
-	const r = (bigint >> 16) & 255;
-	const g = (bigint >> 8) & 255;
-	const b = bigint & 255;
+	let points = [];
 
-	// Adjust brightness (make it 20% whiter)
-	const adjustedR = Math.min(255, r + 0.2 * (255 - r));
-	const adjustedG = Math.min(255, g + 0.2 * (255 - g));
-	const adjustedB = Math.min(255, b + 0.2 * (255 - b));
+	reader.onload = function(event) {
+		const data = event.target.result;
 
-	// Convert back to hex
-	const adjustedColor = "#" + Math.round(adjustedR).toString(16).padStart(2, "0") + Math.round(adjustedG).toString(16).padStart(2, "0") + Math.round(adjustedB).toString(16).padStart(2, "0");
+		if (!file.name.toLowerCase().endsWith(".csv")) {
+			return;
+		}
+		console.log("FileName: " + file.name);
+		points = parseCSV(data);
+		console.log(points);
+		let colour = 0xffffff;
+		if (data.split("\n")[0].split(",").length === 4) {
+			for (const point of points) {
+				//console.log("fileUpload/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				drawDummys(canvas.scene, colour, point);
+			}
+		} else if (data.split("\n")[0].split(",").length === 7) {
+			for (const point of points) {
+				//console.log("fileUpload/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				drawHoles(canvas.scene, colour, point, 1000, 1);
+			}
+		}
 
-	return adjustedColor;
+		const { x, y, z } = getCentroid(points);
+
+		//console.log(x, y, z);
+
+		canvas.camera.position.set(x, y, z + 100);
+		canvas.camera.lookAt(x, y, z);
+		controls.target.set(x, y, z);
+		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
+		//console.log(controls.target);
+		canvas.camera.updateMatrixWorld();
+	};
+
+	reader.readAsText(file);
 }
