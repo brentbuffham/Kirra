@@ -4,6 +4,7 @@ import { drawCircleHole } from "./drawCircleHole";
 import { drawDiamondHole } from "./drawDiamondHole";
 import { drawSquareHole } from "./drawSquareHole";
 import { drawCrossHole } from "./drawCrossHole";
+import { drawCrossCylinderHole } from "./drawCrossCylinderHole";
 import { drawCrossDummy } from "./drawCrossDummy";
 import { drawText } from "./drawText";
 import { params } from "../createScene";
@@ -21,33 +22,47 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 
 	switch (params.holeDisplay) {
 		case "circle": {
-			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter, 100, 4, 32, 2 * Math.PI);
+			if (params.debugComments) {
+				console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 		case "diamond": {
 			drawDiamondHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("diamondHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			if (params.debugComments) {
+				console.log("diamondHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 		case "square": {
 			drawSquareHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("squareHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			if (params.debugComments) {
+				console.log("squareHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 		case "cross": {
-			drawCrossHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("crossHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			const materialType = "basic";
+			drawCrossCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 4);
+			if (params.debugComments) {
+				console.log("crossHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 		case "cylinder": {
-			drawCylinderHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("cylinderHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			const materialType = "phong";
+			drawCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 32);
+			if (params.debugComments) {
+				console.log("cylinderHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 		default: {
-			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
-			console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter, 100, 4, 32, 2 * Math.PI);
+			if (params.debugComments) {
+				console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
 			break;
 		}
 	}
@@ -70,9 +85,12 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 //Draw points that consist of id, x, y, z
 export function drawDummys(scene, colour, point) {
 	const pointID = point.pointID;
-	const vector = new Vector3(point.startXlocation, point.startYlocation, point.startZlocation);
-	drawCrossDummy(scene, colour, vector);
-	console.log("crossDummyID: " + pointID + " X: " + vector.x + " Y: " + vector.y + " Z: " + vector.z);
+	const materialType = "basic";
+	const vector = new Vector3(point.startXLocation, point.startYLocation, point.startZLocation);
+	drawCrossDummy(scene, colour, "basic", vector, 100, 4);
+	if (params.debugComments) {
+		console.log("drawHoles/drawDummys/crossDummyID: " + pointID + " X: " + vector.x + " Y: " + vector.y + " Z: " + vector.z);
+	}
 	drawText(scene, colour, vector, pointID);
 	colour = getRandomColor();
 }

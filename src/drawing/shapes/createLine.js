@@ -1,3 +1,4 @@
+//createLine.js
 import { BufferGeometry, Line, LineBasicMaterial, Vector3 } from "three";
 
 export function createLine(scene, start, end, color) {

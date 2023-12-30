@@ -2,6 +2,7 @@
 import { getCentroid, parseCSV } from "./csvParser.js";
 import { controls } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
+import { params } from "../../drawing/createScene.js";
 
 export function renderFileUpload(containerId, canvas) {
 	const container = document.querySelector(containerId);
@@ -39,12 +40,16 @@ export function handleFileUpload(event, canvas) {
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
-				//console.log("fileUpload/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				if (params.debugComments) {
+					console.log("fileUpload/handleFileUpload/drawDummys: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				}
 				drawDummys(canvas.scene, colour, point);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
-				//console.log("fileUpload/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				if (params.debugComments) {
+					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				}
 				drawHoles(canvas.scene, colour, point, 1000, 1);
 			}
 		}
@@ -57,7 +62,9 @@ export function handleFileUpload(event, canvas) {
 		canvas.camera.lookAt(x, y, z);
 		controls.target.set(x, y, z);
 		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
-		//console.log(controls.target);
+		if (params.debugComments) {
+			console.log(controls.target);
+		}
 		canvas.camera.updateMatrixWorld();
 	};
 
@@ -74,7 +81,6 @@ export function createLilGuiFileUpload(canvas) {
 }
 
 export function handleFileUploadNoEvent(file, canvas) {
-	//console.log(canvas);
 	if (!file) {
 		return;
 	}
@@ -90,29 +96,39 @@ export function handleFileUploadNoEvent(file, canvas) {
 		}
 		console.log("FileName: " + file.name);
 		points = parseCSV(data);
-		console.log(points);
+		if (params.debugComments) {
+			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
+		}
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
-				//console.log("fileUpload/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				if (params.debugComments) {
+					console.log("fileUpload/handleFileUploadNoEvent/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				}
 				drawDummys(canvas.scene, colour, point);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
-				//console.log("fileUpload/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				if (params.debugComments) {
+					console.log("fileUpload/handleFileUploadNoEvent/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+				}
 				drawHoles(canvas.scene, colour, point, 1000, 1);
 			}
 		}
 
 		const { x, y, z } = getCentroid(points);
-
-		//console.log(x, y, z);
+		if (params.debugComments) {
+			console.log("fileUpload/handleFileUploadNoEvent/centroid: ", x, y, z);
+		}
 
 		canvas.camera.position.set(x, y, z + 100);
 		canvas.camera.lookAt(x, y, z);
 		controls.target.set(x, y, z);
 		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
-		//console.log(controls.target);
+
+		if (params.debugComments) {
+			console.log("fileUpload/handleFileUploadNoEvent/controls.target", controls.target);
+		}
 		canvas.camera.updateMatrixWorld();
 	};
 

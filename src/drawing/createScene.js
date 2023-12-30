@@ -17,7 +17,8 @@ export const params = {
 	upDirection: "Z",
 	rotationAngle: 0,
 	holeDisplay: "cylinder",
-	holeText: "ID"
+	holeText: "ID",
+	debugComments: true
 	// holeColour: "white",
 	// holeSubdrillColour: "red"
 };
@@ -73,25 +74,10 @@ export function createScene(points) {
 		frustumSize: 100
 	};
 	gui.close();
-	// Function to handle the file input
-	function triggerFileInput() {
-		const fileInput = document.createElement("input");
-		fileInput.type = "file";
-		fileInput.accept = ".csv";
-		fileInput.style.display = "none"; // Hide the file input
-
-		fileInput.onchange = e => {
-			if (e.target.files && e.target.files[0]) {
-				handleFileUploadNoEvent(e.target.files[0], { scene, camera });
-			}
-		};
-
-		document.body.appendChild(fileInput); // Add file input to the document
-		fileInput.click(); // Trigger the file input
-		document.body.removeChild(fileInput); // Remove the file input after use
-	}
-	gui.add({ triggerFileUpload: triggerFileInput }, "triggerFileUpload").name("Upload CSV");
-
+	gui.add(params, "debugComments").name("Debug Comments").onChange(function() {
+		// update the debug comments when the checkbox changes
+		params.debugComments = params.debugComments ? true : false;
+	});
 	gui.add(params, "cameraPerspective").name("Use Perspective Camera").onChange(function() {
 		// Update camera when the perspective checkbox changes
 		camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
@@ -176,7 +162,15 @@ export function createScene(points) {
 	});
 
 	//NOT FUNCTIONING YET
-	let holeObjects = []; // Array to keep track of hole objects
+	let holeObjects = []; // Define and initialize the 'holeObjects' array
+	//Populate the holeObjects array with the hole objects
+	for (const point of points) {
+		drawHoles(scene, colour, point, 1000, 1);
+		holeObjects.push(hole); // Store the new hole object
+		if (params.debugComments) {
+			console.log("createScene/holeObjects: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+		}
+	}
 
 	function clearHoles() {
 		console.log("Clearing holes");
@@ -188,10 +182,14 @@ export function createScene(points) {
 	// Callback for redrawing holes
 	function redrawHoles() {
 		clearHoles(); // Clear existing holes
-		console.log("Redrawing holes");
+
 		for (const point of points) {
 			drawHoles(scene, colour, point, 1000, 1);
 			holeObjects.push(hole); // Store the new hole object
+			if (params.debugComments) {
+				console.log("Redrawing holes");
+				console.log("Redrawing holes: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+			}
 		}
 	}
 	///////////////////////

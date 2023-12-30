@@ -48,7 +48,7 @@ body {
 }
 */
 #canvas {
-    block-size: calc(100vh - 70px);
+    block-size: calc(100vh - 30px);
     inline-size: 99vw;
 }
 
@@ -93,11 +93,11 @@ body {
 
 #vertical-nav {
     position: absolute;
-    top: 50%;
+    top: 10px;
     /* Center vertically */
     left: 10px;
     /* Adjust as needed */
-    transform: translateY(-50%);
+    transform: translateY(0%);
     z-index: 100;
     pointer-events: none;
 }
@@ -117,4 +117,30 @@ body {
     pointer-events: auto;
     /* Spacing between buttons */
     /* Additional styling for buttons */
+}
+
+#nav-toggle {
+    position: absolute;
+    top: 10px;
+    /* Adjust as needed */
+    left: 10px;
+    /* Adjust as needed */
+    /* Additional styling */
+}
+
+#vertical-nav.open {
+    transform: translateX(0);
+    /* Move into view */
+}
+
+.white-svg {
+    background: url('src/assets/svg/kirralogo.svg') no-repeat center center;
+    filter: invert(100%);
+    padding-left: 3px;
+    stroke-width: 2px;
+    /* Inverts the color to white */
+    width: 50px;
+    /* Set as needed */
+    height: 50px;
+    /* Set as needed */
 }

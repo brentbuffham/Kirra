@@ -1,19 +1,20 @@
 //drawDummy.js
-import { createLine } from "../shapes/createLine.js";
+import { Vector3 } from "three";
+import { createCylinder } from "../shapes/createCylinder.js";
 
-export function drawCrossDummy(scene, colour, vector) {
+export function drawCrossDummy(scene, color, materialType, vector, thickness, radialSegments) {
 	const size = 0.5;
 	const x = vector.x;
 	const y = vector.y;
 	const z = vector.z;
 
 	const points = {
-		topLeft: { x: x - size, y: y + size, z },
-		topRight: { x: x + size, y: y + size, z },
-		bottomLeft: { x: x - size, y: y - size, z },
-		bottomRight: { x: x + size, y: y - size, z }
+		topLeft: new Vector3(x - size, y + size, z),
+		topRight: new Vector3(x + size, y + size, z),
+		bottomLeft: new Vector3(x - size, y - size, z),
+		bottomRight: new Vector3(x + size, y - size, z)
 	};
 
-	createLine(scene, points.topLeft, points.bottomRight, colour);
-	createLine(scene, points.bottomLeft, points.topRight, colour);
+	createCylinder(scene, color, materialType, points.topLeft, points.bottomRight, thickness, radialSegments);
+	createCylinder(scene, color, materialType, points.bottomLeft, points.topRight, thickness, radialSegments);
 }
