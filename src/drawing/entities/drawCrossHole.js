@@ -17,6 +17,7 @@ export function drawCrossHole(scene, color, collarXYZ, intervalXYZ, toeXYZ, diam
 	createLine(scene, points.bottomLeft, points.topRight, color);
 
 	createLine(scene, collarXYZ, intervalXYZ, color);
-	color = getRandomColor();
+	//color = getRandomColor();
+	color = "red";
 	createLine(scene, intervalXYZ, toeXYZ, color);
 }

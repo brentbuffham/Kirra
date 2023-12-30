@@ -16,17 +16,27 @@ export const params = {
 	cameraPerspective: false,
 	upDirection: "Z",
 	rotationAngle: 0,
-	holeDisplay: "cross",
-	holeText: "Off"
+	holeDisplay: "cylinder",
+	holeText: "ID"
 	// holeColour: "white",
 	// holeSubdrillColour: "red"
 };
 
 export { controls };
 
+function createLighting(scene) {
+	//create ambient light
+	const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+	scene.add(ambientLight);
+	//create directional light
+	const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+	directionalLight.position.set(0, 500, 500);
+	scene.add(directionalLight);
+}
+
 export function createScene(points) {
 	const scene = new THREE.Scene();
-	const renderer = new THREE.WebGLRenderer({ antialias: false }); // Add the antialias parameter here
+	const renderer = new THREE.WebGLRenderer({ antialias: true }); // Add the antialias parameter here
 	const canvas = document.querySelector("#canvas");
 	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
 	document.querySelector("#canvas").appendChild(renderer.domElement);
@@ -37,6 +47,8 @@ export function createScene(points) {
 	const cameraOrthographic = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
 
 	stats = new Stats();
+
+	createLighting(scene);
 
 	// Initialize camera with one of the cameras
 	camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
@@ -187,7 +199,7 @@ export function createScene(points) {
 	if (points !== null || points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
-		const holeOptions = ["cross", "circle", "diamond", "square"];
+		const holeOptions = ["cross", "circle", "diamond", "square", "cylinder"];
 		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(redrawHoles);
 		const holeTextOptions = ["Off", "ID", "Length"];
 		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(redrawHoles);

@@ -7,6 +7,7 @@ export function drawDiamondHole(scene, color, collarXYZ, intervalXYZ, toeXYZ, di
 	createDiamond(scene, color, collarXYZ, diameter);
 
 	createLine(scene, collarXYZ, intervalXYZ, color);
-	color = getRandomColor();
+	//color = getRandomColor();
+	color = "red";
 	createLine(scene, intervalXYZ, toeXYZ, color);
 }

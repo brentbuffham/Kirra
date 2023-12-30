@@ -8,10 +8,12 @@ import { drawCrossDummy } from "./drawCrossDummy";
 import { drawText } from "./drawText";
 import { params } from "../createScene";
 import { getRandomColor } from "../helpers/getRandomColor";
+import { drawCylinderHole } from "./drawCylinderHole";
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, point, diameter, subdrill) {
 	colour = getRandomColor();
+	//colour = "white";
 	const pointID = point.pointID;
 	const collarVector = new Vector3(point.startXLocation, point.startYLocation, point.startZLocation);
 	const toeVector = new Vector3(point.endXLocation, point.endYLocation, point.endZLocation);
@@ -38,6 +40,11 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			console.log("crossHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			break;
 		}
+		case "cylinder": {
+			drawCylinderHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
+			console.log("cylinderHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			break;
+		}
 		default: {
 			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
 			console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
@@ -58,7 +65,7 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			break;
 		}
 	}
-	colour = getRandomColor();
+	//colour = getRandomColor();
 }
 //Draw points that consist of id, x, y, z
 export function drawDummys(scene, colour, point) {
