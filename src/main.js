@@ -1,6 +1,8 @@
+//main.js
 import "./style.css";
 import { createScene, params } from "./drawing/createScene.js";
 import { renderFileUpload, createLilGuiFileUpload, handleFileUploadNoEvent } from "./file/import/fileUpload.js";
+import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
 
 // document.querySelector("#app").innerHTML = `
 //   <div id="header">header</div>
@@ -60,6 +62,8 @@ document.querySelector("#app").innerHTML = `
 let points = []; // Define and initialize the 'points' array
 
 const canvas = createScene(points);
+
+preloadFont(); // Preload the font
 
 // Example: Adding event listeners to the first button
 document.querySelectorAll("#vertical-nav button")[0].addEventListener("click", function() {

@@ -1,13 +1,13 @@
 import { getRandomColor } from "../helpers/getRandomColor";
-import { createLine } from "../shapes/createLine";
-import { createSquare } from "../shapes/createSquare";
+import { createCylinder } from "../shapes/createCylinder";
+import { createSquareTorus } from "../shapes/createSquareTorus";
 
-export function drawSquareHole(scene, color, collarXYZ, intervalXYZ, toeXYZ, diameter) {
+export function drawSquareHole(scene, color, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;
-	createSquare(scene, color, collarXYZ, diameter);
+	createSquareTorus(scene, color, "basic", collarXYZ, diameter, thickness, radialSegments, tubularSegments, arc, true);
 
-	createLine(scene, collarXYZ, intervalXYZ, color);
+	createCylinder(scene, color, materialType, collarXYZ, intervalXYZ, 100, radialSegments);
 	//color = getRandomColor();
 	color = "red";
-	createLine(scene, intervalXYZ, toeXYZ, color);
+	createCylinder(scene, color, materialType, intervalXYZ, toeXYZ, 100, radialSegments);
 }

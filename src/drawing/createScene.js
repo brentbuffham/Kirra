@@ -11,6 +11,7 @@ import { handleFileUpload, handleFileUploadNoEvent } from "../file/import/fileUp
 let controls, camera, scene, renderer, stats;
 
 const gui = new GUI();
+let frustumSize = 100;
 
 export const params = {
 	cameraPerspective: false,
@@ -36,14 +37,13 @@ function createLighting(scene) {
 }
 
 export function createScene(points) {
-	const scene = new THREE.Scene();
-	const renderer = new THREE.WebGLRenderer({ antialias: true }); // Add the antialias parameter here
+	scene = new THREE.Scene();
+	renderer = new THREE.WebGLRenderer({ antialias: true }); // Add the antialias parameter here
 	const canvas = document.querySelector("#canvas");
 	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
 	document.querySelector("#canvas").appendChild(renderer.domElement);
 
-	const frustumSize = 100;
-	const aspect = canvas.offsetWidth / canvas.offsetHeight;
+	let aspect = canvas.offsetWidth / canvas.offsetHeight;
 	const cameraPerspective = new PerspectiveCamera(75, aspect, 0.1, 1000);
 	const cameraOrthographic = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
 
@@ -230,3 +230,18 @@ export function createScene(points) {
 
 	return { scene, camera };
 }
+
+function onWindowResize() {
+	const aspect = window.innerWidth / window.innerHeight;
+	if (camera instanceof THREE.OrthographicCamera) {
+		camera.left = -frustumSize * aspect / 2;
+		camera.right = frustumSize * aspect / 2;
+		camera.top = frustumSize / 2;
+		camera.bottom = -frustumSize / 2;
+	} else if (camera instanceof THREE.PerspectiveCamera) {
+		camera.aspect = aspect;
+	}
+	camera.updateProjectionMatrix();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener("resize", onWindowResize, false);

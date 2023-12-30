@@ -10,6 +10,7 @@ import { drawText } from "./drawText";
 import { params } from "../createScene";
 import { getRandomColor } from "../helpers/getRandomColor";
 import { drawCylinderHole } from "./drawCylinderHole";
+import { globalFont } from "../helpers/loadGlobalFont";
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, point, diameter, subdrill) {
@@ -29,14 +30,16 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			break;
 		}
 		case "diamond": {
-			drawDiamondHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
+			const materialType = "basic";
+			drawDiamondHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 100, 4, 4, 2 * Math.PI);
 			if (params.debugComments) {
 				console.log("diamondHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			}
 			break;
 		}
 		case "square": {
-			drawSquareHole(scene, colour, collarVector, intervalVector, toeVector, diameter);
+			const materialType = "basic";
+			drawSquareHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 100, 4, 4, 2 * Math.PI);
 			if (params.debugComments) {
 				console.log("squareHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			}
@@ -52,6 +55,8 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 		}
 		case "cylinder": {
 			const materialType = "phong";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 32);
 			if (params.debugComments) {
 				console.log("cylinderHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
@@ -71,12 +76,15 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			break;
 		}
 		case "ID": {
-			drawText(scene, colour, { x: collarVector.x + 0.1, y: collarVector.y + 0.1, z: collarVector.z + 0.1 }, pointID);
-
+			if (globalFont) {
+				drawText(scene, colour, globalFont, { x: collarVector.x + 0.1, y: collarVector.y + 0.1, z: collarVector.z + 0.1 }, pointID);
+			}
 			break;
 		}
 		case "Length": {
-			drawText(scene, colour, { x: collarVector.x + 0.1, y: collarVector.y + 0.1, z: collarVector.z + 0.1 }, collarVector.distanceTo(toeVector).toFixed(1));
+			if (globalFont) {
+				drawText(scene, colour, globalFont, { x: collarVector.x + 0.1, y: collarVector.y + 0.1, z: collarVector.z + 0.1 }, collarVector.distanceTo(toeVector).toFixed(1));
+			}
 			break;
 		}
 	}
@@ -91,7 +99,9 @@ export function drawDummys(scene, colour, point) {
 	if (params.debugComments) {
 		console.log("drawHoles/drawDummys/crossDummyID: " + pointID + " X: " + vector.x + " Y: " + vector.y + " Z: " + vector.z);
 	}
-	drawText(scene, colour, vector, pointID);
+	if (globalFont) {
+		drawText(scene, colour, globalFont, vector, pointID);
+	}
 	colour = getRandomColor();
 }
 
