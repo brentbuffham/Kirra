@@ -72,7 +72,7 @@ export function createScene(points) {
 	const orthographicCameraProps = {
 		frustumSize: 100
 	};
-
+	gui.close();
 	// Function to handle the file input
 	function triggerFileInput() {
 		const fileInput = document.createElement("input");

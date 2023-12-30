@@ -104,8 +104,17 @@ body {
 
 #vertical-nav button {
     display: block;
+    size: 30px;
     pointer-events: auto;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
+    /* Spacing between buttons */
+    /* Additional styling for buttons */
+}
+
+#vertical-nav button img {
+    width: 20px;
+    height: 20px;
+    pointer-events: auto;
     /* Spacing between buttons */
     /* Additional styling for buttons */
 }
