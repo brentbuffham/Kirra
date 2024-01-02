@@ -1,5 +1,6 @@
 //fileUpload.js
-import { getCentroid, parseCSV } from "./csvParser.js";
+import { parseCSV } from "./csvParser.js";
+import { getCentroid } from "../../drawing/helpers/getCentroid.js";
 import { controls } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
@@ -61,6 +62,7 @@ export function handleFileUpload(event, canvas) {
 		canvas.camera.position.set(x, y, z + 100);
 		canvas.camera.lookAt(x, y, z);
 		controls.target.set(x, y, z);
+		targetObject.position.set(x, y, z);
 		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
 		if (params.debugComments) {
 			console.log(controls.target);

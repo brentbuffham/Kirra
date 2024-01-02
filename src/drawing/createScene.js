@@ -1,14 +1,29 @@
 //createScene.js
 import * as THREE from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
+import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
 import { PerspectiveCamera } from "three";
 import { OrthographicCamera } from "three";
 import Stats from "stats.js";
 import { GUI } from "lil-gui";
 import { drawHoles } from "./entities/drawHoles";
 import { handleFileUpload, handleFileUploadNoEvent } from "../file/import/fileUpload";
+import { Group } from "three";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
+import { Vector3 } from "three";
+import { Object3D } from "three";
+import { PlaneHelper } from "three";
+import { Plane } from "three";
+import { BoxHelper } from "three";
+import { Mesh } from "three";
+import { BoxGeometry } from "three";
+import { AxesHelper } from "three";
+import { GridHelper } from "three";
+import { getCentroid } from "./helpers/getCentroid";
+import { changeHoleMesh } from "./helpers/changeHoleMesh";
+import { ArrowHelper } from "three";
 
-let controls, camera, scene, renderer, stats;
+let controls, camera, scene, renderer, stats, targetObject;
 
 const gui = new GUI();
 let frustumSize = 100;
@@ -55,9 +70,17 @@ export function createScene(points) {
 	camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
 	controls = new TrackballControls(camera, renderer.domElement);
 
+	//create Gizmos for the ArcballControls
+	const gizmos = new Object3D();
+	gizmos.add(new AxesHelper(50));
+	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 50, 0xff0000));
+	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 50, 0x00ff00));
+	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 50, 0x0000ff));
+	scene.add(gizmos);
+
 	function setControls() {
 		controls.rotateSpeed = 20.0;
-		controls.zoomSpeed = 0.5;
+		controls.zoomSpeed = 1;
 		controls.panSpeed = 1;
 		controls.dynamicDampingFactor = 0.3;
 	}
@@ -65,6 +88,7 @@ export function createScene(points) {
 
 	function animate() {
 		requestAnimationFrame(animate);
+		gizmos.position.set(controls.target.x, controls.target.y, controls.target.z);
 		controls.update();
 		renderer.render(scene, camera);
 		stats.update();
@@ -141,7 +165,7 @@ export function createScene(points) {
 	perspectiveFolder.add(cameraPerspective, "far", 0.1, 1000).name("Far Plane").onChange(function() {
 		cameraPerspective.updateProjectionMatrix();
 	});
-	perspectiveFolder.add(controls, "rotateSpeed", 0.0, 10.0).name("Rotate Speed").onChange(function() {
+	perspectiveFolder.add(controls, "rotateSpeed", 0.0, 50.0).name("Rotate Speed").onChange(function() {
 		controls.update();
 	});
 
@@ -161,46 +185,28 @@ export function createScene(points) {
 		cameraOrthographic.updateProjectionMatrix();
 	});
 
-	//NOT FUNCTIONING YET
-	let holeObjects = []; // Define and initialize the 'holeObjects' array
-	//Populate the holeObjects array with the hole objects
-	for (const point of points) {
-		drawHoles(scene, colour, point, 1000, 1);
-		holeObjects.push(hole); // Store the new hole object
-		if (params.debugComments) {
-			console.log("createScene/holeObjects: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-		}
-	}
-
-	function clearHoles() {
-		console.log("Clearing holes");
-		console.log(holeObjects);
-		holeObjects.forEach(obj => scene.remove(obj));
-		holeObjects = []; // Reset the array after removing objects
-	}
-
-	// Callback for redrawing holes
-	function redrawHoles() {
-		clearHoles(); // Clear existing holes
-
-		for (const point of points) {
-			drawHoles(scene, colour, point, 1000, 1);
-			holeObjects.push(hole); // Store the new hole object
-			if (params.debugComments) {
-				console.log("Redrawing holes");
-				console.log("Redrawing holes: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-			}
-		}
-	}
 	///////////////////////
 	//Only functions prior to upload of the csv file
 	if (points !== null || points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
 		const holeOptions = ["cross", "circle", "diamond", "square", "cylinder"];
-		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(redrawHoles);
+		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(function() {
+			changeHoleMesh(scene, points);
+			if (params.debugComments) {
+				scene.traverse(function(object) {
+					console.log(object);
+				});
+				console.log("holeDisplay: " + params.holeDisplay);
+			}
+		});
 		const holeTextOptions = ["Off", "ID", "Length"];
-		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(redrawHoles);
+		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {
+			changeHoleMesh(scene, points);
+			if (params.debugComments) {
+				console.log("holeText: " + params.holeText);
+			}
+		});
 		// const holeColourOptions = ["Random", "White", "Red", "Green", "Blue"];
 		// holeFolder.add(params, "holeColour", holeColourOptions).name("Hole Colour").onChange(redrawHoles);
 		// const subdrilColourOptions = ["Random", "White", "Red", "Green", "Blue"];

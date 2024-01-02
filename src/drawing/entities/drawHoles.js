@@ -57,7 +57,7 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			const materialType = "phong";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
-			drawCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 32);
+			drawCylinderHole(scene, colour, materialType, pointID, collarVector, intervalVector, toeVector, diameter, 32);
 			if (params.debugComments) {
 				console.log("cylinderHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			}
