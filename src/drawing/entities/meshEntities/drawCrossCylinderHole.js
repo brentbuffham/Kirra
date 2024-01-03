@@ -1,6 +1,6 @@
 //drawCrossCylinderHole.js
-import { createCylinder } from "../shapes/createCylinder.js";
-import { getRandomColor } from "../helpers/getRandomColor.js";
+import { createCylinder } from "../../shapes/createCylinder.js";
+import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Vector3 } from "three";
 
 export function drawCrossCylinderHole(scene, color, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {

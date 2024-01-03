@@ -1,6 +1,6 @@
-import { getRandomColor } from "../helpers/getRandomColor";
-import { createCylinder } from "../shapes/createCylinder";
-import { createTorus } from "../shapes/createTorus";
+import { getRandomColor } from "../../helpers/getRandomColor";
+import { createCylinder } from "../../shapes/createCylinder";
+import { createTorus } from "../../shapes/createTorus";
 
 export function drawCircleHole(scene, color, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;

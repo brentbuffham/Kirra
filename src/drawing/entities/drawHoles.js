@@ -1,15 +1,15 @@
 //drawHoles.js
 import { Vector3 } from "three";
-import { drawCircleHole } from "./drawCircleHole";
-import { drawDiamondHole } from "./drawDiamondHole";
-import { drawSquareHole } from "./drawSquareHole";
-import { drawCrossHole } from "./drawCrossHole";
-import { drawCrossCylinderHole } from "./drawCrossCylinderHole";
-import { drawCrossDummy } from "./drawCrossDummy";
+import { drawCircleHole } from "./meshEntities/drawCircleHole";
+import { drawDiamondHole } from "./meshEntities/drawDiamondHole";
+import { drawSquareHole } from "./meshEntities/drawSquareHole";
+import { drawCrossHole } from "./MeshLineEntities/drawCrossHole";
+import { drawCrossCylinderHole } from "./meshEntities/drawCrossCylinderHole";
+import { drawCrossDummy } from "./meshEntities/drawCrossDummy";
 import { drawText } from "./drawText";
 import { params } from "../createScene";
 import { getRandomColor } from "../helpers/getRandomColor";
-import { drawCylinderHole } from "./drawCylinderHole";
+import { drawCylinderHole } from "./meshEntities/drawCylinderHole";
 import { globalFont } from "../helpers/loadGlobalFont";
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
@@ -22,14 +22,14 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 	const intervalVector = calculateIntervalVector(collarVector, toeVector, subdrill);
 
 	switch (params.holeDisplay) {
-		case "circle": {
+		case "meshCircle": {
 			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter, 100, 4, 32, 2 * Math.PI);
 			if (params.debugComments) {
 				console.log("circleHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			}
 			break;
 		}
-		case "diamond": {
+		case "meshDiamond": {
 			const materialType = "basic";
 			drawDiamondHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 100, 4, 4, 2 * Math.PI);
 			if (params.debugComments) {
@@ -37,7 +37,7 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			}
 			break;
 		}
-		case "square": {
+		case "meshSquare": {
 			const materialType = "basic";
 			drawSquareHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 100, 4, 4, 2 * Math.PI);
 			if (params.debugComments) {
@@ -45,7 +45,7 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			}
 			break;
 		}
-		case "cross": {
+		case "meshCross": {
 			const materialType = "basic";
 			drawCrossCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 4);
 			if (params.debugComments) {
@@ -53,7 +53,7 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			}
 			break;
 		}
-		case "cylinder": {
+		case "meshCylinder": {
 			const materialType = "phong";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
@@ -63,6 +63,21 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 			}
 			break;
 		}
+		case "lineCross": {
+			const lineWidth = 3;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const diameter = 500;
+			drawCrossHole(scene, colour, pointID, collarVector, intervalVector, toeVector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation);
+			if (params.debugComments) {
+				console.log("crossHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
+			}
+			break;
+		}
+
 		default: {
 			drawCircleHole(scene, colour, collarVector, intervalVector, toeVector, diameter, 100, 4, 32, 2 * Math.PI);
 			if (params.debugComments) {

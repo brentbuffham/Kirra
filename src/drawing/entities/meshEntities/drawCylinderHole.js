@@ -1,7 +1,7 @@
-import { createCylinder } from "../shapes/createCylinder";
-import { getRandomColor } from "../helpers/getRandomColor";
+import { createCylinder } from "../../shapes/createCylinder";
+import { getRandomColor } from "../../helpers/getRandomColor";
 import { Group } from "three";
-import { params } from "../createScene";
+import { params } from "../../createScene";
 
 export function drawCylinderHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
 	diameter = diameter || 500;

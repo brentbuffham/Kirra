@@ -1,6 +1,6 @@
-import { getRandomColor } from "../helpers/getRandomColor";
-import { createCylinder } from "../shapes/createCylinder";
-import { createSquareTorus } from "../shapes/createSquareTorus";
+import { getRandomColor } from "../../helpers/getRandomColor";
+import { createCylinder } from "../../shapes/createCylinder";
+import { createSquareTorus } from "../../shapes/createSquareTorus";
 
 export function drawDiamondHole(scene, color, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;

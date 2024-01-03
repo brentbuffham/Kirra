@@ -1,7 +1,21 @@
-import { LineBasicMaterial, BufferGeometry, Float32BufferAttribute, Line } from "three";
+import { BufferGeometry, Float32BufferAttribute, Color, Vector2 } from "three";
+import { MeshLine, MeshLineMaterial } from "three.meshline";
 
-export function createCircle(scene, color, vector, diameter) {
-	const material = new LineBasicMaterial({ color });
+export function createCircle(scene, color, vector, diameter, lineWidth, dashed, dashSize, gapSize, transparent, opacity, sizeAttenuation) {
+	const material = new MeshLineMaterial({
+		map: null,
+		useMap: false,
+		color: new Color(color),
+		opacity: 1,
+		resolution: new Vector2(window.innerWidth, window.innerHeight),
+		lineWidth: lineWidth,
+		dashed: dashed,
+		dashSize: dashSize,
+		gapSize: gapSize,
+		transparent: transparent,
+		opacity: opacity,
+		sizeAttenuation: sizeAttenuation
+	});
 	const holeDiameterM = diameter / 1000;
 	const radius = holeDiameterM / 2;
 	const segments = 32; // Increase this for a smoother circle
@@ -17,6 +31,6 @@ export function createCircle(scene, color, vector, diameter) {
 	}
 	circleGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
-	const circle = new Line(circleGeometry, material);
+	const circle = new MeshLine(circleGeometry, material);
 	scene.add(circle);
 }

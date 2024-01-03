@@ -11,7 +11,7 @@ export function createCylinder(color, materialType, startVector, endVector, diam
 		material = new MeshBasicMaterial({ color });
 	} else if (materialType === "phong") {
 		material = new MeshPhongMaterial({
-			color: color, // red (can also use a CSS color string here)
+			color: color,
 			flatShading: true
 		});
 	}
@@ -30,5 +30,4 @@ export function createCylinder(color, materialType, startVector, endVector, diam
 		console.log("createCylinder > UUID:" + cylinder.uuid + " X: " + position.x + " Y: " + position.y + " Z: " + position.z);
 	}
 	return cylinder;
-	//scene.add(cylinder);
 }

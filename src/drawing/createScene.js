@@ -1,29 +1,29 @@
 //createScene.js
+//consistently import THREE
 import * as THREE from "three";
-import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
-import { PerspectiveCamera } from "three";
-import { OrthographicCamera } from "three";
-import Stats from "stats.js";
-import { GUI } from "lil-gui";
+import { ArrowHelper } from "three";
+import { AxesHelper } from "three";
+import { BoxGeometry } from "three";
+import { BoxHelper } from "three";
 import { drawHoles } from "./entities/drawHoles";
-import { handleFileUpload, handleFileUploadNoEvent } from "../file/import/fileUpload";
+import { getCentroid } from "./helpers/getCentroid";
+import { GridHelper } from "three";
 import { Group } from "three";
+import { handleFileUpload, handleFileUploadNoEvent } from "../file/import/fileUpload";
+import { Mesh } from "three";
+import { Object3D } from "three";
+import { OrthographicCamera } from "three";
+import { PerspectiveCamera } from "three";
+import { Plane } from "three";
+import { PlaneHelper } from "three";
+import { GUI } from "lil-gui";
+import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { Vector3 } from "three";
-import { Object3D } from "three";
-import { PlaneHelper } from "three";
-import { Plane } from "three";
-import { BoxHelper } from "three";
-import { Mesh } from "three";
-import { BoxGeometry } from "three";
-import { AxesHelper } from "three";
-import { GridHelper } from "three";
-import { getCentroid } from "./helpers/getCentroid";
 import { changeHoleMesh } from "./helpers/changeHoleMesh";
-import { ArrowHelper } from "three";
 
-let controls, camera, scene, renderer, stats, targetObject;
+let controls, camera, scene, renderer, targetObject;
 
 const gui = new GUI();
 let frustumSize = 100;
@@ -32,7 +32,7 @@ export const params = {
 	cameraPerspective: false,
 	upDirection: "Z",
 	rotationAngle: 0,
-	holeDisplay: "cylinder",
+	holeDisplay: "meshCylinder",
 	holeText: "ID",
 	debugComments: true
 	// holeColour: "white",
@@ -61,9 +61,6 @@ export function createScene(points) {
 	let aspect = canvas.offsetWidth / canvas.offsetHeight;
 	const cameraPerspective = new PerspectiveCamera(75, aspect, 0.1, 1000);
 	const cameraOrthographic = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
-
-	stats = new Stats();
-
 	createLighting(scene);
 
 	// Initialize camera with one of the cameras
@@ -72,10 +69,22 @@ export function createScene(points) {
 
 	//create Gizmos for the ArcballControls
 	const gizmos = new Object3D();
-	gizmos.add(new AxesHelper(50));
-	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 50, 0xff0000));
-	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 50, 0x00ff00));
-	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 50, 0x0000ff));
+	gizmos.add(new AxesHelper(30));
+	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 50, 0xff0000, 10, 5));
+	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 50, 0x00ff00, 10, 5));
+	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 50, 0x0000ff, 10, 5));
+	//add new grid helper on the XY plane
+	const gridXY = new GridHelper(1000, 50);
+	gridXY.rotation.x = Math.PI / 2;
+	gizmos.add(gridXY);
+
+	//create a Meshlab style gizmo
+	const gizmoGeometry = new BoxGeometry(10, 10, 10);
+	const gizmoMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+	const gizmo = new Mesh(gizmoGeometry, gizmoMaterial);
+	gizmo.position.set(0, 0, 0);
+	gizmos.add(gizmo);
+
 	scene.add(gizmos);
 
 	function setControls() {
@@ -91,7 +100,6 @@ export function createScene(points) {
 		gizmos.position.set(controls.target.x, controls.target.y, controls.target.z);
 		controls.update();
 		renderer.render(scene, camera);
-		stats.update();
 	}
 
 	const orthographicCameraProps = {
@@ -102,6 +110,23 @@ export function createScene(points) {
 		// update the debug comments when the checkbox changes
 		params.debugComments = params.debugComments ? true : false;
 	});
+	//Add a reset camera to the gui
+	gui
+		.add(
+			{
+				resetCamera: function() {
+					//store the current camera position
+					const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 100);
+
+					//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
+					controls.object.up.set(0, 1, 0);
+					//camera.position.copy(position);
+				}
+			},
+			"resetCamera"
+		)
+		.name("Reset Camera");
+
 	gui.add(params, "cameraPerspective").name("Use Perspective Camera").onChange(function() {
 		// Update camera when the perspective checkbox changes
 		camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
@@ -190,22 +215,22 @@ export function createScene(points) {
 	if (points !== null || points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
-		const holeOptions = ["cross", "circle", "diamond", "square", "cylinder"];
+		const holeOptions = ["meshCross", "meshCircle", "meshDiamond", "meshSquare", "meshCylinder", "lineCross", "lineCircle", "lineDiamond", "lineSquare"];
 		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(function() {
-			changeHoleMesh(scene, points);
-			if (params.debugComments) {
-				scene.traverse(function(object) {
-					console.log(object);
-				});
-				console.log("holeDisplay: " + params.holeDisplay);
-			}
+			// changeHoleMesh(scene, points);
+			// if (params.debugComments) {
+			// 	scene.traverse(function(object) {
+			// 		console.log(object);
+			// 	});
+			// 	console.log("holeDisplay: " + params.holeDisplay);
+			// }
 		});
 		const holeTextOptions = ["Off", "ID", "Length"];
 		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {
-			changeHoleMesh(scene, points);
-			if (params.debugComments) {
-				console.log("holeText: " + params.holeText);
-			}
+			// changeHoleMesh(scene, points);
+			// if (params.debugComments) {
+			// 	console.log("holeText: " + params.holeText);
+			// }
 		});
 		// const holeColourOptions = ["Random", "White", "Red", "Green", "Blue"];
 		// holeFolder.add(params, "holeColour", holeColourOptions).name("Hole Colour").onChange(redrawHoles);

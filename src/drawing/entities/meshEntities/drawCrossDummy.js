@@ -1,6 +1,6 @@
 //drawDummy.js
 import { Vector3 } from "three";
-import { createCylinder } from "../shapes/createCylinder.js";
+import { createCylinder } from "../../shapes/createCylinder.js";
 
 export function drawCrossDummy(scene, color, materialType, vector, thickness, radialSegments) {
 	const size = 0.5;
