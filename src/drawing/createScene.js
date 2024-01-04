@@ -69,6 +69,7 @@ export function createScene(points) {
 	// Initialize camera with one of the cameras
 	camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
 	controls = new TrackballControls(camera, renderer.domElement);
+	controls = new ArcballControls(camera, renderer.domElement);
 
 	//create Gizmos for the ArcballControls
 	const gizmos = new Object3D();
@@ -87,7 +88,10 @@ export function createScene(points) {
 		controls.rotateSpeed = 20.0;
 		controls.zoomSpeed = 1;
 		controls.panSpeed = 1;
-		controls.dynamicDampingFactor = 0.3;
+		//controls.dynamicDampingFactor = 0.3;
+
+		//arcball controls
+		controls.cursorZoom = true;
 	}
 	setControls();
 
@@ -112,11 +116,18 @@ export function createScene(points) {
 			{
 				resetCamera: function() {
 					//store the current camera position
-					const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 100);
+					//const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 100);
+					const position = new Vector3(0, 0, 0 + 200);
 
 					//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
-					controls.object.up.set(0, 1, 0);
-					//camera.position.copy(position);
+					if (controls instanceof TrackballControls) {
+						controls.object.up.set(0, 1, 0);
+					}
+					if (controls instanceof ArcballControls) {
+						camera.position.copy(position);
+						camera.lookAt(0, 0, 0);
+						camera.up.set(0, 1, 0);
+					}
 				}
 			},
 			"resetCamera"
@@ -127,14 +138,17 @@ export function createScene(points) {
 		// Update camera when the perspective checkbox changes
 		camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
 		//store the current camera position
-		const position = controls.object.position;
+		//const position = controls.object.position; //Trackball Controls
+		const position = new Vector3(0, 0, 0 + 200);
 		//store the current look at target
 		const target = controls.target;
 		//when the camera is switched, reset the controls
 		controls = new TrackballControls(camera, renderer.domElement);
+		controls = new ArcballControls(camera, renderer.domElement);
 		setControls();
 		//set the controls to the stored position and target
-		controls.object.position.copy(position);
+		//controls.object.position.copy(position);
+		camera.position.copy(position);
 		controls.target.copy(target);
 	});
 	const upOptions = ["X", "Y", "Z"];
