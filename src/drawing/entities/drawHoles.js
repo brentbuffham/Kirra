@@ -10,7 +10,7 @@ import { drawText } from "./drawText";
 import { params } from "../createScene";
 import { getRandomColor } from "../helpers/getRandomColor";
 import { drawCylinderHole } from "./meshEntities/drawCylinderHole";
-import { globalFont } from "../helpers/loadGlobalFont";
+import { globalFont } from "../helpers/loadGlobalFont"; //getCentroid.js
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, point, diameter, subdrill) {
@@ -47,7 +47,9 @@ export function drawHoles(scene, colour, point, diameter, subdrill) {
 		}
 		case "meshCross": {
 			const materialType = "basic";
-			drawCrossCylinderHole(scene, colour, materialType, collarVector, intervalVector, toeVector, diameter, 4);
+			const diameter = 100; //this will be 100mm
+			const radialSegments = 4;
+			drawCrossCylinderHole(scene, colour, materialType, pointID, collarVector, intervalVector, toeVector, diameter, radialSegments);
 			if (params.debugComments) {
 				console.log("crossHoleID: " + pointID + " X: " + collarVector.x + " Y: " + collarVector.y + " Z: " + collarVector.z);
 			}

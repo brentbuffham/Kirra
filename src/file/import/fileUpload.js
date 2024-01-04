@@ -38,12 +38,17 @@ export function handleFileUpload(event, canvas) {
 		}
 
 		points = parseCSV(data);
+		const { x, y, z } = getCentroid(points);
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUpload/drawDummys: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
+				point.startXLocation = point.startXLocation - x;
+				point.startYLocation = point.startYLocation - y;
+				point.startZLocation = point.startZLocation - z;
+
 				drawDummys(canvas.scene, colour, point);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
@@ -51,18 +56,24 @@ export function handleFileUpload(event, canvas) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
+				point.startXLocation = point.startXLocation - x;
+				point.startYLocation = point.startYLocation - y;
+				point.startZLocation = point.startZLocation - z;
+				point.endXLocation = point.endXLocation - x;
+				point.endYLocation = point.endYLocation - y;
+				point.endZLocation = point.endZLocation - z;
+
 				drawHoles(canvas.scene, colour, point, 1000, 1);
 			}
 		}
 
-		const { x, y, z } = getCentroid(points);
-
 		//console.log(x, y, z);
-
-		canvas.camera.position.set(x, y, z + 100);
-		canvas.camera.lookAt(x, y, z);
-		controls.target.set(x, y, z);
-		targetObject.position.set(x, y, z);
+		canvas.camera.position.set(0, 0, 0 + 100);
+		canvas.camera.lookAt(0, 0, 0);
+		controls.target.set(0, 0, 0);
+		// canvas.camera.position.set(x, y, z + 100);
+		// canvas.camera.lookAt(x, y, z);
+		// controls.target.set(x, y, z);
 		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
 		if (params.debugComments) {
 			console.log(controls.target);
@@ -98,6 +109,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 		}
 		console.log("FileName: " + file.name);
 		points = parseCSV(data);
+		const { x, y, z } = getCentroid(points);
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
 		}
@@ -107,6 +119,9 @@ export function handleFileUploadNoEvent(file, canvas) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
+				point.startXLocation = point.startXLocation - x;
+				point.startYLocation = point.startYLocation - y;
+				point.startZLocation = point.startZLocation - z;
 				drawDummys(canvas.scene, colour, point);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
@@ -114,18 +129,27 @@ export function handleFileUploadNoEvent(file, canvas) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
+				point.startXLocation = point.startXLocation - x;
+				point.startYLocation = point.startYLocation - y;
+				point.startZLocation = point.startZLocation - z;
+				point.endXLocation = point.endXLocation - x;
+				point.endYLocation = point.endYLocation - y;
+				point.endZLocation = point.endZLocation - z;
+
 				drawHoles(canvas.scene, colour, point, 1000, 1);
 			}
 		}
 
-		const { x, y, z } = getCentroid(points);
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/centroid: ", x, y, z);
 		}
 
-		canvas.camera.position.set(x, y, z + 100);
-		canvas.camera.lookAt(x, y, z);
-		controls.target.set(x, y, z);
+		canvas.camera.position.set(0, 0, 0 + 100);
+		canvas.camera.lookAt(0, 0, 0);
+		controls.target.set(0, 0, 0);
+		// canvas.camera.position.set(x, y, z + 100);
+		// canvas.camera.lookAt(x, y, z);
+		// controls.target.set(x, y, z);
 		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
 
 		if (params.debugComments) {

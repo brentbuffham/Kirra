@@ -22,6 +22,9 @@ import { TrackballControls } from "three/examples/jsm/controls/TrackballControls
 import { TransformControls } from "three/addons/controls/TransformControls.js";
 import { Vector3 } from "three";
 import { changeHoleMesh } from "./helpers/changeHoleMesh";
+import { WireframeGeometry } from "three";
+import { SphereGeometry } from "three";
+import { CircleGeometry } from "three";
 
 let controls, camera, scene, renderer, targetObject;
 
@@ -70,21 +73,14 @@ export function createScene(points) {
 	//create Gizmos for the ArcballControls
 	const gizmos = new Object3D();
 	gizmos.add(new AxesHelper(30));
-	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 50, 0xff0000, 10, 5));
-	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 50, 0x00ff00, 10, 5));
-	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 50, 0x0000ff, 10, 5));
+	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 30, 0xff0000, 5, 2));
+	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 30, 0x00ff00, 5, 2));
+	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 30, 0x0000ff, 5, 2));
 	//add new grid helper on the XY plane
-	const gridXY = new GridHelper(1000, 50);
+	const gridXY = new GridHelper(1000, 50, 0xffffff, 0x808080);
 	gridXY.rotation.x = Math.PI / 2;
+
 	gizmos.add(gridXY);
-
-	//create a Meshlab style gizmo
-	const gizmoGeometry = new BoxGeometry(10, 10, 10);
-	const gizmoMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
-	const gizmo = new Mesh(gizmoGeometry, gizmoMaterial);
-	gizmo.position.set(0, 0, 0);
-	gizmos.add(gizmo);
-
 	scene.add(gizmos);
 
 	function setControls() {

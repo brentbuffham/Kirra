@@ -2,6 +2,7 @@ export function parseCSV(data) {
 	const lines = data.split("\n");
 	let minX = Infinity;
 	let minY = Infinity;
+
 	const points = [];
 
 	for (let i = 0; i < lines.length; i++) {
