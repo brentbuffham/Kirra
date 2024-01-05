@@ -2,7 +2,7 @@
 import { MeshBasicMaterial, MeshPhongMaterial, TorusGeometry, Mesh } from "three";
 import { Vector3 } from "three";
 
-export function createTorus(scene, color, materialType, vector, diameter, thickness, radialSegments, tubularSegments, arc) {
+export function createTorus(color, materialType, vector, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;
 	diameter = diameter / 1000;
 
@@ -26,5 +26,5 @@ export function createTorus(scene, color, materialType, vector, diameter, thickn
 	const torus = new Mesh(geometry, material);
 	torus.position.copy(vector);
 
-	scene.add(torus);
+	return torus;
 }

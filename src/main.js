@@ -1,8 +1,11 @@
 //main.js
 import "./style.css";
-import { createScene, params } from "./drawing/createScene.js";
 import { renderFileUpload, createLilGuiFileUpload, handleFileUploadNoEvent } from "./file/import/fileUpload.js";
 import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
+import { Vector3 } from "three";
+import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
+import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
+import { controls, camera, createScene, params } from "./drawing/createScene.js";
 
 // document.querySelector("#app").innerHTML = `
 //   <div id="header">header</div>
@@ -53,6 +56,9 @@ document.querySelector("#app").innerHTML = `
       <button>
         <img src="src/assets/tabler-icons-2.36.0/png/settings.png" alt="Settings" />
       </button>
+      <button>
+        <img src="src/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
+      </button>
       <!-- Add more buttons as needed -->
     </nav>
 </div>
@@ -86,4 +92,29 @@ document.querySelectorAll("#vertical-nav button")[0].addEventListener("click", f
 		console.log("First button clicked");
 	}
 });
+// Example: Adding event listeners to the first button
+document.querySelectorAll("#vertical-nav button")[11].addEventListener("click", function() {
+	// Interaction with Three.js scene
+	//store the current camera position
+	const position = new Vector3(0, 0, 0 + 200);
+	const target = new Vector3(0, 0, 0);
+
+	//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
+	if (controls instanceof TrackballControls) {
+		controls.object.up.set(0, 1, 0);
+	}
+	if (controls instanceof ArcballControls) {
+		camera.position.copy(position);
+		camera.lookAt(0, 0, 0);
+		camera.up.set(0, 1, 0);
+		controls.target.set(0, 0, 0);
+		//set the controls to the stored position and target
+		camera.position.copy(position);
+		controls.target.copy(target);
+	}
+	if (params.debugComments) {
+		console.log("12th button clicked");
+	}
+});
+
 createLilGuiFileUpload(canvas);

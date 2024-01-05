@@ -45,36 +45,36 @@ export function handleFileUpload(event, canvas) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUpload/drawDummys: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
-				point.startXLocation = point.startXLocation - x;
-				point.startYLocation = point.startYLocation - y;
-				point.startZLocation = point.startZLocation - z;
-
-				drawDummys(canvas.scene, colour, point);
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z
+				};
+				drawDummys(canvas.scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
-				point.startXLocation = point.startXLocation - x;
-				point.startYLocation = point.startYLocation - y;
-				point.startZLocation = point.startZLocation - z;
-				point.endXLocation = point.endXLocation - x;
-				point.endYLocation = point.endYLocation - y;
-				point.endZLocation = point.endZLocation - z;
-
-				drawHoles(canvas.scene, colour, point, 1000, 1);
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z,
+					endXLocation: point.endXLocation - x,
+					endYLocation: point.endYLocation - y,
+					endZLocation: point.endZLocation - z
+				};
+				drawHoles(canvas.scene, colour, tempPoint, 165, 1);
 			}
 		}
 
-		//console.log(x, y, z);
 		canvas.camera.position.set(0, 0, 0 + 100);
 		canvas.camera.lookAt(0, 0, 0);
 		controls.target.set(0, 0, 0);
-		// canvas.camera.position.set(x, y, z + 100);
-		// canvas.camera.lookAt(x, y, z);
-		// controls.target.set(x, y, z);
-		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
+
 		if (params.debugComments) {
 			console.log(controls.target);
 		}
@@ -119,38 +119,40 @@ export function handleFileUploadNoEvent(file, canvas) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
-				point.startXLocation = point.startXLocation - x;
-				point.startYLocation = point.startYLocation - y;
-				point.startZLocation = point.startZLocation - z;
-				drawDummys(canvas.scene, colour, point);
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z
+				};
+				drawDummys(canvas.scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
 				if (params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
-				point.startXLocation = point.startXLocation - x;
-				point.startYLocation = point.startYLocation - y;
-				point.startZLocation = point.startZLocation - z;
-				point.endXLocation = point.endXLocation - x;
-				point.endYLocation = point.endYLocation - y;
-				point.endZLocation = point.endZLocation - z;
-
-				drawHoles(canvas.scene, colour, point, 1000, 1);
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z,
+					endXLocation: point.endXLocation - x,
+					endYLocation: point.endYLocation - y,
+					endZLocation: point.endZLocation - z
+				};
+				drawHoles(canvas.scene, colour, tempPoint, 165, 1);
 			}
 		}
 
 		if (params.debugComments) {
-			console.log("fileUpload/handleFileUploadNoEvent/centroid: ", x, y, z);
+			console.log("fileUpload/handleFileUploadNoEvent/centroidPoints: ", x, y, z);
+			console.log("fileUpload/handleFileUploadNoEvent/centroidActual: ", x - x, y - y, z - z);
 		}
 
 		canvas.camera.position.set(0, 0, 0 + 100);
 		canvas.camera.lookAt(0, 0, 0);
 		controls.target.set(0, 0, 0);
-		// canvas.camera.position.set(x, y, z + 100);
-		// canvas.camera.lookAt(x, y, z);
-		// controls.target.set(x, y, z);
-		//canvas.camera.up.set(0, 0, 1); // Set Z axis as the up axis
 
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/controls.target", controls.target);

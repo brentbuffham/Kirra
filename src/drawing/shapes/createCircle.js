@@ -1,7 +1,7 @@
 import { BufferGeometry, Float32BufferAttribute, Color, Vector2 } from "three";
-import { MeshLine, MeshLineMaterial } from "three.meshline";
+import { MeshLine, MeshLineMaterial } from "../helpers/MeshLineModified.js";
 
-export function createCircle(scene, color, vector, diameter, lineWidth, dashed, dashSize, gapSize, transparent, opacity, sizeAttenuation) {
+export function createCircle(color, vector, diameter, lineWidth, dashed, dashSize, gapSize, transparent, opacity, sizeAttenuation) {
 	const material = new MeshLineMaterial({
 		map: null,
 		useMap: false,
@@ -31,6 +31,11 @@ export function createCircle(scene, color, vector, diameter, lineWidth, dashed, 
 	}
 	circleGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
-	const circle = new MeshLine(circleGeometry, material);
-	scene.add(circle);
+	const circle = new MeshLine();
+	circle.setGeometry(circleGeometry, function(p) {
+		return p;
+	});
+	const circleMesh = new Mesh(circle.geometry, material);
+
+	return circleMesh;
 }
