@@ -5,6 +5,9 @@ import { controls } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 
+export let points = [];
+const logit = false;
+
 export function renderFileUpload(containerId, canvas) {
 	const container = document.querySelector(containerId);
 	const fileUpload = `
@@ -28,8 +31,6 @@ export function handleFileUpload(event, canvas) {
 	}
 	const reader = new FileReader();
 
-	let points = [];
-
 	reader.onload = function(event) {
 		const data = event.target.result;
 
@@ -37,12 +38,16 @@ export function handleFileUpload(event, canvas) {
 			return;
 		}
 
-		points = parseCSV(data);
+		//so the points array reference is not lost
+		points.length = 0;
+		const newPoints = parseCSV(data);
+		points.push(...newPoints);
+
 		const { x, y, z } = getCentroid(points);
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
-				if (params.debugComments) {
+				if (logit && params.debugComments) {
 					console.log("fileUpload/handleFileUpload/drawDummys: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
 				const tempPoint = {
@@ -55,7 +60,7 @@ export function handleFileUpload(event, canvas) {
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
-				if (params.debugComments) {
+				if (logit && params.debugComments) {
 					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
 				const tempPoint = {
@@ -99,8 +104,6 @@ export function handleFileUploadNoEvent(file, canvas) {
 	}
 	const reader = new FileReader();
 
-	let points = [];
-
 	reader.onload = function(event) {
 		const data = event.target.result;
 
@@ -108,7 +111,12 @@ export function handleFileUploadNoEvent(file, canvas) {
 			return;
 		}
 		console.log("FileName: " + file.name);
-		points = parseCSV(data);
+
+		//so the points array reference is not lost
+		points.length = 0;
+		const newPoints = parseCSV(data);
+		points.push(...newPoints);
+
 		const { x, y, z } = getCentroid(points);
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
@@ -116,7 +124,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
-				if (params.debugComments) {
+				if (logit && params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
 				const tempPoint = {
@@ -129,7 +137,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			for (const point of points) {
-				if (params.debugComments) {
+				if (logit && params.debugComments) {
 					console.log("fileUpload/handleFileUploadNoEvent/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
 				const tempPoint = {
@@ -159,6 +167,5 @@ export function handleFileUploadNoEvent(file, canvas) {
 		}
 		canvas.camera.updateMatrixWorld();
 	};
-
 	reader.readAsText(file);
 }

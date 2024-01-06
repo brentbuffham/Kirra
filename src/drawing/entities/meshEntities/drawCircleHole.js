@@ -13,5 +13,17 @@ export function drawCircleHole(scene, color, materialType, name, collarXYZ, inte
 	hole.add(createCylinder("grey", materialType, intervalXYZ, toeXYZ, thickness, radialSegments));
 	hole.add(createTorus("red", materialType, toeXYZ, diameter / 2, thickness, radialSegments, tubularSegments, arc));
 	hole.name = name;
+	hole.userData = {
+		entityType: "hole",
+		pointID: name,
+		collarXYZ: collarXYZ,
+		intervalXYZ: intervalXYZ,
+		toeXYZ: toeXYZ,
+		diameter: diameter,
+		subdrill: intervalXYZ.distanceTo(toeXYZ),
+		benchLength: collarXYZ.distanceTo(intervalXYZ),
+		holeType: "unknown",
+		displayType: "mesh-circle"
+	};
 	scene.add(hole);
 }

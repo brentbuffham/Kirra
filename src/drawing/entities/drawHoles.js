@@ -12,6 +12,8 @@ import { getRandomColor } from "../helpers/getRandomColor";
 import { drawCylinderHole } from "./meshEntities/drawCylinderHole";
 import { globalFont } from "../helpers/loadGlobalFont"; //getCentroid.js
 
+const logit = false;
+
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 	colour = getRandomColor();
@@ -22,53 +24,53 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 	const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
 
 	switch (params.holeDisplay) {
-		case "meshCircle": {
+		case "mesh-circle": {
 			const materialType = "basic";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
 			drawCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "meshDiamond": {
+		case "mesh-diamond": {
 			const materialType = "basic";
 			drawDiamondHole(scene, colour, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("diamondHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "meshSquare": {
+		case "mesh-square": {
 			const materialType = "basic";
 			drawSquareHole(scene, colour, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("squareHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "meshCross": {
+		case "mesh-cross": {
 			const materialType = "basic";
 			const diameter = 100; //this will be 100mm
 			const radialSegments = 4;
 			drawCrossCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "meshCylinder": {
+		case "mesh-cylinder": {
 			const materialType = "phong";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
 			drawCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 32);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("cylinderHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "lineCross": {
+		case "line-cross": {
 			const lineWidth = 5;
 			const dashArray = false;
 			const dashOffset = 0;
@@ -77,7 +79,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 			const sizeAttenuation = false;
 			const diameter = 500;
 			drawCrossHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
@@ -88,7 +90,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
 			drawCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
-			if (params.debugComments) {
+			if (logit && params.debugComments) {
 				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;

@@ -3,6 +3,8 @@ import { Vector2, ShaderMaterial, ShaderChunk, UniformsLib, Color } from "three"
 
 const root = this;
 
+//custom modified MeshLine to use the global THREE object
+//and bringing in two instances of THREE
 export class MeshLine extends BufferGeometry {
 	constructor() {
 		super();

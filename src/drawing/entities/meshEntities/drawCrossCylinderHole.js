@@ -24,5 +24,17 @@ export function drawCrossCylinderHole(scene, color, materialType, name, collarXY
 	color = "red";
 	hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, diameter, radialSegments));
 	hole.name = name;
+	hole.userData = {
+		entityType: "hole",
+		pointID: name,
+		collarXYZ: collarXYZ,
+		intervalXYZ: intervalXYZ,
+		toeXYZ: toeXYZ,
+		diameter: diameter,
+		subdrill: intervalXYZ.distanceTo(toeXYZ),
+		benchLength: collarXYZ.distanceTo(intervalXYZ),
+		holeType: "unknown",
+		displayType: "mesh-cross"
+	};
 	scene.add(hole);
 }

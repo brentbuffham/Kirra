@@ -1,6 +1,5 @@
 //createTorus.js
 import { MeshBasicMaterial, MeshPhongMaterial, TorusGeometry, Mesh } from "three";
-import { Vector3 } from "three";
 
 export function createTorus(color, materialType, vector, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;

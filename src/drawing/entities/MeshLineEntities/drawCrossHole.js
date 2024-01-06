@@ -3,7 +3,7 @@ import { createLine } from "../../shapes/createLine.js";
 import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Group } from "three";
 
-export function drawCrossHole(scene, color, pointID, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
+export function drawCrossHole(scene, color, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
 	diameter = diameter || 500;
 	const diameterMM = diameter / 1000;
 	const radius = diameterMM / 2;
@@ -24,6 +24,18 @@ export function drawCrossHole(scene, color, pointID, collarXYZ, intervalXYZ, toe
 	color = "red";
 	//draw subdrill of hole
 	hole.add(createLine(intervalXYZ, toeXYZ, color, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation));
-	hole.name = pointID;
+	hole.name = name;
+	hole.userData = {
+		entityType: "hole",
+		pointID: name,
+		collarXYZ: collarXYZ,
+		intervalXYZ: intervalXYZ,
+		toeXYZ: toeXYZ,
+		diameter: diameter,
+		subdrill: intervalXYZ.distanceTo(toeXYZ),
+		benchLength: collarXYZ.distanceTo(intervalXYZ),
+		holeType: "unknown",
+		displayType: "line-cross"
+	};
 	scene.add(hole);
 }

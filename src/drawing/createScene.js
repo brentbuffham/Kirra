@@ -23,7 +23,7 @@ export const params = {
 	cameraPerspective: false,
 	upDirection: "Z",
 	rotationAngle: 0,
-	holeDisplay: "meshCircle",
+	holeDisplay: "mesh-circle",
 	holeText: "ID",
 	debugComments: true
 	// holeColour: "white",
@@ -41,6 +41,7 @@ function createLighting(scene) {
 }
 
 export function createScene(points) {
+	console.log("createScene(points)", points);
 	scene = new Scene();
 	const canvas = document.querySelector("#canvas");
 	//Set up the Renderer
@@ -238,7 +239,7 @@ export function createScene(points) {
 	if (points !== null || points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
-		const holeOptions = ["meshCross", "meshCircle", "meshDiamond", "meshSquare", "meshCylinder", "lineCross", "lineCircle", "lineDiamond", "lineSquare"];
+		const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"];
 		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(function() {
 			//nothing yet
 		});

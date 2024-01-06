@@ -3,6 +3,8 @@ import { MeshBasicMaterial, MeshPhongMaterial, CylinderGeometry, Mesh } from "th
 import { Vector3 } from "three";
 import { params } from "../createScene";
 
+const logit = false;
+
 export function createCylinder(color, materialType, startVector, endVector, diameter, radialSegments) {
 	diameter = diameter || 500;
 	diameter = diameter / 1000;
@@ -26,7 +28,7 @@ export function createCylinder(color, materialType, startVector, endVector, diam
 	//add a rotation matrix with the fulcrum at the startVector and the endVector being the base of the cylinder
 	cylinder.position.copy(position);
 	cylinder.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), direction);
-	if (params.debugComments) {
+	if (logit && params.debugComments) {
 		console.log("createCylinder > UUID:" + cylinder.uuid + " X: " + position.x + " Y: " + position.y + " Z: " + position.z);
 	}
 	return cylinder;
