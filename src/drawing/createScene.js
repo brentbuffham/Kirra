@@ -48,7 +48,7 @@ export function createScene(points) {
 	renderer = new WebGLRenderer({ antialias: true }); // Add the antialias parameter here
 	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
 	renderer.setPixelRatio(window.devicePixelRatio);
-
+	renderer.autoClear = false;
 	document.querySelector("#canvas").appendChild(renderer.domElement);
 
 	let aspect = canvas.offsetWidth / canvas.offsetHeight;
@@ -67,8 +67,6 @@ export function createScene(points) {
 
 	// clock
 	clock = new THREE.Clock();
-
-	scene.add(new AxesHelper(20));
 
 	viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
@@ -107,13 +105,13 @@ export function createScene(points) {
 
 	function animate() {
 		requestAnimationFrame(animate);
-
+		renderer.clear();
 		const delta = clock.getDelta();
 
-		//if (viewHelper.animating) viewHelper.update(delta);
+		if (viewHelper.animating) viewHelper.update(delta);
 
 		renderer.render(scene, camera);
-		//viewHelper.render(renderer);
+		viewHelper.render(renderer);
 	}
 
 	const orthographicCameraProps = {
