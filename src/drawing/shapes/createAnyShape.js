@@ -1,12 +1,12 @@
 import { BufferGeometry, Mesh, CircleGeometry, MeshBasicMaterial, DoubleSide, Float32BufferAttribute, Color, Vector2, Vector3, Matrix4 } from "three";
 import { MeshLineMaterial, MeshLine } from "../helpers/MeshLineModified.js";
 
-export function createSquare(color, vector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isSquare, isFilled) {
+export function createAnyShape(color, vector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, segments, isFilled) {
 	const holeDiameterM = diameter / 1000;
 	const radius = holeDiameterM / 2;
-	const segments = 4; // Square has 4 sides
+	segments = segments; // anyShape has 4 sides
 	const rotationMatrix = new Matrix4();
-	rotationMatrix.makeRotationZ(Math.PI / 4); // Rotate by 45 degrees
+	rotationMatrix.makeRotationZ(Math.PI / (segments * 2));
 	if (isFilled) {
 		// Create a filled circle
 		const geometry = new CircleGeometry(radius, segments);
@@ -17,14 +17,14 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 			transparent: opacity < 1,
 			side: DoubleSide // Stops the circle from disappearing when rotating the camera
 		});
-		const squareMesh = new Mesh(geometry, material);
-		if (isSquare) {
-			//apply rotation matrix to the square torus rotated 45 degrees z axis
-			squareMesh.applyMatrix4(rotationMatrix);
-		}
-		squareMesh.position.set(vector.x, vector.y, vector.z);
+		const anyShapeMesh = new Mesh(geometry, material);
 
-		return squareMesh;
+		//apply rotation matrix to the anyShape torus rotated 45 degrees z axis
+		anyShapeMesh.applyMatrix4(rotationMatrix);
+
+		anyShapeMesh.position.set(vector.x, vector.y, vector.z);
+
+		return anyShapeMesh;
 	} else {
 		// Create a circle outline
 		const material = new MeshLineMaterial({
@@ -38,27 +38,26 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 			sizeAttenuation: sizeAttenuation
 		});
 
-		const squareGeometry = new BufferGeometry();
+		const anyShapeGeometry = new BufferGeometry();
 		const positions = [];
 
 		for (let i = 0; i <= segments; i++) {
 			const theta = i / segments * Math.PI * 2;
 			const x = radius * Math.cos(theta);
 			const y = radius * Math.sin(theta);
-			if (isSquare) {
-				// Apply rotation to each vertex
-				const rotatedVertex = new Vector3(x, y, vector.z).applyMatrix4(rotationMatrix);
-				positions.push(rotatedVertex.x + vector.x, rotatedVertex.y + vector.y, rotatedVertex.z);
-			}
-		}
-		squareGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
-		const square = new MeshLine();
-		square.setGeometry(squareGeometry, function(p) {
+			// Apply rotation to each vertex
+			const rotatedVertex = new Vector3(x, y, vector.z).applyMatrix4(rotationMatrix);
+			positions.push(rotatedVertex.x + vector.x, rotatedVertex.y + vector.y, rotatedVertex.z);
+		}
+		anyShapeGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+
+		const anyShape = new MeshLine();
+		anyShape.setGeometry(anyShapeGeometry, function(p) {
 			return p;
 		});
-		const squareMesh2 = new Mesh(square.geometry, material);
+		const anyShapeMesh2 = new Mesh(anyShape.geometry, material);
 
-		return squareMesh2;
+		return anyShapeMesh2;
 	}
 }

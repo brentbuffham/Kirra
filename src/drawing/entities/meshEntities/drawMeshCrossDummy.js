@@ -2,7 +2,7 @@
 import { Vector3 } from "three";
 import { createCylinder } from "../../shapes/createCylinder.js";
 
-export function drawCrossDummy(scene, color, materialType, vector, thickness, radialSegments) {
+export function drawMeshCrossDummy(scene, color, materialType, vector, thickness, radialSegments) {
 	const size = 0.5;
 	const x = vector.x;
 	const y = vector.y;

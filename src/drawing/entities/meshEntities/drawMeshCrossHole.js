@@ -4,7 +4,7 @@ import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Vector3 } from "three";
 import { Group } from "three";
 
-export function drawCrossCylinderHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
+export function drawMeshCrossHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
 	const diameterMM = diameter / 1000;
 	const crossMultiplier = 5;
 	const radius = diameterMM / 2 * crossMultiplier;

@@ -3,7 +3,7 @@ import { createCylinder } from "../../shapes/createCylinder";
 import { createTorus } from "../../shapes/createTorus";
 import { Group } from "three";
 
-export function drawCircleHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
+export function drawMeshCircleHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;
 
 	const hole = new Group();

@@ -3,7 +3,7 @@ import { MeshBasicMaterial, MeshPhongMaterial, TorusGeometry, Mesh } from "three
 import { Matrix4 } from "three";
 import { Vector3 } from "three";
 
-export function createSquareTorus(scene, color, materialType, vector, diameter, thickness, radialSegments, tubularSegments, arc, isSquare) {
+export function createSquareTorus(color, materialType, vector, diameter, thickness, radialSegments, tubularSegments, arc, isSquare) {
 	diameter = diameter || 500;
 	diameter = diameter / 1000;
 
@@ -35,5 +35,5 @@ export function createSquareTorus(scene, color, materialType, vector, diameter, 
 
 	torus.position.copy(vector);
 
-	scene.add(torus);
+	return torus;
 }

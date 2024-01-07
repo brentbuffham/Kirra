@@ -3,7 +3,7 @@ import { getRandomColor } from "../../helpers/getRandomColor";
 import { Group } from "three";
 import { params } from "../../createScene";
 
-export function drawCylinderHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
+export function drawMeshCylinderHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
 	diameter = diameter || 500;
 	materialType = materialType || "phong";
 	const hole = new Group();

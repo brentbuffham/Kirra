@@ -2,22 +2,15 @@
 import { createLine } from "../../shapes/createLine.js";
 import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Group } from "three";
+import { createSquare } from "../../shapes/createSquare.js";
 
-export function drawCrossHole(scene, color, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
+export function drawLineDiamondHole(scene, color, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled) {
 	diameter = diameter || 500;
 	const diameterMM = diameter / 1000;
-	const radius = diameterMM / 2;
-	const vectors = {
-		topLeft: { x: collarXYZ.x - radius, y: collarXYZ.y + radius, z: collarXYZ.z },
-		topRight: { x: collarXYZ.x + radius, y: collarXYZ.y + radius, z: collarXYZ.z },
-		bottomLeft: { x: collarXYZ.x - radius, y: collarXYZ.y - radius, z: collarXYZ.z },
-		bottomRight: { x: collarXYZ.x + radius, y: collarXYZ.y - radius, z: collarXYZ.z }
-	};
 
 	const hole = new Group();
 	//draw Cross
-	hole.add(createLine(vectors.topLeft, vectors.bottomRight, color, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation));
-	hole.add(createLine(vectors.bottomLeft, vectors.topRight, color, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation));
+	hole.add(createSquare(color, collarXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, false, isFilled));
 	//draw BenchLength of hole
 	hole.add(createLine(collarXYZ, intervalXYZ, color, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation));
 	//color = getRandomColor();
@@ -35,7 +28,7 @@ export function drawCrossHole(scene, color, name, collarXYZ, intervalXYZ, toeXYZ
 		subdrill: intervalXYZ.distanceTo(toeXYZ),
 		benchLength: collarXYZ.distanceTo(intervalXYZ),
 		holeType: "unknown",
-		displayType: "line-cross"
+		displayType: "line-diamond"
 	};
 	scene.add(hole);
 }

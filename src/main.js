@@ -132,12 +132,13 @@ console.log("main: ", currentPoints);
 document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click", function() {
 	//swap hole visual - redrawing the scene with a different blast hole representation
 	// Each click will cycle through the createScene params hole visual options
-
-	const holeDisplay = params.holeDisplay;
+	const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square", "line-triangle"];
 	const currentHoleDisplay = params.holeDisplay;
-	const currentIndex = holeDisplay.indexOf(currentHoleDisplay);
-	const nextIndex = (currentIndex + 1) % holeDisplay.length;
-	params.holeDisplay = holeDisplay[nextIndex];
+	console.log("holeDisplay: ", currentHoleDisplay);
+
+	const currentIndex = holeOptions.indexOf(currentHoleDisplay);
+	const nextIndex = (currentIndex + 1) % holeOptions.length;
+	params.holeDisplay = holeOptions[nextIndex];
 
 	const holeObjectsArray = [];
 	canvas.scene.traverse(function(object) {

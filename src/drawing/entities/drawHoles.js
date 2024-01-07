@@ -1,15 +1,22 @@
 //drawHoles.js
 import { Vector3 } from "three";
-import { drawCircleHole } from "./meshEntities/drawCircleHole";
-import { drawDiamondHole } from "./meshEntities/drawDiamondHole";
-import { drawSquareHole } from "./meshEntities/drawSquareHole";
-import { drawCrossHole } from "./MeshLineEntities/drawCrossHole";
-import { drawCrossCylinderHole } from "./meshEntities/drawCrossCylinderHole";
-import { drawCrossDummy } from "./meshEntities/drawCrossDummy";
+import { drawMeshCircleHole } from "./meshEntities/drawMeshCircleHole";
+import { drawMeshCrossDummy } from "./meshEntities/drawMeshCrossDummy";
+import { drawMeshCrossHole } from "./meshEntities/drawMeshCrossHole";
+import { drawMeshCylinderHole } from "./meshEntities/drawMeshCylinderHole";
+import { drawMeshDiamondHole } from "./meshEntities/drawMeshDiamondHole";
+import { drawMeshSquareHole } from "./meshEntities/drawMeshSquareHole";
+
+import { drawLineCrossHole } from "./MeshLineEntities/drawLineCrossHole";
+import { drawLineCircleHole } from "./MeshLineEntities/drawLineCircleHole";
+import { drawLineDiamondHole } from "./MeshLineEntities/drawLineDiamondHole";
+import { drawLineSquareHole } from "./MeshLineEntities/drawLineSquareHole";
+import { drawLineTriangleHole } from "./MeshLineEntities/drawLineTriangleHole";
+
 import { drawText } from "./drawText";
 import { params } from "../createScene";
 import { getRandomColor } from "../helpers/getRandomColor";
-import { drawCylinderHole } from "./meshEntities/drawCylinderHole";
+
 import { globalFont } from "../helpers/loadGlobalFont"; //getCentroid.js
 
 const logit = false;
@@ -23,30 +30,15 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
 
+	//Hole Types: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"
 	switch (params.holeDisplay) {
-		case "mesh-circle": {
-			const materialType = "basic";
+		case "mesh-cylinder": {
+			const materialType = "phong";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
-			drawCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
+			drawMeshCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 32);
 			if (logit && params.debugComments) {
-				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
-			}
-			break;
-		}
-		case "mesh-diamond": {
-			const materialType = "basic";
-			drawDiamondHole(scene, colour, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI);
-			if (logit && params.debugComments) {
-				console.log("diamondHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
-			}
-			break;
-		}
-		case "mesh-square": {
-			const materialType = "basic";
-			drawSquareHole(scene, colour, materialType, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI);
-			if (logit && params.debugComments) {
-				console.log("squareHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+				console.log("cylinderHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
@@ -54,22 +46,43 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 			const materialType = "basic";
 			const diameter = 100; //this will be 100mm
 			const radialSegments = 4;
-			drawCrossCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments);
+			drawMeshCrossHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments);
 			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-		case "mesh-cylinder": {
-			const materialType = "phong";
+		case "mesh-circle": {
+			const materialType = "basic";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
-			drawCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 32);
+			drawMeshCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
 			if (logit && params.debugComments) {
-				console.log("cylinderHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
+		case "mesh-diamond": {
+			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
+			drawMeshDiamondHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI, false);
+			if (logit && params.debugComments) {
+				console.log("diamondHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+		case "mesh-square": {
+			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
+			drawMeshSquareHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI, true);
+			if (logit && params.debugComments) {
+				console.log("squareHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+
 		case "line-cross": {
 			const lineWidth = 5;
 			const dashArray = false;
@@ -78,18 +91,77 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 			const opacity = 1;
 			const sizeAttenuation = false;
 			const diameter = 500;
-			drawCrossHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation);
+			drawLineCrossHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation);
 			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
 			break;
 		}
-
+		case "line-circle": {
+			const lineWidth = 5;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const diameter = 500;
+			const isFilled = true;
+			drawLineCircleHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
+			if (logit && params.debugComments) {
+				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+		case "line-diamond": {
+			const lineWidth = 5;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const diameter = 500;
+			const isFilled = true;
+			drawLineDiamondHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
+			if (logit && params.debugComments) {
+				console.log("diamondHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+		case "line-square": {
+			const lineWidth = 5;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const diameter = 500;
+			const isFilled = true;
+			drawLineSquareHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
+			if (logit && params.debugComments) {
+				console.log("squareHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+		case "line-triangle": {
+			const lineWidth = 5;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const diameter = 500;
+			const isFilled = true;
+			drawLineTriangleHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
+			if (logit && params.debugComments) {
+				console.log("triangleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
 		default: {
 			const materialType = "basic";
 			const holeScale = 3;
 			const diameter = 165 * holeScale;
-			drawCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
+			drawMeshCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
 			if (logit && params.debugComments) {
 				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
@@ -120,7 +192,7 @@ export function drawDummys(scene, colour, point) {
 	const name = point.pointID;
 	const materialType = "basic";
 	const vector = new Vector3(point.startXLocation, point.startYLocation, point.startZLocation);
-	drawCrossDummy(scene, colour, "basic", vector, 100, 4);
+	drawMeshCrossDummy(scene, colour, "basic", vector, 100, 4);
 	if (params.debugComments) {
 		console.log("drawHoles/drawDummys/crossDummyID: " + name + " X: " + vector.x + " Y: " + vector.y + " Z: " + vector.z);
 	}

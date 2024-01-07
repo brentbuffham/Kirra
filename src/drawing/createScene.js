@@ -23,7 +23,7 @@ export const params = {
 	cameraPerspective: false,
 	upDirection: "Z",
 	rotationAngle: 0,
-	holeDisplay: "mesh-circle",
+	holeDisplay: "mesh-cross",
 	holeText: "ID",
 	debugComments: true
 	// holeColour: "white",
@@ -56,7 +56,7 @@ export function createScene(points) {
 	const cameraOrthographic = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.01, 500);
 	// Initialize camera with one of the cameras
 	camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
-	controls = new ArcballControls(camera, renderer.domElement);
+	controls = new ArcballControls(camera, renderer.domElement, scene);
 	camera = cameraOrthographic;
 	createLighting(scene);
 
@@ -93,6 +93,7 @@ export function createScene(points) {
 	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
 	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
 
+	gizmos.name = "gizmos";
 	scene.add(gizmos);
 
 	function setControls() {
@@ -100,6 +101,9 @@ export function createScene(points) {
 		controls.zoomSpeed = 1;
 		controls.panSpeed = 1;
 		controls.cursorZoom = true;
+		controls.enableGrid = true;
+		controls.activateGizmos(true);
+		controls.radiusFactor = 0.33;
 	}
 	setControls();
 
@@ -164,16 +168,16 @@ export function createScene(points) {
 		controls.target.copy(target);
 	});
 	const upOptions = ["X", "Y", "Z"];
-	gui.add(params, "upDirection", upOptions).name("Up Direction Axis").onChange(function() {
+	gui.add(params, "upDirection", upOptions).name("Direction Axis").onChange(function() {
 		switch (params.upDirection) {
 			case "Y":
-				camera.up.set(0, 1, 0);
+				//camera.up.set(0, 1, 0);
 				break;
 			case "X":
-				camera.up.set(1, 0, 0);
+				//camera.up.set(1, 0, 0);
 				break;
 			case "Z":
-				camera.up.set(0, 0, 1);
+				//camera.up.set(0, 0, 1);
 				break;
 		}
 		camera.updateProjectionMatrix();
@@ -193,8 +197,9 @@ export function createScene(points) {
 		prevRotationAngle = params.rotationAngle;
 
 		// Call the rollCamera function with the delta angle in radians
-		rollCamera(0);
-		rollCamera(deltaAngleRad);
+		const axis = params.upDirection;
+		rollCamera(axis, 0);
+		rollCamera(axis, deltaAngleRad);
 	});
 
 	const cameraFolder = gui.addFolder("Camera Options");
@@ -237,33 +242,70 @@ export function createScene(points) {
 	if (points !== null || points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
-		const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"];
-		holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(function() {
-			//nothing yet
-		});
+		// const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"];
+		// holeFolder.add(params, "holeDisplay", holeOptions).name("Hole Display Type").onChange(function() {
+		// 	//nothing yet
+		// });
 		const holeTextOptions = ["Off", "ID", "Length"];
 		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {
 			//nothing yet
 		});
 	}
 
-	function rollCamera(angle) {
-		// Store the current camera position
-		const position = controls.object.position.clone();
+	function rollCamera(axis, radians) {
+		//check the axis and set the vector
+		let vector = new Vector3(0, 0, 1);
+		if (axis === "Z") {
+			vector = new Vector3(0, 0, 1);
+		} else if (axis === "Y") {
+			vector = new Vector3(0, 1, 0);
+		} else if (axis === "X") {
+			vector = new Vector3(1, 0, 0);
+		} else {
+			vector = new Vector3(0, 0, 1);
+		}
+		if (controls instanceof ArcballControls) {
+			// Get the vector from the camera to the target (controls.target)
+			const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
 
-		// Store the current look at target
-		const target = controls.target.clone();
+			// Create a quaternion representing the rotation around the Z axis
+			const quaternion = new THREE.Quaternion();
+			quaternion.setFromAxisAngle(vector, radians);
 
-		// Get the camera's local Z-axis (up direction)
-		const cameraMatrix = new THREE.Matrix4();
-		cameraMatrix.lookAt(position, target, controls.object.up);
-		const cameraLocalZAxis = new THREE.Vector3(0, 0, 1).applyMatrix4(cameraMatrix);
+			// Rotate the direction vector
+			direction.applyQuaternion(quaternion);
 
-		// Rotate the camera around its local Z-axis (up direction)
-		controls.object.up.applyAxisAngle(cameraLocalZAxis, angle);
+			// Calculate the new position of the camera
+			const distance = camera.position.distanceTo(controls.target);
+			const newPosition = new THREE.Vector3().addVectors(controls.target, direction.multiplyScalar(distance));
 
-		// Update the controls
-		controls.update();
+			// Apply the new position and up vector to the camera
+			camera.position.copy(newPosition);
+			camera.up.applyQuaternion(quaternion);
+
+			// Look at the target
+			camera.lookAt(controls.target);
+
+			// Update the camera's matrix and the controls
+			//camera.updateMatrixWorld();
+			controls.update();
+		} else if (controls instanceof TrackballControls) {
+			//store the current camera position
+			const position = controls.object.position.clone();
+			// Store the current look at target
+			const target = controls.target.clone();
+
+			// Get the camera's local Z-axis (up direction)
+			const cameraMatrix = new THREE.Matrix4();
+			cameraMatrix.lookAt(position, target, controls.object.up);
+			const cameraLocalZAxis = vector.applyMatrix4(cameraMatrix);
+
+			// Rotate the camera around its local Z-axis (up direction)
+			controls.object.up.applyAxisAngle(cameraLocalZAxis, radians);
+
+			// Update the controls
+			controls.update();
+		}
 	}
 
 	animate();
