@@ -22,20 +22,20 @@ import { globalFont } from "../helpers/loadGlobalFont"; //getCentroid.js
 const logit = false;
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
-export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
+export function drawHoles(scene, colour, tempPoint, diameter, subdrill) {
 	colour = getRandomColor();
 	//colour = "white";
 	const name = tempPoint.pointID;
 	const collarXYZ = new Vector3(tempPoint.startXLocation, tempPoint.startYLocation, tempPoint.startZLocation);
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
-	const shapeType = shape || params.holeDisplay;
-	const holeScale = 3;
-	diameter = diameter * holeScale;
+
 	//Hole Types: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"
-	switch (shapeType) {
+	switch (params.holeDisplay) {
 		case "mesh-cylinder": {
 			const materialType = "phong";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawMeshCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 32);
 			if (logit && params.debugComments) {
 				console.log("cylinderHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
@@ -44,8 +44,9 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-cross": {
 			const materialType = "basic";
+			const diameter = 100; //this will be 100mm
 			const radialSegments = 4;
-			drawMeshCrossHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, radialSegments);
+			drawMeshCrossHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments);
 			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 			}
@@ -53,6 +54,8 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-circle": {
 			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawMeshCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
 			if (logit && params.debugComments) {
 				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
@@ -61,6 +64,8 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-diamond": {
 			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawMeshDiamondHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI, false);
 			if (logit && params.debugComments) {
 				console.log("diamondHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
@@ -69,6 +74,8 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-square": {
 			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawMeshSquareHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 4, 2 * Math.PI, true);
 			if (logit && params.debugComments) {
 				console.log("squareHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
@@ -83,6 +90,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			const dashRatio = 0;
 			const opacity = 1;
 			const sizeAttenuation = false;
+			const diameter = 500;
 			drawLineCrossHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation);
 			if (logit && params.debugComments) {
 				console.log("crossHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
@@ -96,6 +104,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			const dashRatio = 0;
 			const opacity = 1;
 			const sizeAttenuation = false;
+			const diameter = 500;
 			const isFilled = true;
 			drawLineCircleHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
 			if (logit && params.debugComments) {
@@ -110,6 +119,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			const dashRatio = 0;
 			const opacity = 1;
 			const sizeAttenuation = false;
+			const diameter = 500;
 			const isFilled = true;
 			drawLineDiamondHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
 			if (logit && params.debugComments) {
@@ -124,6 +134,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			const dashRatio = 0;
 			const opacity = 1;
 			const sizeAttenuation = false;
+			const diameter = 500;
 			const isFilled = true;
 			drawLineSquareHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
 			if (logit && params.debugComments) {
@@ -138,6 +149,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			const dashRatio = 0;
 			const opacity = 1;
 			const sizeAttenuation = false;
+			const diameter = 500;
 			const isFilled = true;
 			drawLineTriangleHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
 			if (logit && params.debugComments) {
@@ -147,6 +159,8 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		default: {
 			const materialType = "basic";
+			const holeScale = 3;
+			const diameter = 165 * holeScale;
 			drawMeshCircleHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 100, 4, 32, 2 * Math.PI);
 			if (logit && params.debugComments) {
 				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);

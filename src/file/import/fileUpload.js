@@ -45,7 +45,6 @@ export function handleFileUpload(event, canvas) {
 
 		const { x, y, z } = getCentroid(points);
 		let colour = 0xffffff;
-
 		if (data.split("\n")[0].split(",").length === 4) {
 			for (const point of points) {
 				if (logit && params.debugComments) {
@@ -60,10 +59,6 @@ export function handleFileUpload(event, canvas) {
 				drawDummys(canvas.scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
-			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square", "line-triangle"];
-			const currentHoleDisplay = params.holeDisplay;
-			const currentIndex = holeOptions.indexOf(currentHoleDisplay);
-			let nextIndex = currentIndex;
 			for (const point of points) {
 				if (logit && params.debugComments) {
 					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
@@ -77,12 +72,7 @@ export function handleFileUpload(event, canvas) {
 					endYLocation: point.endYLocation - y,
 					endZLocation: point.endZLocation - z
 				};
-				//with each point cycle through the hole display options and assign to the shapeType variable
-
-				nextIndex = (currentIndex + 1) % holeOptions.length;
-				const shapeType = holeOptions[nextIndex];
-				console.log("shapeType: ", shapeType);
-				drawHoles(canvas.scene, colour, tempPoint, 165, 1, shapeType);
+				drawHoles(canvas.scene, colour, tempPoint, 165, 1);
 			}
 		}
 
@@ -146,18 +136,9 @@ export function handleFileUploadNoEvent(file, canvas) {
 				drawDummys(canvas.scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
-			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square", "line-triangle"];
-			console.log("holeOptions: ", holeOptions);
-			let currentHoleDisplay = params.holeDisplay;
-			console.log("currentHoleDisplay: ", currentHoleDisplay);
-			let currentIndex = holeOptions.indexOf(currentHoleDisplay);
-
-			let nextIndex = 0;
 			for (const point of points) {
-				nextIndex++;
-				nextIndex = nextIndex % holeOptions.length;
 				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+					console.log("fileUpload/handleFileUploadNoEvent/drawHoles: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
 				}
 				const tempPoint = {
 					pointID: point.pointID,
@@ -168,10 +149,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 					endYLocation: point.endYLocation - y,
 					endZLocation: point.endZLocation - z
 				};
-				//with each point cycle through the hole display options and assign to the shapeType variable
-				const shapeType = holeOptions[nextIndex];
-				console.log("shapeType: ", shapeType);
-				drawHoles(canvas.scene, colour, tempPoint, 165, 1, shapeType);
+				drawHoles(canvas.scene, colour, tempPoint, 165, 1);
 			}
 		}
 
