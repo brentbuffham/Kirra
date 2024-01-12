@@ -24,6 +24,8 @@ export function createAnyShape(color, vector, diameter, lineWidth, dashArray, da
 
 		anyShapeMesh.position.set(vector.x, vector.y, vector.z);
 
+		anyShapeMesh.name = "filled-anyShape";
+
 		return anyShapeMesh;
 	} else {
 		// Create a circle outline
@@ -57,6 +59,8 @@ export function createAnyShape(color, vector, diameter, lineWidth, dashArray, da
 			return p;
 		});
 		const anyShapeMesh2 = new Mesh(anyShape.geometry, material);
+
+		anyShapeMesh2.name = "outline-anyShape";
 
 		return anyShapeMesh2;
 	}

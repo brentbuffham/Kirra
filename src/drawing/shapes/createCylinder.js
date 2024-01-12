@@ -31,5 +31,8 @@ export function createCylinder(color, materialType, startVector, endVector, diam
 	if (logit && params.debugComments) {
 		console.log("createCylinder > UUID:" + cylinder.uuid + " X: " + position.x + " Y: " + position.y + " Z: " + position.z);
 	}
+
+	cylinder.name = "cylinder";
+
 	return cylinder;
 }

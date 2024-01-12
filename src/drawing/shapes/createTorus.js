@@ -25,5 +25,7 @@ export function createTorus(color, materialType, vector, diameter, thickness, ra
 	const torus = new Mesh(geometry, material);
 	torus.position.copy(vector);
 
+	torus.name = "circle-torus";
+
 	return torus;
 }

@@ -31,6 +31,9 @@ export function createSquareTorus(color, materialType, vector, diameter, thickne
 		const rotationMatrix = new Matrix4();
 		rotationMatrix.makeRotationZ(Math.PI / 4);
 		torus.applyMatrix4(rotationMatrix);
+		torus.name = "square-torus";
+	} else {
+		torus.name = "diamond-torus";
 	}
 
 	torus.position.copy(vector);

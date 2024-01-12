@@ -4,17 +4,20 @@ import * as THREE from "three";
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { ArrowHelper, AxesHelper } from "three";
 import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
-import { getCentroid } from "./helpers/getCentroid";
 import { Object3D } from "three";
 import { OrthographicCamera } from "three";
 import { PerspectiveCamera } from "three";
 import { GUI } from "lil-gui";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { Vector3, Scene, AmbientLight, DirectionalLight, WebGLRenderer } from "three";
-import { changeHoleMesh } from "./helpers/changeHoleMesh";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
 
 export let controls, camera, scene, renderer, clock;
 export let viewHelper;
+
+export let cameraPerspective = new PerspectiveCamera();
+export let cameraOrthographic = new OrthographicCamera();
+export let transformControls;
 
 const gui = new GUI();
 export let frustumSize = 100;
@@ -40,10 +43,46 @@ function createLighting(scene) {
 	scene.add(directionalLight);
 }
 
+function setCamera(camera, aspect, frustumSize) {
+	if (camera instanceof PerspectiveCamera) {
+		camera.fov = 56.5;
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.near = 0.01;
+		camera.far = 500;
+	}
+	if (camera instanceof OrthographicCamera) {
+		camera.left = -frustumSize * aspect / 2;
+		camera.right = frustumSize * aspect / 2;
+		camera.top = frustumSize / 2;
+		camera.bottom = -frustumSize / 2;
+		camera.near = 0.01;
+		camera.far = 500;
+	}
+}
+
 export function createScene(points) {
 	console.log("createScene(points)", points);
 	scene = new Scene();
 	const canvas = document.querySelector("#canvas");
+	let aspect = canvas.offsetWidth / canvas.offsetHeight;
+	// clock
+	clock = new THREE.Clock();
+	//create Gizmos for the ArcballControls
+	const objectCenter = new Object3D();
+	if (points === null || points.length === 0) {
+		objectCenter.position.set(0, 0, 0);
+	}
+	//gizmos.add(new AxesHelper(10));
+	objectCenter.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
+	objectCenter.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
+	objectCenter.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+
+	objectCenter.name = "objectCenter";
+	scene.add(objectCenter);
+
+	//Set up the Cameras
+	setCamera(cameraPerspective, aspect, frustumSize);
+	setCamera(cameraOrthographic, aspect, frustumSize);
 	//Set up the Renderer
 	renderer = new WebGLRenderer({ antialias: true }); // Add the antialias parameter here
 	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
@@ -51,12 +90,11 @@ export function createScene(points) {
 	renderer.autoClear = false;
 	document.querySelector("#canvas").appendChild(renderer.domElement);
 
-	let aspect = canvas.offsetWidth / canvas.offsetHeight;
-	const cameraPerspective = new PerspectiveCamera(56.5, aspect, 0.01, 500);
-	const cameraOrthographic = new OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.01, 500);
+	// const transformControls = new TransformControls(camera, renderer.domElement);
 	// Initialize camera with one of the cameras
 	camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
 	controls = new ArcballControls(camera, renderer.domElement, scene);
+	controls.setGizmosVisible(true);
 	camera = cameraOrthographic;
 	createLighting(scene);
 
@@ -64,9 +102,10 @@ export function createScene(points) {
 	camera.position.copy(position);
 	camera.lookAt(0, 0, 0);
 	camera.up.set(0, 1, 0);
-
-	// clock
-	clock = new THREE.Clock();
+	controls.target.set(0, 0, 0);
+	//set the controls to the stored position and target
+	camera.position.copy(position);
+	controls.target.copy(objectCenter.position);
 
 	viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
@@ -86,26 +125,75 @@ export function createScene(points) {
 
 	div.addEventListener("pointerup", event => viewHelper.handleClick(event));
 
-	//create Gizmos for the ArcballControls
-	const gizmos = new Object3D();
-	//gizmos.add(new AxesHelper(10));
-	gizmos.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
-	gizmos.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
-	gizmos.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+	function setArcBallControls() {
+		if (controls) {
+			controls.dispose(); // Dispose of the current controls
+		}
+		//set the controls to the arcball controls
+		controls = new ArcballControls(camera, renderer.domElement, scene);
 
-	gizmos.name = "gizmos";
-	scene.add(gizmos);
-
-	function setControls() {
+		if (viewHelper) {
+			viewHelper.dispose(); // Dispose of the current view helper
+		}
+		viewHelper = new ViewHelper(camera, renderer.domElement);
+		viewHelper.controls = controls;
 		controls.rotateSpeed = 20.0;
+		controls.enableRotate = false;
+		controls.enableZoom = true;
+		controls.enablePan = true;
 		controls.zoomSpeed = 1;
 		controls.panSpeed = 1;
 		controls.cursorZoom = true;
 		controls.enableGrid = true;
-		controls.activateGizmos(true);
-		controls.radiusFactor = 0.33;
+		controls.activateGizmos(false);
+		controls.setGizmosVisible(false);
+
+		controls.update();
 	}
-	setControls();
+
+	setArcBallControls();
+
+	addEventListener("keydown", function(event) {
+		switch (event.key) {
+			case "r":
+				controls.enableRotate = true;
+				controls.enableZoom = true;
+				controls.enablePan = false;
+				controls.cursorZoom = false;
+				controls.activateGizmos(true);
+				controls.setGizmosVisible(true);
+				controls.target.set(objectCenter.position.x, objectCenter.position.y, objectCenter.position.z);
+				camera.lookAt(controls.target);
+				controls.update();
+				break;
+			case "p":
+				objectCenter.visible = false;
+				if (transformControls === undefined || transformControls === null) {
+					transformControls = new TransformControls(camera, renderer.domElement);
+					transformControls.attach(objectCenter);
+					scene.add(transformControls);
+					transformControls.name = "TransformControls";
+				}
+				transformControls.addEventListener("dragging-changed", function(event) {
+					controls.enabled = !event.value;
+				});
+				break;
+		}
+	});
+	addEventListener("keyup", function(event) {
+		switch (event.key) {
+			case "r":
+				setArcBallControls();
+				break;
+			case "p":
+				objectCenter.visible = true;
+				transformControls.detach(objectCenter);
+				scene.remove(transformControls);
+				transformControls.dispose();
+				transformControls = null;
+				break;
+		}
+	});
 
 	function animate() {
 		requestAnimationFrame(animate);
@@ -126,43 +214,15 @@ export function createScene(points) {
 		// update the debug comments when the checkbox changes
 		params.debugComments = params.debugComments ? true : false;
 	});
-	//Add a reset camera to the gui
-	gui
-		.add(
-			{
-				resetCamera: function() {
-					//store the current camera position
-					const position = new Vector3(0, 0, 0 + 200);
-					const target = new Vector3(0, 0, 0);
-
-					//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
-					if (controls instanceof TrackballControls) {
-						controls.object.up.set(0, 1, 0);
-					}
-					if (controls instanceof ArcballControls) {
-						camera.position.copy(position);
-						camera.lookAt(0, 0, 0);
-						camera.up.set(0, 1, 0);
-						controls.target.set(0, 0, 0);
-						//set the controls to the stored position and target
-						camera.position.copy(position);
-						controls.target.copy(target);
-					}
-				}
-			},
-			"resetCamera"
-		)
-		.name("Reset Camera");
 
 	gui.add(params, "cameraPerspective").name("Use Perspective Camera").onChange(function() {
 		// Update camera when the perspective checkbox changes
 		camera = params.cameraPerspective ? cameraPerspective : cameraOrthographic;
-		const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 100);
+		const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 200);
 		//store the current look at target
 		const target = controls.target;
 		//when the camera is switched, reset the controls
-		controls = new ArcballControls(camera, renderer.domElement);
-		setControls();
+		setArcBallControls();
 		//set the controls to the stored position and target
 		camera.position.copy(position);
 		controls.target.copy(target);

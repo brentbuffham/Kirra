@@ -28,5 +28,7 @@ export function createLine(start, end, color, lineWidth, dashArray, dashOffset, 
 
 	const mesh = new Mesh(line, material);
 
+	mesh.name = "line";
+
 	return mesh;
 }

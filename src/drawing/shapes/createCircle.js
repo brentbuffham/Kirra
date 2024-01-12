@@ -18,6 +18,9 @@ export function createCircle(color, vector, diameter, lineWidth, dashArray, dash
 		});
 		const circleMesh = new Mesh(geometry, material);
 		circleMesh.position.set(vector.x, vector.y, vector.z);
+
+		circleMesh.name = "filled-circle";
+
 		return circleMesh;
 	} else {
 		// Create a circle outline
@@ -48,6 +51,9 @@ export function createCircle(color, vector, diameter, lineWidth, dashArray, dash
 			return p;
 		});
 		const circleMesh = new Mesh(circle.geometry, material);
+
+		circleMesh.name = "outline-circle";
+
 		return circleMesh;
 	}
 }

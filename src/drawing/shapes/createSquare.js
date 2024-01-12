@@ -24,6 +24,8 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 		}
 		squareMesh.position.set(vector.x, vector.y, vector.z);
 
+		squareMesh.name = "filled-square";
+
 		return squareMesh;
 	} else {
 		// Create a circle outline
@@ -58,6 +60,8 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 			return p;
 		});
 		const squareMesh2 = new Mesh(square.geometry, material);
+
+		squareMesh2.name = "outline-square";
 
 		return squareMesh2;
 	}

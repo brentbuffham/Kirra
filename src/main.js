@@ -1,6 +1,6 @@
 //main.js
 import "./style.css";
-import { renderFileUpload, createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileUpload.js";
+import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileUpload.js";
 import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
 import { Vector3 } from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
@@ -65,15 +65,18 @@ document.querySelector("#app").innerHTML = `
     </nav>
   <nav id= horizontal-nav>
     <nav>
-      <button>
-        <img src="src/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
-      </button>
-      <button>
-        <img src="src/assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
-      </button>
-      <button>
-        <img src="src/assets/tabler-icons-2.36.0/png/sun-moon.png" alt="Dark-Light Mode" />
-      </button>
+      	<button>
+       		<img src="src/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
+     	</button>
+     	<button>
+        	<img src="src/assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
+     	</button>
+      	<button>
+        	<img src="src/assets/tabler-icons-2.36.0/png/sun-moon.png" alt="Dark-Light Mode" />
+     	 </button>
+	  	<button>
+	  		<img src="src/assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
+		</button>
       <!-- Add more buttons as needed -->
     </nav>
 </div>
@@ -154,6 +157,7 @@ document.querySelectorAll("#horizontal-nav button")[0].addEventListener("click",
 const currentPoints = points; //store the current points
 console.log("main: ", currentPoints);
 
+//swap hole visual
 document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click", function() {
 	//swap hole visual - redrawing the scene with a different blast hole representation
 	// Each click will cycle through the createScene params hole visual options
@@ -176,18 +180,28 @@ document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click",
 		canvas.scene.remove(hole);
 	}
 	const { x, y, z } = getCentroid(currentPoints);
-	currentPoints.forEach(point => {
-		const tempPoint = {
-			pointID: point.pointID,
-			startXLocation: point.startXLocation - x,
-			startYLocation: point.startYLocation - y,
-			startZLocation: point.startZLocation - z,
-			endXLocation: point.endXLocation - x,
-			endYLocation: point.endYLocation - y,
-			endZLocation: point.endZLocation - z
-		};
-		const colour = 0xffffff;
-		drawHoles(canvas.scene, colour, tempPoint, 165, 1);
-	});
+	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null) {
+		currentPoints.forEach(point => {
+			const tempPoint = {
+				pointID: point.pointID,
+				startXLocation: point.startXLocation - x,
+				startYLocation: point.startYLocation - y,
+				startZLocation: point.startZLocation - z,
+				endXLocation: point.endXLocation - x,
+				endYLocation: point.endYLocation - y,
+				endZLocation: point.endZLocation - z
+			};
+			const colour = 0xffffff;
+			drawHoles(canvas.scene, colour, tempPoint, 165, 1);
+		});
+	} else {
+		console.log("Not enough points to draw holes - no end points");
+	}
 });
+
+//change Camera Type
+document.querySelectorAll("#horizontal-nav button")[3].addEventListener("click", function() {
+	//change Camera Type
+});
+
 createLilGuiFileUpload(canvas);
