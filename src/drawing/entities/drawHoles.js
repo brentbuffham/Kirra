@@ -77,7 +77,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 
 		case "line-cross": {
-			const lineWidth = 5;
+			const lineWidth = 2;
 			const dashArray = false;
 			const dashOffset = 0;
 			const dashRatio = 0;
@@ -90,7 +90,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			break;
 		}
 		case "outline-circle": {
-			const lineWidth = 5;
+			const lineWidth = 2;
 			const dashArray = false;
 			const dashOffset = 0;
 			const dashRatio = 0;
@@ -104,7 +104,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			break;
 		}
 		case "filled-circle": {
-			const lineWidth = 5;
+			const lineWidth = 2;
 			const dashArray = false;
 			const dashOffset = 0;
 			const dashRatio = 0;
@@ -132,7 +132,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			break;
 		}
 		case "line-square": {
-			const lineWidth = 5;
+			const lineWidth = 2;
 			const dashArray = false;
 			const dashOffset = 0;
 			const dashRatio = 0;
