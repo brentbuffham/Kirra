@@ -55,9 +55,7 @@ export function createAnyShape(color, vector, diameter, lineWidth, dashArray, da
 		anyShapeGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
 		const anyShape = new MeshLine();
-		anyShape.setGeometry(anyShapeGeometry, function(p) {
-			return p;
-		});
+		anyShape.setGeometry(anyShapeGeometry);
 		const anyShapeMesh2 = new Mesh(anyShape.geometry, material);
 
 		anyShapeMesh2.name = "outline-anyShape";

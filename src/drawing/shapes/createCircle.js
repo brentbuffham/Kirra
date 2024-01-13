@@ -19,7 +19,7 @@ export function createCircle(color, vector, diameter, lineWidth, dashArray, dash
 		const circleMesh = new Mesh(geometry, material);
 		circleMesh.position.set(vector.x, vector.y, vector.z);
 
-		circleMesh.name = "filled-circle";
+		circleMesh.name = "filled-circle-part";
 
 		return circleMesh;
 	} else {
@@ -47,12 +47,11 @@ export function createCircle(color, vector, diameter, lineWidth, dashArray, dash
 		circleGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
 		const circle = new MeshLine();
-		circle.setGeometry(circleGeometry, function(p) {
-			return p;
-		});
+		circle.setGeometry(circleGeometry);
+
 		const circleMesh = new Mesh(circle.geometry, material);
 
-		circleMesh.name = "outline-circle";
+		circleMesh.name = "outline-circle-part";
 
 		return circleMesh;
 	}

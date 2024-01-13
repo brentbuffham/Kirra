@@ -56,9 +56,7 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 		squareGeometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
 
 		const square = new MeshLine();
-		square.setGeometry(squareGeometry, function(p) {
-			return p;
-		});
+		square.setGeometry(squareGeometry);
 		const squareMesh2 = new Mesh(square.geometry, material);
 
 		squareMesh2.name = "outline-square";

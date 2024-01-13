@@ -23,16 +23,16 @@ const logit = false;
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
-	colour = getRandomColor();
-	//colour = "white";
+	//colour = getRandomColor();
+	colour = "white";
 	const name = tempPoint.pointID;
 	const collarXYZ = new Vector3(tempPoint.startXLocation, tempPoint.startYLocation, tempPoint.startZLocation);
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
-	const shapeType = shape || params.holeDisplay;
+	const shapeType = shape; // || params.holeDisplay;
 	const holeScale = 3;
 	diameter = diameter * holeScale;
-	//Hole Types: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square"
+	//Hole Types: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square"
 	switch (shapeType) {
 		case "mesh-cylinder": {
 			const materialType = "phong";
@@ -89,7 +89,21 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			}
 			break;
 		}
-		case "line-circle": {
+		case "outline-circle": {
+			const lineWidth = 5;
+			const dashArray = false;
+			const dashOffset = 0;
+			const dashRatio = 0;
+			const opacity = 1;
+			const sizeAttenuation = false;
+			const isFilled = false;
+			drawLineCircleHole(scene, colour, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled);
+			if (logit && params.debugComments) {
+				console.log("circleHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
+		case "filled-circle": {
 			const lineWidth = 5;
 			const dashArray = false;
 			const dashOffset = 0;
@@ -178,7 +192,7 @@ export function drawDummys(scene, colour, point) {
 	const name = point.pointID;
 	const materialType = "basic";
 	const vector = new Vector3(point.startXLocation, point.startYLocation, point.startZLocation);
-	drawMeshCrossDummy(scene, colour, "basic", name, vector, 100, 4);
+	drawMeshCrossDummy(scene, colour, materialType, name, vector, 100, 4);
 	if (params.debugComments) {
 		console.log("drawHoles/drawDummys/crossDummyID: " + name + " X: " + vector.x + " Y: " + vector.y + " Z: " + vector.z);
 	}

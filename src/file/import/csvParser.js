@@ -49,6 +49,38 @@ export function parseCSV(data) {
 				minY = Math.min(minY, startYLocation);
 			}
 		}
+		if (values.length === 10) {
+			//files with
+			//id, startXLocation, startYLocation, startZLocation, endXLocation, endYLocation, endZLocation, diameter, subdrill, shapeType
+			//shapeType: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square", "line-triangle"
+			const pointID = values[0];
+			const startXLocation = parseFloat(values[1]); //start of the blast hole X value
+			const startYLocation = parseFloat(values[2]); //start of the blast hole Y value
+			const startZLocation = parseFloat(values[3]); //start of the blast hole Z value
+			const endXLocation = parseFloat(values[4]); //end of the blast hole X value
+			const endYLocation = parseFloat(values[5]); //end of the blast hole Y value
+			const endZLocation = parseFloat(values[6]); //end of the blast hole Z value
+			const diameter = parseFloat(values[7]); //diameter of the blast hole
+			const subdrill = parseFloat(values[8]); //subdrill of the blast hole
+			const shapeType = values[9]; //shape type of the blast hole
+			if (!isNaN(startXLocation) && !isNaN(startYLocation) && !isNaN(startZLocation) && !isNaN(endXLocation) && !isNaN(endYLocation) && !isNaN(endZLocation)) {
+				// check if they are valid numbers
+				points.push({
+					pointID,
+					startXLocation,
+					startYLocation,
+					startZLocation,
+					endXLocation,
+					endYLocation,
+					endZLocation,
+					diameter,
+					subdrill,
+					shapeType
+				});
+				minX = Math.min(minX, startXLocation);
+				minY = Math.min(minY, startYLocation);
+			}
+		}
 	}
 
 	return points;

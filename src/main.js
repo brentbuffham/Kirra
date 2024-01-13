@@ -161,7 +161,7 @@ console.log("main: ", currentPoints);
 document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click", function() {
 	//swap hole visual - redrawing the scene with a different blast hole representation
 	// Each click will cycle through the createScene params hole visual options
-	const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square", "line-triangle"];
+	const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
 	const currentHoleDisplay = params.holeDisplay;
 	console.log("holeDisplay: ", currentHoleDisplay);
 
@@ -180,7 +180,7 @@ document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click",
 		canvas.scene.remove(hole);
 	}
 	const { x, y, z } = getCentroid(currentPoints);
-	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null) {
+	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
 		currentPoints.forEach(point => {
 			const tempPoint = {
 				pointID: point.pointID,
