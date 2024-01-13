@@ -1,7 +1,7 @@
 //fileUpload.js
 import { parseCSV } from "./csvParser.js";
 import { getCentroid } from "../../drawing/helpers/getCentroid.js";
-import { controls } from "../../drawing/createScene.js";
+import {camera, controls, scene} from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 
@@ -109,7 +109,7 @@ export function createLilGuiFileUpload(canvas) {
 	document.body.appendChild(fileInput);
 }
 
-export function handleFileUploadNoEvent(file, canvas) {
+export function handleFileUploadNoEvent(file) {
 	if (!file) {
 		return;
 	}
@@ -147,7 +147,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 					startYLocation: point.startYLocation - y,
 					startZLocation: point.startZLocation - z
 				};
-				drawDummys(canvas.scene, colour, tempPoint);
+				drawDummys(scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
 			// const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square", "line-triangle"];
@@ -167,7 +167,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 					endZLocation: point.endZLocation - z
 				};
 				const shapeType = params.holeDisplay;
-				drawHoles(canvas.scene, colour, tempPoint, 165, 1, shapeType);
+				drawHoles(scene, colour, tempPoint, 165, 1, shapeType);
 			}
 		} else if (data.split("\n")[0].split(",").length === 10) {
 			for (const point of points) {
@@ -186,7 +186,7 @@ export function handleFileUploadNoEvent(file, canvas) {
 					subdrill: point.subdrill,
 					shapeType: point.shapeType
 				};
-				drawHoles(canvas.scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				drawHoles(scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 			}
 		}
 
@@ -195,14 +195,14 @@ export function handleFileUploadNoEvent(file, canvas) {
 			console.log("fileUpload/handleFileUploadNoEvent/centroidActual: ", x - x, y - y, z - z);
 		}
 
-		canvas.camera.position.set(0, 0, 0 + 200);
-		canvas.camera.lookAt(0, 0, 0);
+		camera.position.set(0, 0, 0 + 200);
+		camera.lookAt(0, 0, 0);
 		controls.target.set(0, 0, 0);
 
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/controls.target", controls.target);
 		}
-		canvas.camera.updateMatrixWorld();
+		camera.updateMatrixWorld();
 	};
 	reader.readAsText(file);
 }

@@ -9,6 +9,7 @@ import { controls, camera, createScene, params, scene } from "./drawing/createSc
 import { getCentroid } from "./drawing/helpers/getCentroid.js";
 import { drawHoles } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
+import {bindListenerToImportCsvButton} from "./import/csv/importButton.js";
 
 // document.querySelector("#app").innerHTML = `
 //   <div id="header">header</div>
@@ -26,7 +27,7 @@ document.querySelector("#app").innerHTML = `
     <nav id="vertical-nav">
     <!-- Vertical Nav Buttons -->
     <img src="src/assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
-    	<button>
+    	<button id="btn-import-csv">
         	<img src="src/assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
     	</button>
 	  <button>
@@ -88,26 +89,8 @@ const canvas = createScene(points);
 preloadFont(); // Preload the font
 
 // Example: Adding event listeners to the first button
-document.querySelectorAll("#vertical-nav button")[0].addEventListener("click", function() {
-	// Interaction with Three.js scene
-	const fileInput = document.createElement("input");
-	fileInput.type = "file";
-	fileInput.accept = ".csv";
-	fileInput.style.display = "none"; // Hide the file input
+bindListenerToImportCsvButton();
 
-	fileInput.onchange = e => {
-		if (e.target.files && e.target.files[0]) {
-			handleFileUploadNoEvent(e.target.files[0], canvas);
-		}
-	};
-
-	document.body.appendChild(fileInput); // Add file input to the document
-	fileInput.click(); // Trigger the file input
-	document.body.removeChild(fileInput); // Remove the file input after use
-	if (params.debugComments) {
-		console.log("Load File button clicked");
-	}
-});
 // Example: Adding event listeners to the first button
 document.querySelectorAll("#vertical-nav button")[1].addEventListener("click", function() {
 	// Interaction with Three.js scene
