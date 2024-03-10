@@ -1,29 +1,31 @@
-import {camera, controls, renderer, scene} from "./createScene.js";
-import {ArcballControls} from "three/addons/controls/ArcballControls.js";
-import {ViewHelper} from "three/addons/helpers/ViewHelper.js";
+import { camera, renderer, scene } from "./createScene.js";
+import { ArcballControls } from "three/addons/controls/ArcballControls.js";
+import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 export function setArcBallControls(controls, viewHelper) {
-    if (controls) {
-        controls.dispose(); // Dispose of the current controls
-    }
-    //set the controls to the arcball controls
-    controls = new ArcballControls(camera, renderer.domElement, scene);
+	// if (controls) {
+	// 	controls.dispose(); // Dispose of the current controls
+	// }
+	// //set the controls to the arcball controls
+	// controls = new ArcballControls(camera, renderer.domElement, scene);
 
-    if (viewHelper) {
-        viewHelper.dispose(); // Dispose of the current view helper
-    }
-    viewHelper = new ViewHelper(camera, renderer.domElement);
-    viewHelper.controls = controls;
-    controls.rotateSpeed = 20.0;
-    controls.enableRotate = false;
-    controls.enableZoom = true;
-    controls.enablePan = true;
-    controls.zoomSpeed = 1;
-    controls.panSpeed = 1;
-    controls.cursorZoom = true;
-    controls.enableGrid = true;
-    controls.activateGizmos(false);
-    controls.setGizmosVisible(false);
+	// if (viewHelper) {
+	// 	viewHelper.dispose(); // Dispose of the current view helper
+	// }
+	// viewHelper = new ViewHelper(camera, renderer.domElement);
+	viewHelper.controls = controls;
+	controls.rotateSpeed = 20.0;
+	controls.enableRotate = false;
+	controls.enableZoom = true;
+	controls.enablePan = true;
+	controls.zoomSpeed = 1;
+	controls.panSpeed = 1;
+	controls.cursorZoom = true;
+	controls.enableGrid = true;
+	controls.activateGizmos(false);
+	controls.setGizmosVisible(false);
+	camera.updateProjectionMatrix();
+	controls.update();
 
-    controls.update();
+	return { controls, viewHelper };
 }
