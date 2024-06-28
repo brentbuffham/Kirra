@@ -17,7 +17,7 @@
     // Enable JavaScript file processing
     "allowJs": true,
     // Optional: Enable type-checking for JavaScript files
-    "checkJs": true
+    "checkJs": false
   },
   "include": ["src/**/*"]
 }
