@@ -1,7 +1,7 @@
 //fileUpload.js
 import { parseCSV } from "./csvParser.js";
 import { getCentroid } from "../../drawing/helpers/getCentroid.js";
-import {camera, controls, scene} from "../../drawing/createScene.js";
+import { camera, controls, scene } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 

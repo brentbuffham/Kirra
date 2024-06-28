@@ -6,11 +6,11 @@ export const bindingKeys = (camera, objectCenter, controls, viewHelper, transfor
 	addEventListener("keydown", function(event) {
 		switch (event.key) {
 			case "r":
-				if (transformControls === undefined || transformControls === null) {
+				if (!transformControls) {
 					controls.activateGizmos(true);
 					controls.setGizmosVisible(true);
-					console.log("rotate (r) pressed");
 					controls.enableRotate = true;
+					console.log("rotate (r) pressed - controls.enableRotate = true");
 					controls.enableZoom = true;
 					controls.enablePan = false;
 					controls.cursorZoom = false;
@@ -22,10 +22,12 @@ export const bindingKeys = (camera, objectCenter, controls, viewHelper, transfor
 				break;
 			case "p":
 				objectCenter.visible = false;
-				if (transformControls === undefined || transformControls === null) {
+				if (!transformControls) {
+					console.log("pan (p) pressed - enabling TransformControls");
 					transformControls = new TransformControls(camera, renderer.domElement);
 					transformControls.attach(objectCenter);
 					scene.add(transformControls);
+					controls.enableRotate = false;
 					transformControls.name = "TransformControls";
 				}
 				transformControls.addEventListener("dragging-changed", function(event) {
@@ -34,26 +36,32 @@ export const bindingKeys = (camera, objectCenter, controls, viewHelper, transfor
 				break;
 		}
 	});
+
 	addEventListener("keyup", function(event) {
 		switch (event.key) {
 			case "r":
-				controls.activateGizmos(false);
-				controls.setGizmosVisible(false);
-				console.log("rotate (r) pressed");
-				controls.enableRotate = false;
-				controls.enableZoom = true;
-				controls.enablePan = true;
-				controls.cursorZoom = true;
-				//setArcBallControls(controls, viewHelper, scene);
+				if (!transformControls) {
+					controls.activateGizmos(false);
+					controls.setGizmosVisible(false);
+					controls.enableRotate = false;
+					console.log("rotate (r) released - controls.enableRotate = false");
+					controls.enableZoom = true;
+					controls.enablePan = true;
+					controls.cursorZoom = true;
+				}
 				camera.updateProjectionMatrix();
 				controls.update();
 				break;
 			case "p":
+				console.log("pan (p) released - disabling TransformControls");
 				objectCenter.visible = true;
-				transformControls.detach(objectCenter);
-				scene.remove(transformControls);
-				transformControls.dispose();
-				transformControls = null;
+				if (transformControls) {
+					transformControls.detach(objectCenter);
+					scene.remove(transformControls);
+					transformControls.dispose();
+					transformControls = null;
+				}
+				controls.enableRotate = true;
 				break;
 		}
 	});

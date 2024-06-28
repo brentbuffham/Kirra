@@ -6,7 +6,6 @@ export function setArcBallControls(controls, viewHelper) {
 	// if (controls) {
 	// 	controls.dispose(); // Dispose of the current controls
 	// }
-	// //set the controls to the arcball controls
 	// controls = new ArcballControls(camera, renderer.domElement, scene);
 
 	// if (viewHelper) {
@@ -14,7 +13,7 @@ export function setArcBallControls(controls, viewHelper) {
 	// }
 	// viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
-	controls.rotateSpeed = 20.0;
+	controls.rotateSpeed = 1.0;
 	controls.enableRotate = false;
 	controls.enableZoom = true;
 	controls.enablePan = true;

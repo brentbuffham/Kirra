@@ -5,6 +5,7 @@ import { GUI } from "lil-gui";
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { setArcBallControls } from "./setArcBallControls.js";
+import { updateCameraType } from "./createScene.js";
 
 export const gui = new GUI();
 export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera) {
@@ -14,21 +15,10 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 		params.debugComments = params.debugComments ? true : false;
 	});
 
-	gui.add(params, "usePerspectiveCam").name("Use Perspective Camera").onChange(function() {
-		// Update camera when the perspective checkbox changes
-		console.log("params.usePerspectiveCam", params.usePerspectiveCam);
-		camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
-		console.log("camera", camera);
-		const position = new Vector3(controls.target.x, controls.target.y, controls.target.z + 200);
-		//store the current look at target
-		const target = controls.target;
-		//when the camera is switched, reset the controls
-		setArcBallControls(controls, viewHelper, scene);
-		//set the controls to the stored position and target
-		camera.position.copy(position);
-		controls.target.copy(target);
-		camera.updateProjectionMatrix();
+	gui.add(params, "usePerspectiveCam").name("Use Perspective Camera").onChange(function(value) {
+		updateCameraType(); // This now handles the camera switching logic
 	});
+
 	const upOptions = ["X", "Y", "Z"];
 	gui.add(params, "upDirection", upOptions).name("Direction Axis").onChange(function() {
 		switch (params.upDirection) {
@@ -73,10 +63,10 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 	perspectiveFolder.add(cameraPerspective, "fov", 0, 180).name("Field of View").onChange(function() {
 		cameraPerspective.updateProjectionMatrix();
 	});
-	perspectiveFolder.add(cameraPerspective, "near", 0.1, 1000).name("Near Plane").onChange(function() {
+	perspectiveFolder.add(cameraPerspective, "near", 0.1, 10000).name("Near Plane").onChange(function() {
 		cameraPerspective.updateProjectionMatrix();
 	});
-	perspectiveFolder.add(cameraPerspective, "far", 0.1, 1000).name("Far Plane").onChange(function() {
+	perspectiveFolder.add(cameraPerspective, "far", 0.1, 10000).name("Far Plane").onChange(function() {
 		cameraPerspective.updateProjectionMatrix();
 	});
 	perspectiveFolder.add(controls, "rotateSpeed", 0.0, 50.0).name("Rotate Speed").onChange(function() {
@@ -97,10 +87,10 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 		cameraOrthographic.bottom = -frustumSize / 2;
 		cameraOrthographic.updateProjectionMatrix();
 	});
-	orthographicFolder.add(cameraOrthographic, "near", 0.1, 1000).name("Near Plane").onChange(function() {
+	orthographicFolder.add(cameraOrthographic, "near", 0.1, 10000).name("Near Plane").onChange(function() {
 		cameraOrthographic.updateProjectionMatrix();
 	});
-	orthographicFolder.add(cameraOrthographic, "far", 0.1, 1000).name("Far Plane").onChange(function() {
+	orthographicFolder.add(cameraOrthographic, "far", 0.1, 10000).name("Far Plane").onChange(function() {
 		cameraOrthographic.updateProjectionMatrix();
 	});
 }

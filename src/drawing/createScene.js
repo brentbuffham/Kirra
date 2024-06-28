@@ -1,5 +1,4 @@
-//createScene.js
-//consistently import THREE
+// createScene.js
 import * as THREE from "three";
 import { AmbientLight, ArrowHelper, DirectionalLight, Object3D, OrthographicCamera, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from "three";
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
@@ -22,52 +21,74 @@ export const params = {
 
 export let renderer, clock;
 export let transformControls;
+export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
-	//create ambient light
 	const ambientLight = new AmbientLight(0xffffff, 0.5);
 	scene.add(ambientLight);
-	//create directional light
 	const directionalLight = new DirectionalLight(0xffffff, 2);
 	directionalLight.position.set(0, 500, 500);
 	scene.add(directionalLight);
 }
 
 function setCamera(aspect) {
-	let cameraPerspective, cameraOrthographic;
 	const { frustumSize } = sceneConfig;
-	cameraPerspective = new PerspectiveCamera();
-	cameraPerspective.fov = 56.5;
-	cameraPerspective.aspect = window.innerWidth / window.innerHeight;
-	cameraPerspective.near = 0.01;
-	cameraPerspective.far = 500;
 
-	cameraOrthographic = new OrthographicCamera();
-	cameraOrthographic.left = -frustumSize * aspect / 2;
-	cameraOrthographic.right = frustumSize * aspect / 2;
-	cameraOrthographic.top = frustumSize / 2;
-	cameraOrthographic.bottom = -frustumSize / 2;
-	cameraOrthographic.near = 0.01;
-	cameraOrthographic.far = 500;
+	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000);
+	cameraOrthographic = new OrthographicCamera(-frustumSize * aspect / 2, frustumSize * aspect / 2, frustumSize / 2, -frustumSize / 2, 0.01, 10000);
 
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
-	//return camera;
 }
 
+export function updateCameraType() {
+	const position = camera.position.clone();
+	const target = controls.target.clone();
+	const up = camera.up.clone();
+
+	const aspect = window.innerWidth / window.innerHeight;
+	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
+	camera.aspect = aspect;
+	camera.updateProjectionMatrix();
+
+	controls.dispose();
+	controls = new ArcballControls(camera, renderer.domElement, scene);
+	viewHelper.controls = controls;
+	controls.rotateSpeed = 1.0;
+	controls.enableRotate = false;
+	controls.enableZoom = true;
+	controls.enablePan = true;
+	controls.zoomSpeed = 1;
+	controls.panSpeed = 1;
+	controls.cursorZoom = true;
+	controls.enableGrid = true;
+	controls.activateGizmos(false);
+	controls.setGizmosVisible(false);
+	controls.update();
+
+	camera.position.copy(position);
+	controls.target.copy(target);
+	camera.up.copy(up);
+	camera.lookAt(target);
+
+	console.log("Camera updated:", camera);
+	console.log("Controls updated:", controls);
+
+	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
+}
+
+const objectCenter = new Object3D();
 export function createScene(points) {
 	console.log("createScene(points)", points);
 	scene = new Scene();
-	const canvas = document.querySelector("#canvas");
-	let aspect = canvas.offsetWidth / canvas.offsetHeight;
-	// clock
+	const canvasElement = document.querySelector("#canvas");
+
+	let aspect = canvasElement.offsetWidth / canvasElement.offsetHeight;
 	clock = new THREE.Clock();
-	//create Gizmos for the ArcballControls
-	const objectCenter = new Object3D();
+
 	if (points === null || points.length === 0) {
 		objectCenter.position.set(0, 0, 0);
 	}
-	//gizmos.add(new AxesHelper(10));
 	objectCenter.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
 	objectCenter.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
 	objectCenter.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
@@ -75,46 +96,39 @@ export function createScene(points) {
 	objectCenter.name = "objectCenter";
 	scene.add(objectCenter);
 
-	//Set up the Cameras
 	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
 
-	//Set up the Renderer
-	renderer = new WebGLRenderer({ antialias: true }); // Add the antialias parameter here
-	renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+	renderer = new WebGLRenderer({ antialias: true });
+	renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.autoClear = false;
-	document.querySelector("#canvas").appendChild(renderer.domElement);
+	canvasElement.appendChild(renderer.domElement);
 
 	controls = new ArcballControls(camera, renderer.domElement, scene);
 
 	createLighting(scene);
 
-	const position = new Vector3(0, 0, 0 + 200);
+	let position = new Vector3(0, 0, 0 + 200);
 	camera.position.copy(position);
 	camera.lookAt(0, 0, 0);
 	camera.up.set(0, 1, 0);
 	controls.target.set(0, 0, 0);
-	//set the controls to the stored position and target
 	camera.position.copy(position);
 	controls.target.copy(objectCenter.position);
 
 	let viewHelper = createViewHelper();
 
-	setArcBallControls(controls, viewHelper, transformControls);
+	setArcBallControls(controls, viewHelper);
 
 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 
 	debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
 
-	///////////////////////
-	//Only functions prior to upload of the csv file at this stage.
-	if (points !== null || points.length > 0) {
+	if (points !== null && points.length > 0) {
 		const holeFolder = gui.addFolder("Hole Options");
 		holeFolder.close();
 		const holeTextOptions = ["Off", "ID", "Length"];
-		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {
-			//nothing yet
-		});
+		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {});
 	}
 
 	animate();
@@ -130,7 +144,11 @@ export function createScene(points) {
 		viewHelper.render(renderer);
 	}
 
-	return { scene, camera };
+	if (params.debugComments) {
+		console.log("Initialized canvas:", { scene, camera, renderer });
+	}
+
+	return { scene, camera, renderer };
 }
 
 onWindowResize();

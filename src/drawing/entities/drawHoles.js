@@ -168,23 +168,28 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 			break;
 		}
 	}
+	let textSize = 1;
+	let textLength = name.length;
 	switch (params.holeText) {
-		case "Off" || "off": {
+		case "Off":
+		case "off": {
 			break;
 		}
 		case "ID": {
 			if (globalFont) {
-				drawText(scene, colour, globalFont, { x: collarXYZ.x + 0.1, y: collarXYZ.y + 0.1, z: collarXYZ.z + 0.1 }, name);
+				drawText(scene, colour, globalFont, { x: collarXYZ.x - textLength / 2, y: collarXYZ.y + textSize / 2, z: collarXYZ.z + 0.1 }, name);
 			}
 			break;
 		}
 		case "Length": {
 			if (globalFont) {
-				drawText(scene, colour, globalFont, { x: collarXYZ.x + 0.1, y: collarXYZ.y + 0.1, z: collarXYZ.z + 0.1 }, collarXYZ.distanceTo(toeXYZ).toFixed(1));
+				const lengthText = collarXYZ.distanceTo(toeXYZ).toFixed(1);
+				drawText(scene, "#00aaFF", globalFont, { x: collarXYZ.x - textLength / 2, y: collarXYZ.y - textSize, z: collarXYZ.z + 0.1 }, lengthText);
 			}
 			break;
 		}
 	}
+
 	//colour = getRandomColor();
 }
 //Draw points that consist of id, x, y, z
