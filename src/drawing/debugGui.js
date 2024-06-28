@@ -93,6 +93,14 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 	orthographicFolder.add(cameraOrthographic, "far", 0.1, 10000).name("Far Plane").onChange(function() {
 		cameraOrthographic.updateProjectionMatrix();
 	});
+
+	const textDisplayFolder = gui.addFolder("Text Display Options");
+	textDisplayFolder.close();
+	const textOptions = ["Off", "ID", "Length"];
+	textDisplayFolder.add(params, "holeText", textOptions).name("Hole Text").onChange(function() {
+		// Update the hole text display when the dropdown changes
+		params.holeText = params.holeText;
+	});
 }
 
 function rollCamera(axis, radians, controls) {

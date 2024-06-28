@@ -26,39 +26,39 @@ document.querySelector("#app").innerHTML = /*html*/ `
 
 	<nav id="vertical-nav">
 	<!-- Vertical Nav Buttons -->
-	<img src="public/assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
+	<img src="/assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
 		<button id="btn-import-csv" title="File Import">
-			<img src="public/assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
+			<img src="/assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
 		</button>
 	  <button title="File OBJ Loader">
-			<img src="public/assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
+			<img src="/assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
 		</button>
 		<!--<button title="File Export">
-			<img src="public/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
+			<img src="/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
 		</button>
 		<button title="Save">
-			<img src="public/assets/tabler-icons-2.36.0/png/device-floppy.png" alt="Save" />
+			<img src="/assets/tabler-icons-2.36.0/png/device-floppy.png" alt="Save" />
 		</button>
 		<button title="Add Hole">
-			<img src="public/assets/tabler-icons-2.36.0/png/circle-plus.png" alt="Add Hole" />
+			<img src="/assets/tabler-icons-2.36.0/png/circle-plus.png" alt="Add Hole" />
 		</button>
 		<button title="Remove Hole">
-			<img src="public/assets/tabler-icons-2.36.0/png/circle-x.png" alt="Remove Hole" />
+			<img src="/assets/tabler-icons-2.36.0/png/circle-x.png" alt="Remove Hole" />
 		</button>
 		<button title="Add Pattern">
-			<img src="public/assets/tabler-icons-2.36.0/png/grain.png" alt="Add Pattern" />
+			<img src="/assets/tabler-icons-2.36.0/png/grain.png" alt="Add Pattern" />
 		</button>
 		<button title="Add Pattern2">
-			<img src="public/assets/tabler-icons-2.36.0/png/grid-dots.png" alt="Add Pattern2" />
+			<img src="/assets/tabler-icons-2.36.0/png/grid-dots.png" alt="Add Pattern2" />
 		</button>
 		<button title="Measure">
-			<img src="public/assets/tabler-icons-2.36.0/png/ruler-measure.png" alt="Measure" />
+			<img src="/assets/tabler-icons-2.36.0/png/ruler-measure.png" alt="Measure" />
 		</button>
 		<button title="Bearing and Angle Measure">
-			<img src="public/assets/tabler-icons-2.36.0/png/geometry.png" alt="Bearing and Angle Measure" />
+			<img src="/assets/tabler-icons-2.36.0/png/geometry.png" alt="Bearing and Angle Measure" />
 		</button>
 		<button title="Help">
-			<img src="public/assets/tabler-icons-2.36.0/png/help-triangle.png" alt="Help" />
+			<img src="/assets/tabler-icons-2.36.0/png/help-triangle.png" alt="Help" />
 		</button>
 		<button title="Settings">
 			<img src="public/assets/tabler-icons-2.36.0/png/settings.png" alt="Settings" />
@@ -68,18 +68,18 @@ document.querySelector("#app").innerHTML = /*html*/ `
   <nav id= horizontal-nav>
 	<nav>
 		<button title="Reset">
-			<img src="public/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
+			<img src="/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
 		</button>
 		<button title="Swap Hole Visual">
-			<img src="public/assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
+			<img src="/assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
 		</button>
 		<!--
 		<button title="Dark-Light Mode">
-			<img src="src/assets/tabler-icons-2.36.0/png/sun-moon.png" alt="Dark-Light Mode" />
+			<img src="/assets/tabler-icons-2.36.0/png/sun-moon.png" alt="Dark-Light Mode" />
 		 </button>
 -->
 		<button title="Perspective Mode">
-			<img src="public/assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
+			<img src="/assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
 		</button>
 		<label id="info-label" style="color: red;">Info Label</label>
 	  <!-- Add more buttons as needed -->
