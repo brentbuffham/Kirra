@@ -7,7 +7,7 @@ export let globalFont;
 
 export function preloadFont() {
 	const fontLoader = new TTFLoader();
-	fontLoader.load("src/assets/fonts/Roboto/Roboto-Regular.ttf", function(font) {
+	fontLoader.load("public/assets/fonts/Roboto/Roboto-Regular.ttf", function(font) {
 		globalFont = new Font(font);
 	});
 }
