@@ -26,12 +26,12 @@ document.querySelector("#app").innerHTML = /*html*/ `
 
 	<nav id="vertical-nav">
 	<!-- Vertical Nav Buttons -->
-	<img src="/assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
+	<img src="./assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
 		<button id="btn-import-csv" title="File Import">
-			<img src="/assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
+			<img src="./assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
 		</button>
 	  <button title="File OBJ Loader">
-			<img src="/assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
+			<img src="./assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
 		</button> 
 		<!--<button title="File Export">
 			<img src="/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
@@ -68,10 +68,10 @@ document.querySelector("#app").innerHTML = /*html*/ `
   <nav id= horizontal-nav>
 	<nav>
 		<button title="Reset">
-			<img src="/assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
+			<img src="./assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
 		</button>
 		<button title="Swap Hole Visual">
-			<img src="/assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
+			<img src="./assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
 		</button>
 		<!--
 		<button title="Dark-Light Mode">
@@ -79,7 +79,7 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		 </button>
 -->
 		<button title="Perspective Mode">
-			<img src="/assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
+			<img src="./assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
 		</button>
 		<label id="info-label" style="color: red;">Info Label</label>
 	  <!-- Add more buttons as needed -->

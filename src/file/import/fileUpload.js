@@ -61,7 +61,7 @@ export function handleFileUpload(event, canvas) {
 				drawDummys(canvas.scene, colour, tempPoint);
 			}
 		} else if (data.split("\n")[0].split(",").length === 7) {
-			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "line-circle", "line-diamond", "line-square", "line-triangle"];
+			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
 			const currentHoleDisplay = params.holeDisplay;
 			const currentIndex = holeOptions.indexOf(currentHoleDisplay);
 			let nextIndex = currentIndex;
@@ -84,6 +84,29 @@ export function handleFileUpload(event, canvas) {
 				const shapeType = holeOptions[nextIndex];
 				console.log("shapeType: ", shapeType);
 				drawHoles(canvas.scene, colour, tempPoint, 165, 1, shapeType);
+			}
+		} else if (data.split("\n")[0].split(",").length === 10) {
+			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
+			const currentHoleDisplay = params.holeDisplay;
+			const currentIndex = holeOptions.indexOf(currentHoleDisplay);
+			let nextIndex = currentIndex;
+			for (const point of points) {
+				if (logit && params.debugComments) {
+					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+				}
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z,
+					endXLocation: point.endXLocation - x,
+					endYLocation: point.endYLocation - y,
+					endZLocation: point.endZLocation - z,
+					diameter: point.diameter,
+					subdrill: point.subdrill,
+					shapeType: point.shapeType
+				};
+				drawHoles(canvas.scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 			}
 		}
 
@@ -149,7 +172,7 @@ export function handleFileUploadNoEvent(file) {
 				};
 				drawDummys(scene, colour, tempPoint);
 			}
-		} else if (data.split("\n")[0].split(",").length === 7) {
+		} else if (data.split("\n")[0].split(",").length > 7 && data.split("\n")[0].split(",").length < 8) {
 			// const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square", "line-triangle"];
 
 			// let nextIndex = 0;
@@ -172,7 +195,7 @@ export function handleFileUploadNoEvent(file) {
 		} else if (data.split("\n")[0].split(",").length === 10) {
 			for (const point of points) {
 				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
+					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
 					pointID: point.pointID,
@@ -187,6 +210,26 @@ export function handleFileUploadNoEvent(file) {
 					shapeType: point.shapeType
 				};
 				drawHoles(scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+			}
+		} else if (data.split("\n")[0].split(",").length === 11) {
+			for (const point of points) {
+				if (logit && params.debugComments) {
+					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+				}
+				const tempPoint = {
+					pointID: point.pointID,
+					startXLocation: point.startXLocation - x,
+					startYLocation: point.startYLocation - y,
+					startZLocation: point.startZLocation - z,
+					endXLocation: point.endXLocation - x,
+					endYLocation: point.endYLocation - y,
+					endZLocation: point.endZLocation - z,
+					diameter: point.diameter,
+					subdrill: point.subdrill,
+					shapeType: point.shapeType,
+					holeColour: point.holeColour
+				};
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 			}
 		}
 

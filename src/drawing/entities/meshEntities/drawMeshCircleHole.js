@@ -5,6 +5,7 @@ import { Group } from "three";
 
 export function drawMeshCircleHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments, tubularSegments, arc) {
 	diameter = diameter || 500;
+	//colour = colour || white;
 
 	const hole = new Group();
 	hole.add(createTorus("lime", materialType, collarXYZ, diameter, thickness, radialSegments, tubularSegments, arc));
