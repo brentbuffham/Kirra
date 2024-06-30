@@ -24,7 +24,7 @@ const logit = true;
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	//colour = getRandomColor();
-	colour = colour.toString() || "white";
+	colour = colour || "white";
 	const name = tempPoint.pointID;
 	const collarXYZ = new Vector3(tempPoint.startXLocation, tempPoint.startYLocation, tempPoint.startZLocation);
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);

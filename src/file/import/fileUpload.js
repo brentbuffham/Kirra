@@ -172,7 +172,7 @@ export function handleFileUploadNoEvent(file) {
 				};
 				drawDummys(scene, colour, tempPoint);
 			}
-		} else if (data.split("\n")[0].split(",").length > 7 && data.split("\n")[0].split(",").length < 8) {
+		} else if (data.split("\n")[0].split(",").length === 7) {
 			// const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square", "line-triangle"];
 
 			// let nextIndex = 0;

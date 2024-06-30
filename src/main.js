@@ -193,6 +193,7 @@ function updateHoleDisplay() {
 
 	const { x, y, z } = getCentroid(currentPoints);
 	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
+		const colour = 0xffffff;
 		currentPoints.forEach(point => {
 			const tempPoint = {
 				pointID: point.pointID,
@@ -201,10 +202,14 @@ function updateHoleDisplay() {
 				startZLocation: point.startZLocation - z,
 				endXLocation: point.endXLocation - x,
 				endYLocation: point.endYLocation - y,
-				endZLocation: point.endZLocation - z
+				endZLocation: point.endZLocation - z,
+				diameter: point.diameter,
+				subdrill: point.subdrill,
+				shapeType: params.holeDisplay,
+				holeColour: point.holeColour
 			};
-			const colour = 0xffffff;
-			drawHoles(scene, colour, tempPoint, 165, 1, params.holeDisplay); // Pass the correct shape parameter
+
+			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
 			document.querySelector("#info-label").textContent = "Current Hole Display: " + params.holeDisplay;
 		});
 	} else {
