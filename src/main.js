@@ -33,6 +33,9 @@ document.querySelector("#app").innerHTML = /*html*/ `
 	  <button title="File OBJ Loader">
 			<img src="./assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
 		</button> 
+		<button title="Colour Change">
+			<img src="/assets/tabler-icons-2.36.0/png/holecolour.png" alt="Colour Change" />
+		 </button>
 		<!--<button title="File Export">
 			<img src="/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
 		</button>
@@ -73,11 +76,15 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		<button title="Swap Hole Visual">
 			<img src="./assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
 		</button>
-		<!--
-		<button title="Dark-Light Mode">
-			<img src="/assets/tabler-icons-2.36.0/png/sun-moon.png" alt="Dark-Light Mode" />
-		 </button>
--->
+		<button title="Name On Off">
+			<img src="/assets/tabler-icons-2.36.0/png/holename.png" alt="Hole Name Display" />
+		</button>
+		<button title="Length On Off">
+			<img src="/assets/tabler-icons-2.36.0/png/holelength.png" alt="Hole Length Display" />
+		</button>
+		<button title="Diameter On Off">
+			<img src="/assets/tabler-icons-2.36.0/png/holediameter.png" alt="Hole Diameter Display" />
+		</button>
 		<button title="Perspective Mode">
 			<img src="./assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
 		</button>
