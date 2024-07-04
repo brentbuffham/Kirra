@@ -83,7 +83,7 @@ document.querySelector("#app").innerHTML = /*html*/ `
 			<img src="/assets/tabler-icons-2.36.0/png/holelength.png" alt="Hole Length Display" />
 		</button>
 		<button title="Diameter On Off">
-			<img src="/assets/tabler-icons-2.36.0/png/holediameter.png" alt="Hole Diameter Display" />
+			<img src="/assets/tabler-icons-2.36.0/png/holediam.png" alt="Hole Diameter Display" />
 		</button>
 		<button title="Perspective Mode">
 			<img src="./assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
