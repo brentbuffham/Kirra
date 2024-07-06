@@ -176,7 +176,7 @@ export function reloadPoints() {
 	}
 }
 
-// Function to update the hole display
+// Function to update the hole display - remove this in future.
 function updateHoleDisplay() {
 	const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
 	const currentHoleDisplay = params.holeDisplay;

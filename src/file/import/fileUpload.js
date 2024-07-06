@@ -8,6 +8,9 @@ import { params } from "../../drawing/createScene.js";
 export let points = [];
 //const logit = false;
 const logit = true;
+let x = 0;
+let y = 0;
+let z = 0;
 
 export function renderFileUpload(containerId, canvas) {
 	const container = document.querySelector(containerId);
@@ -44,7 +47,14 @@ export function handleFileUpload(event, canvas) {
 		const newPoints = parseCSV(data);
 		points.push(...newPoints);
 
-		const { x, y, z } = getCentroid(points);
+		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
+			x,y,z = getCentroid(points);
+		}
+		else {
+			x = params.worldXCenter;
+			y = params.worldYCenter;
+			z = params.worldZCenter
+		}
 		let colour = 0xffffff;
 
 		if (data.split("\n")[0].split(",").length === 4) {
@@ -154,7 +164,14 @@ export function handleFileUploadNoEvent(file) {
 		const newPoints = parseCSV(data);
 		points.push(...newPoints);
 
-		const { x, y, z } = getCentroid(points);
+		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
+			x, y, z = getCentroid(points);
+		}
+		else {
+			x = params.worldXCenter;
+			y = params.worldYCenter;
+			z = params.worldZCenter
+		}
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
 		}

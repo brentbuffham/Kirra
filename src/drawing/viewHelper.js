@@ -5,6 +5,7 @@ export const createViewHelper = () => {
     const viewHelper = new ViewHelper(camera, renderer.domElement);
     viewHelper.controls = controls;
     viewHelper.controls.center = controls.target;
+    
 //match the view helper to the controls
     viewHelper.update();
 

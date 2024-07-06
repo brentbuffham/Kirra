@@ -1,67 +1,86 @@
-//fileOBJLoader.js
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { getOBJCentroid, getCentroid } from "../../drawing/helpers/getCentroid.js";
-import { Vector3 } from "three";
-import { points } from "../import/fileUpload.js";
+import { DoubleSide, Color, Vector3, Box3 } from "three";
 import { params } from "../../drawing/createScene.js";
-import { DoubleSide } from "three";
-
-export let adjustedOBJCentroid, objectCentroid;
 
 export function handleOBJNoEvent(file, canvas) {
-	if (!file) {
-		return;
-	}
+    if (!file) {
+        return;
+    }
 
-	const reader = new FileReader();
+    const reader = new FileReader();
 
-	reader.onload = function(event) {
-		const contents = event.target.result;
-		const objLoader = new OBJLoader();
+    reader.onload = function(event) {
+        const contents = event.target.result;
+        const objLoader = new OBJLoader();
 
-		const object = objLoader.parse(contents);
-		objectCentroid = getOBJCentroid(object); // Assuming getOBJCentroid is properly implemented
-		// Traverse the object and set all materials to DoubleSide
-		object.traverse(function(child) {
-			if (child.isMesh) {
-				if (Array.isArray(child.material)) {
-					child.material.forEach(material => {
-						material.side = DoubleSide;
-					});
-				} else {
-					child.material.side = DoubleSide;
-				}
-			}
-		});
-		if (points !== undefined && points !== null && points.length > 0) {
-			const pointsCentroid = getCentroid(points);
-			adjustedOBJCentroid = new Vector3().subVectors(objectCentroid, pointsCentroid);
-		} else {
-			adjustedOBJCentroid = new Vector3().subVectors(objectCentroid, objectCentroid);
-		}
+        const object = objLoader.parse(contents);
 
-		object.position.set(adjustedOBJCentroid.x, adjustedOBJCentroid.y, adjustedOBJCentroid.z);
-		canvas.scene.add(object);
-		object.name = file.name;
-		console.log("Object position after load:", object.position);
-		console.log("Object scale:", object.scale);
+        // Compute the bounding box of the object
+        const boundingBox = new Box3().setFromObject(object);
+        const center = boundingBox.getCenter(new Vector3());
 
-		//update the scene to reflect the new object
-		//canvas.scene.updateMatrixWorld(true);
+        // Determine the offsets based on world center parameters
+        const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
+        const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
+        const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
 
-		if (params.debugComments) {
-			console.log("Loaded OBJ centroid:", adjustedOBJCentroid);
-		}
-	};
+        // Reposition vertices to center the object at the world center
+        object.traverse(function(child) {
+            if (child.isMesh) {
+                const position = child.geometry.attributes.position;
+                for (let i = 0; i < position.count; i++) {
+                    position.setXYZ(
+                        i,
+                        position.getX(i) - offsetX,
+                        position.getY(i) - offsetY,
+                        position.getZ(i) - offsetZ
+                    );
+                }
+                position.needsUpdate = true;
+                child.geometry.computeBoundingBox();
+                child.geometry.computeBoundingSphere();
+            }
+        });
 
-	reader.onerror = function(error) {
-		console.log("Error reading the OBJ file:", error);
-	};
+        // Set material to a bright color and DoubleSide for visibility
+        object.traverse(function(child) {
+            if (child.isMesh) {
+                child.material.side = DoubleSide;
+                child.material.color = new Color(0xAAAAAA); 
+                child.material.needsUpdate = true;
+                // Print the X, Y, and Z of each Vertex
+                console.log(child.geometry.attributes.position);
+            }
+        });
 
-	//traverse the scene and console log all the objects
-	canvas.scene.traverse(function(object) {
-		console.log("OBJ: ", object);
-	});
+        // Force position to 0, 0, 0
+        object.position.set(0, 0, 0);
 
-	reader.readAsText(file);
+        // Rotate object to Z up
+        //object.rotation.set(Math.PI / 2, 0, 0);
+
+        object.scale.set(1, 1, 1);
+
+        canvas.scene.add(object);
+        object.name = file.name;
+
+        console.log("Object position after load:", object.position);
+        console.log("Object rotation after load:", object.rotation);
+        console.log("Object scale after load:", object.scale);
+
+        // Adjust the camera to ensure the object is visible
+        const size = boundingBox.getSize(new Vector3());
+
+        if (params.debugComments) {
+            console.log("Loaded OBJ position:", object.position);
+            console.log("Loaded OBJ rotation:", object.rotation);
+            console.log("Loaded OBJ scale:", object.scale);
+        }
+    };
+
+    reader.onerror = function(error) {
+        console.log("Error reading the OBJ file:", error);
+    };
+
+    reader.readAsText(file);
 }

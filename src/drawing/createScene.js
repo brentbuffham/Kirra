@@ -11,6 +11,9 @@ import { sceneConfig } from "./sceneConfig.js";
 
 export let camera, scene, controls;
 export const params = {
+	worldXCenter: 478786,
+	worldYCenter: 6772350,
+	worldZCenter: 390,
 	usePerspectiveCam: false,
 	upDirection: "Z",
 	rotationAngle: 0,
@@ -116,7 +119,7 @@ export function createScene(points) {
 
 	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
 
-	renderer = new WebGLRenderer({ antialias: true });
+	renderer = new WebGLRenderer({ antialias: false });
 	renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.autoClear = false;

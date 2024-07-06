@@ -10,6 +10,24 @@ import { updateCameraType } from "./createScene.js";
 export const gui = new GUI();
 export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera) {
 	gui.close();
+	gui.add(params, "worldXCenter").name("World X Center (Easting m)").onChange(function(value) {
+		// Validate that the input is a number
+		if (isNaN(value)) {
+			params.worldXCenter = 0; // Set a default value if input is not a number
+		}
+	});
+	gui.add(params, "worldYCenter").name("World Y Center (Northing m)").onChange(function(value) {
+		// Validate that the input is a number
+		if (isNaN(value)) {
+			params.worldYCenter = 0; // Set a default value if input is not a number
+		}
+	});
+	gui.add(params, "worldZCenter").name("World Z Center (RL m)").onChange(function(value) {
+		// Validate that the input is a number
+		if (isNaN(value)) {
+			params.worldZCenter = 0; // Set a default value if input is not a number
+		}
+	});
 	gui.add(params, "debugComments").name("Debug Comments").onChange(function() {
 		// update the debug comments when the checkbox changes
 		params.debugComments = params.debugComments ? true : false;
