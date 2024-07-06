@@ -94,12 +94,19 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 		cameraOrthographic.updateProjectionMatrix();
 	});
 
-	const textDisplayFolder = gui.addFolder("Text Display Options");
-	textDisplayFolder.close();
-	const textOptions = ["Off", "ID", "Length"];
-	textDisplayFolder.add(params, "holeText", textOptions).name("Hole Text").onChange(function() {
-		// Update the hole text display when the dropdown changes
-		params.holeText = params.holeText;
+	const textDisplayFolder = gui.addFolder("Holes Text Display Options");
+	textDisplayFolder.open();
+	textDisplayFolder.add(params, "holeNameDisplay").name("Hole Name").onChange(function() {
+		// Update the hole with its name when selected is true
+		params.holeNameDisplay = params.holeNameDisplay ? true : false;
+	});
+	textDisplayFolder.add(params, "holeLengthDisplay").name("Hole Length").onChange(function() {
+		// Update the hole with its length when selected is true
+		params.holeLengthDisplay = params.holeLengthDisplay ? true : false;
+	});
+	textDisplayFolder.add(params, "holeDiameterDisplay").name("Hole Diameter").onChange(function() {
+		// Update the hole with its diameter when selected is true
+		params.holeDiameter = params.holeDiameter ? true : false;
 	});
 }
 

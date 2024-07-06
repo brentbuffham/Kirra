@@ -9,8 +9,11 @@ export function drawMeshCylinderHole(scene, color, materialType, name, collarXYZ
 	const hole = new Group();
 	hole.add(createCylinder(color, materialType, collarXYZ, intervalXYZ, diameter, radialSegments));
 	color = getRandomColor();
-	color = "red";
-	hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, diameter, radialSegments));
+if (intervalXYZ.distanceTo(toeXYZ) > 0) {
+		color = "red";
+		hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, diameter, radialSegments));
+}
+	
 	hole.name = name;
 	hole.userData = {
 		entityType: "hole",

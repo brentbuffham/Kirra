@@ -70,22 +70,22 @@ document.querySelector("#app").innerHTML = /*html*/ `
 	</nav>
   <nav id= horizontal-nav>
 	<nav>
-		<button title="Reset">
+		<button title="Reset" id="reset">
 			<img src="./assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
 		</button>
-		<button title="Swap Hole Visual">
+		<button id=swap-all-hole-visuals title="Swap Hole Visual" >
 			<img src="./assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
 		</button>
-		<button title="Name On Off">
+		<button id=hole-name-on-off title="Name On Off" >
 			<img src="./assets/tabler-icons-2.36.0/png/holename.png" alt="Hole Name Display" />
 		</button>
-		<button title="Length On Off">
+		<button id=hole-length-on-off title="Length On Off" >
 			<img src="./assets/tabler-icons-2.36.0/png/holelength.png" alt="Hole Length Display" />
 		</button>
-		<button title="Diameter On Off">
+		<button id=hole-diameter-on-off title="Diameter On Off">
 			<img src="./assets/tabler-icons-2.36.0/png/holediam.png" alt="Hole Diameter Display" />
 		</button>
-		<button title="Perspective Mode">
+		<button id=camera-mode title="Camera Mode" >
 			<img src="./assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
 		</button>
 		<label id="info-label" style="color: red;">Info Label</label>
@@ -231,11 +231,125 @@ function updateHoleDisplay() {
 	}
 }
 
+function updateScene() {
+	// Gather all objects of entity type "hole" into an array
+	const holeObjectsArray = [];
+	const holeNameTextArray = [];
+	const holeLengthTextArray = [];
+	const holeDiameterTextArray = [];
+
+	scene.traverse(function(object) {
+		if (object.userData.entityType === "hole") {
+			holeObjectsArray.push(object);
+		}
+		if (object.userData.entityType === "holeNameText") {
+			holeNameTextArray.push(object);
+		}
+		if (object.userData.entityType === "holeLengthText") {
+			holeLengthTextArray.push(object);
+		}
+		if (object.userData.entityType === "holeDiameterText") {
+			holeDiameterTextArray.push(object);
+		}
+	});
+
+	// Remove the collected hole objects from the scene
+	for (const hole of holeObjectsArray) {
+		scene.remove(hole);
+	}
+	for (const holeNameText of holeNameTextArray) {
+		scene.remove(holeNameText);
+	}
+	for (const holeLengthText of holeLengthTextArray) {
+		scene.remove(holeLengthText);
+	}
+	for (const holeDiameterText of holeDiameterTextArray) {
+		scene.remove(holeDiameterText);
+	}
+
+
+	// Re-add the holes with updated parameters
+	const { x, y, z } = getCentroid(points);
+	if (points.endXLocation !== null && points.endYLocation !== null && points.endZLocation !== null && points.diameter !== null) {
+		const colour = 0xffffff;
+		points.forEach(point => {
+			const tempPoint = {
+				pointID: point.pointID,
+				startXLocation: point.startXLocation - x,
+				startYLocation: point.startYLocation - y,
+				startZLocation: point.startZLocation - z,
+				endXLocation: point.endXLocation - x,
+				endYLocation: point.endYLocation - y,
+				endZLocation: point.endZLocation - z,
+				diameter: point.diameter,
+				subdrill: point.subdrill,
+				shapeType: point.shapeType,
+				holeColour: point.holeColour
+			};
+
+			// Draw the holes again with updated parameters
+			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType); 
+		});
+	} else {
+		console.log("Not enough points to draw holes - no end points");
+	}
+
+	// Render the scene with updated parameters
+	if (renderer) {
+		console.log("Rendering scene with updated parameters");
+		renderer.render(scene, camera);
+	} else {
+		console.error("Renderer is not initialized.");
+	}
+}
+
+
 // Attach event listener to the button
-document.querySelectorAll("#horizontal-nav button")[1].addEventListener("click", updateHoleDisplay);
+document.querySelector("#swap-all-hole-visuals").addEventListener("click", updateHoleDisplay);
+
+//function to toggle the hole name display
+document.querySelector("#hole-name-on-off").addEventListener("click", () => {
+	params.holeNameDisplay = !params.holeNameDisplay;
+	updateScene();
+	if (params.holeNameDisplay) {
+		document.querySelector("#info-label").textContent = "Hole Name Display On";
+		// Redraw the scene with hole name display on
+	} else {
+		document.querySelector("#info-label").textContent = "Hole Name Display Off";
+		// Redraw the scene with hole name display off
+		
+	}
+});
+
+//function to toggle the hole Length display
+document.querySelector("#hole-length-on-off").addEventListener("click", () => {
+	params.holeLengthDisplay = !params.holeLengthDisplay;
+	updateScene();
+	if (params.holeLengthDisplay) {
+		document.querySelector("#info-label").textContent = "Hole Length Display On";
+		// Redraw the scene with hole length display on
+	} else {
+		document.querySelector("#info-label").textContent = "Hole Length Display Off";
+		// Redraw the scene with hole length display off
+	}
+});
+
+//function to toggle the hole Diameter display
+document.querySelector("#hole-diameter-on-off").addEventListener("click", () => {
+	params.holeDiameterDisplay = !params.holeDiameterDisplay;
+	updateScene();
+	if (params.holeDiameterDisplay) {
+		document.querySelector("#info-label").textContent = "Hole Diameter Display On";
+		// Redraw the scene with hole diameter display on
+	} else {
+		document.querySelector("#info-label").textContent = "Hole Diameter Display Off";
+		// Redraw the scene with hole diameter display off
+	}
+});
+
 
 //change Camera Type
-document.querySelectorAll("#horizontal-nav button")[2].addEventListener("click", () => {
+document.querySelector("#camera-mode").addEventListener("click", () => {
 	params.usePerspectiveCam = !params.usePerspectiveCam;
 	updateCameraType();
 	if (params.usePerspectiveCam) {

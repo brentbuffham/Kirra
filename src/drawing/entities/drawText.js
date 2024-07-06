@@ -2,7 +2,7 @@
 import { Mesh, MeshBasicMaterial, Box3 } from "three";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
-export function drawText(scene, color, font, vector, value) {
+export function drawText(scene, color, font, vector, value, entityType) {
 	value = value || "None";
 
 	const textGeometry = new TextGeometry(value, {
@@ -30,7 +30,16 @@ export function drawText(scene, color, font, vector, value) {
 
 	// Set the position of the text mesh
 	textMesh.position.set(parseFloat(vector.x), parseFloat(vector.y), parseFloat(vector.z));
+	textMesh.userData = {
+		entityType: entityType,
+		vector: vector,
+		value: value,
+		textWidth: textWidth,
+		textHeight: textHeight,
+		font: font,
+		colour: color
 
+	};
 	// Add the text mesh to the scene
 	scene.add(textMesh);
 

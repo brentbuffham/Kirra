@@ -15,8 +15,10 @@ export const params = {
 	upDirection: "Z",
 	rotationAngle: 0,
 	holeDisplay: "mesh-cross",
-	holeText: "ID",
-	debugComments: true
+	holeNameDisplay: true,
+	holeLengthDisplay: false,
+	holeDiameterDisplay: false,
+	debugComments: true,
 };
 
 export let renderer, clock;
@@ -35,7 +37,7 @@ function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
 	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000);
-	cameraOrthographic = new OrthographicCamera(-frustumSize * aspect / 2, frustumSize * aspect / 2, frustumSize / 2, -frustumSize / 2, 0.01, 10000);
+	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, 0.01, 10000);
 
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
@@ -89,9 +91,25 @@ export function createScene(points) {
 	if (points === null || points.length === 0) {
 		objectCenter.position.set(0, 0, 0);
 	}
-	objectCenter.add(new ArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
-	objectCenter.add(new ArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
-	objectCenter.add(new ArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+	// Create an ArrowHelper with 50% opacity
+	function createTransparentArrowHelper(dir, origin, length, hex, headLength, headWidth) {
+		const arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex, headLength, headWidth);
+
+		// Set the opacity to 50% for both the shaft and the head of the arrow
+		arrowHelper.line.material.transparent = true;
+		arrowHelper.line.material.opacity = 0.5;
+
+		arrowHelper.cone.material.transparent = true;
+		arrowHelper.cone.material.opacity = 0.5;
+
+		return arrowHelper;
+	}
+
+	//const objectCenter = new THREE.Object3D();
+
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
 
 	objectCenter.name = "objectCenter";
 	scene.add(objectCenter);
@@ -125,10 +143,20 @@ export function createScene(points) {
 	debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
 
 	if (points !== null && points.length > 0) {
-		const holeFolder = gui.addFolder("Hole Options");
+		const holeFolder = gui.addFolder("Hole Text Display Options");
 		holeFolder.close();
-		const holeTextOptions = ["Off", "ID", "Length"];
-		holeFolder.add(params, "holeText", holeTextOptions).name("Hole Text").onChange(function() {});
+		holeFolder
+			.add(params, "holeNameDisplay")
+			.name("Hole Name")
+			.onChange(function () {});
+		holeFolder
+			.add(params, "holeLengthDisplay")
+			.name("Hole Length")
+			.onChange(function () {});
+		holeFolder
+			.add(params, "holeDiameterDisplay")
+			.name("Hole Diameter")
+			.onChange(function () {});
 	}
 
 	animate();
