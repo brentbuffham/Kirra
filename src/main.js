@@ -32,11 +32,12 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		</button>
 	  <button title="File OBJ Loader">
 			<img src="./assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
-		</button> 
+		</button>
+		<!-- 
 		<button title="Colour Change">
 			<img src="./assets/tabler-icons-2.36.0/png/holecolour.png" alt="Colour Change" />
 		 </button>
-		<!--<button title="File Export">
+		<button title="File Export">
 			<img src="/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
 		</button>
 		<button title="Save">

@@ -1,4 +1,4 @@
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { DoubleSide, Color, Vector3, Box3 } from "three";
 import { params } from "../../drawing/createScene.js";
 
@@ -45,7 +45,7 @@ export function handleOBJNoEvent(file, canvas) {
         // Set material to a bright color and DoubleSide for visibility
         object.traverse(function(child) {
             if (child.isMesh) {
-                child.material.side = DoubleSide;
+                //child.material.side = DoubleSide;
                 child.material.color = new Color(0xAAAAAA); 
                 child.material.needsUpdate = true;
                 // Print the X, Y, and Z of each Vertex

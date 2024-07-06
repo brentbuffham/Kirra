@@ -39,8 +39,8 @@ function createLighting() {
 function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
-	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000);
-	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, 0.01, 10000);
+	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, -10000, 10000);
+	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
