@@ -105,14 +105,14 @@ preloadFont(); // Preload the font
 bindListenerToImportCsvButton();
 
 // Example: Adding event listeners to the first button
-document.querySelectorAll("#vertical-nav button")[1].addEventListener("click", function() {
+document.querySelectorAll("#vertical-nav button")[1].addEventListener("click", function () {
 	// Interaction with Three.js scene
 	const fileInput = document.createElement("input");
 	fileInput.type = "file";
 	fileInput.accept = ".obj";
 	fileInput.style.display = "none"; // Hide the file input
 
-	fileInput.onchange = e => {
+	fileInput.onchange = (e) => {
 		if (e.target.files && e.target.files[0]) {
 			handleOBJNoEvent(e.target.files[0], canvas);
 		}
@@ -127,7 +127,7 @@ document.querySelectorAll("#vertical-nav button")[1].addEventListener("click", f
 	document.querySelector("#info-label").textContent = "File Loaded: " + points.length + " holes";
 });
 // Example: Adding event listeners to the first button
-document.querySelectorAll("#horizontal-nav button")[0].addEventListener("click", function() {
+document.querySelectorAll("#horizontal-nav button")[0].addEventListener("click", function () {
 	// Interaction with Three.js scene
 	//store the current camera position
 	const position = new Vector3(0, 0, 0 + 200);
@@ -189,7 +189,7 @@ function updateHoleDisplay() {
 	params.holeDisplay = holeOptions[nextIndex];
 
 	const holeObjectsArray = [];
-	scene.traverse(function(object) {
+	scene.traverse(function (object) {
 		if (object.userData.entityType === "hole") {
 			holeObjectsArray.push(object);
 		}
@@ -199,10 +199,17 @@ function updateHoleDisplay() {
 		scene.remove(hole);
 	}
 
-	const { x, y, z } = getCentroid(currentPoints);
+	let x, y, z;
+	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
+		x, y, (z = getCentroid(points));
+	} else {
+		x = params.worldXCenter;
+		y = params.worldYCenter;
+		z = params.worldZCenter;
+	}
 	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
 		const colour = 0xffffff;
-		currentPoints.forEach(point => {
+		currentPoints.forEach((point) => {
 			const tempPoint = {
 				pointID: point.pointID,
 				startXLocation: point.startXLocation - x,
@@ -239,7 +246,7 @@ function updateScene() {
 	const holeLengthTextArray = [];
 	const holeDiameterTextArray = [];
 
-	scene.traverse(function(object) {
+	scene.traverse(function (object) {
 		if (object.userData.entityType === "hole") {
 			holeObjectsArray.push(object);
 		}
@@ -268,12 +275,18 @@ function updateScene() {
 		scene.remove(holeDiameterText);
 	}
 
-
+	let x, y, z;
 	// Re-add the holes with updated parameters
-	const { x, y, z } = getCentroid(points);
+	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
+		x, y, (z = getCentroid(points));
+	} else {
+		x = params.worldXCenter;
+		y = params.worldYCenter;
+		z = params.worldZCenter;
+	}
 	if (points.endXLocation !== null && points.endYLocation !== null && points.endZLocation !== null && points.diameter !== null) {
 		const colour = 0xffffff;
-		points.forEach(point => {
+		points.forEach((point) => {
 			const tempPoint = {
 				pointID: point.pointID,
 				startXLocation: point.startXLocation - x,
@@ -289,7 +302,7 @@ function updateScene() {
 			};
 
 			// Draw the holes again with updated parameters
-			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType); 
+			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 		});
 	} else {
 		console.log("Not enough points to draw holes - no end points");
@@ -304,7 +317,6 @@ function updateScene() {
 	}
 }
 
-
 // Attach event listener to the button
 document.querySelector("#swap-all-hole-visuals").addEventListener("click", updateHoleDisplay);
 
@@ -318,7 +330,6 @@ document.querySelector("#hole-name-on-off").addEventListener("click", () => {
 	} else {
 		document.querySelector("#info-label").textContent = "Hole Name Display Off";
 		// Redraw the scene with hole name display off
-		
 	}
 });
 
@@ -347,7 +358,6 @@ document.querySelector("#hole-diameter-on-off").addEventListener("click", () => 
 		// Redraw the scene with hole diameter display off
 	}
 });
-
 
 //change Camera Type
 document.querySelector("#camera-mode").addEventListener("click", () => {
