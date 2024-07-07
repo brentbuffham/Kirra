@@ -1,5 +1,5 @@
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { DoubleSide, Color, Vector3, Box3 } from "three";
+import { DoubleSide, Color, Vector3, Box3, MeshLambertMaterial, ShaderMaterial, AdditiveBlending } from "three";
 import { params } from "../../drawing/createScene.js";
 
 export function handleOBJNoEvent(file, canvas) {
@@ -24,6 +24,48 @@ export function handleOBJNoEvent(file, canvas) {
 		const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
 		const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
 
+		const default_material = new MeshLambertMaterial({ color: 0x22ffaa, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
+
+		//X-RAY SHADER MATERIAL
+		//http://free-tutorials.org/shader-x-ray-effect-with-three-js/
+		/*var materials = {
+			default_material: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
+			default_material2: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
+			wireframeMaterial: new THREE.MeshPhongMaterial({
+				side: THREE.DoubleSide,
+				wireframe: true,
+				shininess: 100,
+				specular: 0x000,
+				emissive: 0x000,
+				flatShading: false,
+				depthWrite: true,
+				depthTest: true
+			}),
+			wireframeMaterial2: new THREE.LineBasicMaterial({ wireframe: true, color: 0xffffff }),
+			wireframeAndModel: new THREE.LineBasicMaterial({ color: 0xffffff }),
+			phongMaterial: new THREE.MeshPhongMaterial({
+				color: 0x555555,
+				specular: 0xffffff,
+				shininess: 10,
+				flatShading: false,
+				side: THREE.DoubleSide,
+				skinning: true
+			}),
+			xrayMaterial: new THREE.ShaderMaterial({
+				uniforms: {
+					p: { type: "f", value: 3 },
+					glowColor: { type: "c", value: new THREE.Color(0x84ccff) }
+				},
+				vertexShader: document.getElementById("vertexShader").textContent,
+				fragmentShader: document.getElementById("fragmentShader").textContent,
+				side: THREE.DoubleSide,
+				blending: THREE.AdditiveBlending,
+				transparent: true,
+				depthWrite: false
+			})
+		};
+		*/
+
 		// Reposition vertices to center the object at the world center
 		object.traverse(function (child) {
 			if (child.isMesh) {
@@ -32,8 +74,8 @@ export function handleOBJNoEvent(file, canvas) {
 					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i) - offsetZ);
 				}
 				position.needsUpdate = true;
-				child.material.side = DoubleSide;
-				child.material.color = new Color(0xaaaaaa);
+				child.material = default_material; // Find out which material works...
+				child.material.wireframe = true; // Set wireframe mode
 				child.material.needsUpdate = true;
 				child.geometry.computeBoundingBox();
 				child.geometry.computeBoundingSphere();

@@ -21,7 +21,7 @@ export const params = {
 	holeNameDisplay: true,
 	holeLengthDisplay: false,
 	holeDiameterDisplay: false,
-	debugComments: true,
+	debugComments: true
 };
 
 export let renderer, clock;
@@ -119,7 +119,13 @@ export function createScene(points) {
 
 	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
 
-	renderer = new WebGLRenderer({ antialias: false });
+	renderer = new WebGLRenderer({
+		antialias: true,
+		depth: true,
+		precision: "highp",
+		powerPreference: "high-performance",
+		stencil: false
+	});
 	renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.autoClear = false;
