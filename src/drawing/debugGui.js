@@ -10,67 +10,81 @@ import { updateCameraType } from "./createScene.js";
 export const gui = new GUI();
 export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera) {
 	gui.close();
-	gui.add(params, "worldXCenter").name("World X Center (Easting m)").onChange(function(value) {
-		// Validate that the input is a number
-		if (isNaN(value)) {
-			params.worldXCenter = 0; // Set a default value if input is not a number
-		}
-	});
-	gui.add(params, "worldYCenter").name("World Y Center (Northing m)").onChange(function(value) {
-		// Validate that the input is a number
-		if (isNaN(value)) {
-			params.worldYCenter = 0; // Set a default value if input is not a number
-		}
-	});
-	gui.add(params, "worldZCenter").name("World Z Center (RL m)").onChange(function(value) {
-		// Validate that the input is a number
-		if (isNaN(value)) {
-			params.worldZCenter = 0; // Set a default value if input is not a number
-		}
-	});
-	gui.add(params, "debugComments").name("Debug Comments").onChange(function() {
-		// update the debug comments when the checkbox changes
-		params.debugComments = params.debugComments ? true : false;
-	});
+	gui.add(params, "worldXCenter")
+		.name("World X Center (Easting m)")
+		.onChange(function (value) {
+			// Validate that the input is a number
+			if (isNaN(value)) {
+				params.worldXCenter = 0; // Set a default value if input is not a number
+			}
+		});
+	gui.add(params, "worldYCenter")
+		.name("World Y Center (Northing m)")
+		.onChange(function (value) {
+			// Validate that the input is a number
+			if (isNaN(value)) {
+				params.worldYCenter = 0; // Set a default value if input is not a number
+			}
+		});
+	gui.add(params, "worldZCenter")
+		.name("World Z Center (RL m)")
+		.onChange(function (value) {
+			// Validate that the input is a number
+			if (isNaN(value)) {
+				params.worldZCenter = 0; // Set a default value if input is not a number
+			}
+		});
+	gui.add(params, "debugComments")
+		.name("Debug Comments")
+		.onChange(function () {
+			// update the debug comments when the checkbox changes
+			params.debugComments = params.debugComments ? true : false;
+		});
 
-	gui.add(params, "usePerspectiveCam").name("Use Perspective Camera").onChange(function(value) {
-		updateCameraType(); // This now handles the camera switching logic
-	});
+	gui.add(params, "usePerspectiveCam")
+		.name("Use Perspective Camera")
+		.onChange(function (value) {
+			updateCameraType(); // This now handles the camera switching logic
+		});
 
 	const upOptions = ["X", "Y", "Z"];
-	gui.add(params, "upDirection", upOptions).name("Direction Axis").onChange(function() {
-		switch (params.upDirection) {
-			case "Y":
-				//camera.up.set(0, 1, 0);
-				break;
-			case "X":
-				//camera.up.set(1, 0, 0);
-				break;
-			case "Z":
-				//camera.up.set(0, 0, 1);
-				break;
-		}
-		camera.updateProjectionMatrix();
-	});
+	gui.add(params, "upDirection", upOptions)
+		.name("Direction Axis")
+		.onChange(function () {
+			switch (params.upDirection) {
+				case "Y":
+					//camera.up.set(0, 1, 0);
+					break;
+				case "X":
+					//camera.up.set(1, 0, 0);
+					break;
+				case "Z":
+					//camera.up.set(0, 0, 1);
+					break;
+			}
+			camera.updateProjectionMatrix();
+		});
 	// Store the previous rotation angle
 	let prevRotationAngle = params.rotationAngle;
 
 	// Add a slider for rotation angle in degrees
-	gui.add(params, "rotationAngle", 0, 360).name("View Angle (°)").onChange(function() {
-		// Calculate the delta rotation angle
-		const deltaAngle = params.rotationAngle - prevRotationAngle;
+	gui.add(params, "rotationAngle", 0, 360)
+		.name("View Angle (°)")
+		.onChange(function () {
+			// Calculate the delta rotation angle
+			const deltaAngle = params.rotationAngle - prevRotationAngle;
 
-		// Convert delta angle to radians
-		const deltaAngleRad = THREE.MathUtils.degToRad(deltaAngle);
+			// Convert delta angle to radians
+			const deltaAngleRad = THREE.MathUtils.degToRad(deltaAngle);
 
-		// Update the previous rotation angle
-		prevRotationAngle = params.rotationAngle;
+			// Update the previous rotation angle
+			prevRotationAngle = params.rotationAngle;
 
-		// Call the rollCamera function with the delta angle in radians
-		const axis = params.upDirection;
-		rollCamera(axis, 0, controls);
-		rollCamera(axis, deltaAngleRad, controls);
-	});
+			// Call the rollCamera function with the delta angle in radians
+			const axis = params.upDirection;
+			rollCamera(axis, 0, controls);
+			rollCamera(axis, deltaAngleRad, controls);
+		});
 
 	const cameraFolder = gui.addFolder("Camera Options");
 	cameraFolder.close();
@@ -78,54 +92,93 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 	const orthographicFolder = cameraFolder.addFolder("Orthographic Camera");
 	const perspectiveFolder = cameraFolder.addFolder("Perspective Camera");
 
-	perspectiveFolder.add(cameraPerspective, "fov", 0, 180).name("Field of View").onChange(function() {
-		cameraPerspective.updateProjectionMatrix();
-	});
-	perspectiveFolder.add(cameraPerspective, "near", 0.1, 10000).name("Near Plane").onChange(function() {
-		cameraPerspective.updateProjectionMatrix();
-	});
-	perspectiveFolder.add(cameraPerspective, "far", 0.1, 10000).name("Far Plane").onChange(function() {
-		cameraPerspective.updateProjectionMatrix();
-	});
-	perspectiveFolder.add(controls, "rotateSpeed", 0.0, 50.0).name("Rotate Speed").onChange(function() {
-		controls.update();
-	});
+	perspectiveFolder
+		.add(cameraPerspective, "fov", 0, 180)
+		.name("Field of View")
+		.onChange(function () {
+			cameraPerspective.updateProjectionMatrix();
+		});
+	perspectiveFolder
+		.add(cameraPerspective, "near", 0.1, 10000)
+		.name("Near Plane")
+		.onChange(function () {
+			cameraPerspective.updateProjectionMatrix();
+		});
+	perspectiveFolder
+		.add(cameraPerspective, "far", 0.1, 10000)
+		.name("Far Plane")
+		.onChange(function () {
+			cameraPerspective.updateProjectionMatrix();
+		});
+	perspectiveFolder
+		.add(controls, "rotateSpeed", 0.0, 50.0)
+		.name("Rotate Speed")
+		.onChange(function () {
+			controls.update();
+		});
 
 	const orthographicCameraProps = {
 		frustumSize: 100
 	};
 
-	orthographicFolder.add(orthographicCameraProps, "frustumSize", 0, 200).name("Frustum Size").onChange(function() {
-		const canvas = document.querySelector("#canvas");
-		const aspect = canvas.offsetWidth / canvas.offsetHeight;
-		const frustumSize = orthographicCameraProps.frustumSize;
-		cameraOrthographic.left = -frustumSize * aspect / 2;
-		cameraOrthographic.right = frustumSize * aspect / 2;
-		cameraOrthographic.top = frustumSize / 2;
-		cameraOrthographic.bottom = -frustumSize / 2;
-		cameraOrthographic.updateProjectionMatrix();
-	});
-	orthographicFolder.add(cameraOrthographic, "near", 0.1, 10000).name("Near Plane").onChange(function() {
-		cameraOrthographic.updateProjectionMatrix();
-	});
-	orthographicFolder.add(cameraOrthographic, "far", 0.1, 10000).name("Far Plane").onChange(function() {
-		cameraOrthographic.updateProjectionMatrix();
-	});
+	orthographicFolder
+		.add(orthographicCameraProps, "frustumSize", 0, 200)
+		.name("Frustum Size")
+		.onChange(function () {
+			const canvas = document.querySelector("#canvas");
+			const aspect = canvas.offsetWidth / canvas.offsetHeight;
+			const frustumSize = orthographicCameraProps.frustumSize;
+			cameraOrthographic.left = (-frustumSize * aspect) / 2;
+			cameraOrthographic.right = (frustumSize * aspect) / 2;
+			cameraOrthographic.top = frustumSize / 2;
+			cameraOrthographic.bottom = -frustumSize / 2;
+			cameraOrthographic.updateProjectionMatrix();
+		});
+	orthographicFolder
+		.add(cameraOrthographic, "near", 0.1, 10000)
+		.name("Near Plane")
+		.onChange(function () {
+			cameraOrthographic.updateProjectionMatrix();
+		});
+	orthographicFolder
+		.add(cameraOrthographic, "far", 0.1, 10000)
+		.name("Far Plane")
+		.onChange(function () {
+			cameraOrthographic.updateProjectionMatrix();
+		});
 
 	const textDisplayFolder = gui.addFolder("Holes Text Display Options");
 	textDisplayFolder.open();
-	textDisplayFolder.add(params, "holeNameDisplay").name("Hole Name").onChange(function() {
-		// Update the hole with its name when selected is true
-		params.holeNameDisplay = params.holeNameDisplay ? true : false;
-	});
-	textDisplayFolder.add(params, "holeLengthDisplay").name("Hole Length").onChange(function() {
-		// Update the hole with its length when selected is true
-		params.holeLengthDisplay = params.holeLengthDisplay ? true : false;
-	});
-	textDisplayFolder.add(params, "holeDiameterDisplay").name("Hole Diameter").onChange(function() {
-		// Update the hole with its diameter when selected is true
-		params.holeDiameter = params.holeDiameter ? true : false;
-	});
+	textDisplayFolder
+		.add(params, "holeNameDisplay")
+		.name("Hole Name")
+		.onChange(function () {
+			// Update the hole with its name when selected is true
+			params.holeNameDisplay = params.holeNameDisplay ? true : false;
+		});
+	textDisplayFolder
+		.add(params, "holeLengthDisplay")
+		.name("Hole Length")
+		.onChange(function () {
+			// Update the hole with its length when selected is true
+			params.holeLengthDisplay = params.holeLengthDisplay ? true : false;
+		});
+	textDisplayFolder
+		.add(params, "holeDiameterDisplay")
+		.name("Hole Diameter")
+		.onChange(function () {
+			// Update the hole with its diameter when selected is true
+			params.holeDiameter = params.holeDiameter ? true : false;
+		});
+	const solidorWireframe = gui.addFolder("Holes Text Display Options");
+	solidorWireframe.open();
+	solidorWireframe
+		.add(params, "wireframeOn")
+		.name("Wireframe OBJs")
+		.onChange(function () {
+			// Update the hole with its name when selected is true
+			params.wireframeOn = params.wireframeOn ? true : false;
+		});
 }
 
 function rollCamera(axis, radians, controls) {

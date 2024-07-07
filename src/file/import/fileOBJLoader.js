@@ -1,5 +1,5 @@
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { DoubleSide, Color, Vector3, Box3, MeshLambertMaterial, ShaderMaterial, AdditiveBlending } from "three";
+import { DoubleSide, Color, Vector3, Box3, MeshLambertMaterial, MeshPhongMaterial, ShaderMaterial, AdditiveBlending } from "three";
 import { params } from "../../drawing/createScene.js";
 
 export function handleOBJNoEvent(file, canvas) {
@@ -25,6 +25,7 @@ export function handleOBJNoEvent(file, canvas) {
 		const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
 
 		const default_material = new MeshLambertMaterial({ color: 0x22ffaa, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
+		const solid_material = new MeshPhongMaterial({ color: 0xcccccc, side: DoubleSide, flatShading: true }); //, transparent: true, opacity: 0.5, depthWrite: false
 
 		//X-RAY SHADER MATERIAL
 		//http://free-tutorials.org/shader-x-ray-effect-with-three-js/
@@ -74,11 +75,18 @@ export function handleOBJNoEvent(file, canvas) {
 					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i) - offsetZ);
 				}
 				position.needsUpdate = true;
-				child.material = default_material; // Find out which material works...
-				child.material.wireframe = true; // Set wireframe mode
-				child.material.needsUpdate = true;
-				child.geometry.computeBoundingBox();
-				child.geometry.computeBoundingSphere();
+				if (params.wireframeOn) {
+					child.material = default_material; // Find out which material works...
+					child.material.wireframe = true; // Set wireframe mode
+					child.material.needsUpdate = true;
+					child.geometry.computeBoundingBox();
+					child.geometry.computeBoundingSphere();
+				} else {
+					child.material = solid_material;
+					child.material.needsUpdate = true;
+					child.geometry.computeBoundingBox();
+					child.geometry.computeBoundingSphere();
+				}
 			}
 		});
 

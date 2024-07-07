@@ -21,6 +21,7 @@ export const params = {
 	holeNameDisplay: true,
 	holeLengthDisplay: false,
 	holeDiameterDisplay: false,
+	wireframeOn: true,
 	debugComments: true
 };
 
