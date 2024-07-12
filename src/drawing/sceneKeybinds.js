@@ -3,7 +3,7 @@ import { setArcBallControls } from "./setArcBallControls.js";
 import { renderer, scene } from "./createScene.js";
 
 export const bindingKeys = (camera, objectCenter, controls, viewHelper, transformControls) => {
-	addEventListener("keydown", function(event) {
+	addEventListener("keydown", function (event) {
 		switch (event.key) {
 			case "r":
 				if (!transformControls) {
@@ -30,20 +30,20 @@ export const bindingKeys = (camera, objectCenter, controls, viewHelper, transfor
 					controls.enableRotate = false;
 					transformControls.name = "TransformControls";
 				}
-				transformControls.addEventListener("dragging-changed", function(event) {
+				transformControls.addEventListener("dragging-changed", function (event) {
 					controls.enabled = !event.value;
 				});
 				break;
 		}
 	});
 
-	addEventListener("keyup", function(event) {
+	addEventListener("keyup", function (event) {
 		switch (event.key) {
 			case "r":
 				if (!transformControls) {
 					controls.activateGizmos(false);
 					controls.setGizmosVisible(false);
-					controls.enableRotate = false;
+					controls.enableRotate = true;
 					console.log("rotate (r) released - controls.enableRotate = false");
 					controls.enableZoom = true;
 					controls.enablePan = true;

@@ -9,7 +9,10 @@ import { controls, createScene, params, updateCameraType } from "./drawing/creat
 import { getCentroid } from "./drawing/helpers/getCentroid.js";
 import { drawHoles } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
-import { bindListenerToImportCsvButton } from "./import/csv/importButton.js";
+import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
+import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js";
+import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
+import * as THREE from "three";
 
 // document.querySelector("#app").innerHTML = `
 //   <div id="header">header</div>
@@ -27,10 +30,10 @@ document.querySelector("#app").innerHTML = /*html*/ `
 	<nav id="vertical-nav">
 	<!-- Vertical Nav Buttons -->
 	<img src="./assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
-		<button id="btn-import-csv" title="File Import">
+		<button id=import-holes title="File Import">
 			<img src="./assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
 		</button>
-	  <button title="File OBJ Loader">
+	  <button id=import-obj title="File OBJ Loader">
 			<img src="./assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
 		</button>
 		<!-- 
@@ -71,11 +74,14 @@ document.querySelector("#app").innerHTML = /*html*/ `
 	</nav>
   <nav id= horizontal-nav>
 	<nav>
-		<button title="Reset" id="reset">
+		<button id="reset" title="Reset" >
 			<img src="./assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
 		</button>
 		<button id=swap-all-hole-visuals title="Swap Hole Visual" >
 			<img src="./assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
+		</button>
+		<button id=obj-display title="OBJ Display" >
+			<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="OBJ Display" />
 		</button>
 		<button id=hole-name-on-off title="Name On Off" >
 			<img src="./assets/tabler-icons-2.36.0/png/holename.png" alt="Hole Name Display" />
@@ -87,7 +93,7 @@ document.querySelector("#app").innerHTML = /*html*/ `
 			<img src="./assets/tabler-icons-2.36.0/png/holediam.png" alt="Hole Diameter Display" />
 		</button>
 		<button id=camera-mode title="Camera Mode" >
-			<img src="./assets/tabler-icons-2.36.0/png/view-360.png" alt="Perspective Mode" />
+			<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Perspective Mode" />
 		</button>
 		<label id="info-label" style="color: red;">Info Label</label>
 	  <!-- Add more buttons as needed -->
@@ -102,32 +108,11 @@ const { scene, camera, renderer } = canvas;
 preloadFont(); // Preload the font
 
 // Example: Adding event listeners to the first button
-bindListenerToImportCsvButton();
+bindListenerToImportCSVButton();
+bindListenerToImportOBJButton(canvas);
 
-// Example: Adding event listeners to the first button
-document.querySelectorAll("#vertical-nav button")[1].addEventListener("click", function () {
-	// Interaction with Three.js scene
-	const fileInput = document.createElement("input");
-	fileInput.type = "file";
-	fileInput.accept = ".obj";
-	fileInput.style.display = "none"; // Hide the file input
-
-	fileInput.onchange = (e) => {
-		if (e.target.files && e.target.files[0]) {
-			handleOBJNoEvent(e.target.files[0], canvas);
-		}
-	};
-
-	document.body.appendChild(fileInput); // Add file input to the document
-	fileInput.click(); // Trigger the file input
-	document.body.removeChild(fileInput); // Remove the file input after use
-	if (params.debugComments) {
-		console.log("Load File button clicked");
-	}
-	document.querySelector("#info-label").textContent = "File Loaded: " + points.length + " holes";
-});
-// Example: Adding event listeners to the first button
-document.querySelectorAll("#horizontal-nav button")[0].addEventListener("click", function () {
+// Reset the Camera
+document.querySelector("#reset").addEventListener("click", function () {
 	// Interaction with Three.js scene
 	//store the current camera position
 	const position = new Vector3(0, 0, 0 + 200);
@@ -238,6 +223,41 @@ function updateHoleDisplay() {
 		console.error("Renderer is not initialized.");
 	}
 }
+
+//function to turn params.wireframeOn on and off
+document.querySelector("#obj-display").addEventListener("click", () => {
+	params.wireframeSolidTaranparent = params.wireframeSolidTaranparent === "Solid" ? "Transparent" : params.wireframeSolidTaranparent === "Transparent" ? "Wireframe" : "Solid";
+
+	scene.traverse(function (child) {
+		if (child instanceof THREE.Mesh) {
+			if (params.wireframeSolidTaranparent === "Solid") {
+				//update infolable
+				document.querySelector("#info-label").textContent = "Solid On";
+				//Change the icon on the button #wireframe-on-off
+				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="Solid Display" />`;
+				child.material.wireframe = false;
+				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, side: THREE.DoubleSide });
+			} else if (params.wireframeSolidTaranparent === "Transparent") {
+				//update infolable
+				document.querySelector("#info-label").textContent = "Transparent On";
+				//Change the icon on the button #wireframe-on-off
+				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-transparent.png" alt="Transparent Display" />`;
+				child.material.wireframe = false;
+				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: true, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+			} else if (params.wireframeSolidTaranparent === "Wireframe") {
+				//update infolable
+				document.querySelector("#info-label").textContent = "Wireframe On";
+				//Change the icon on the button #wireframe-on-off
+				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-wireframe.png" alt="Wireframe Display" />`;
+				child.material.wireframe = true; // Enable wireframe mode
+				child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
+			}
+			child.material.needsUpdate = true;
+		}
+	});
+	//Update the holes as they are meshes aswell
+	updateScene();
+});
 
 function updateScene() {
 	// Gather all objects of entity type "hole" into an array
@@ -362,11 +382,16 @@ document.querySelector("#hole-diameter-on-off").addEventListener("click", () => 
 //change Camera Type
 document.querySelector("#camera-mode").addEventListener("click", () => {
 	params.usePerspectiveCam = !params.usePerspectiveCam;
-	updateCameraType();
 	if (params.usePerspectiveCam) {
 		document.querySelector("#info-label").textContent = "Camera Type Updated: Perspective";
+		//change the icon on the button
+		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-perspective.png" alt="Perspective Mode" />`;
+		updateCameraType();
 	} else {
 		document.querySelector("#info-label").textContent = "Camera Type Updated: Orthographic";
+		//change the icon on the button
+		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Orthographic Mode" />`;
+		updateCameraType();
 	}
 });
 

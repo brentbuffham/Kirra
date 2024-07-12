@@ -170,14 +170,42 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 			// Update the hole with its diameter when selected is true
 			params.holeDiameter = params.holeDiameter ? true : false;
 		});
-	const solidorWireframe = gui.addFolder("Holes Text Display Options");
-	solidorWireframe.open();
-	solidorWireframe
-		.add(params, "wireframeOn")
-		.name("Wireframe OBJs")
+	const solidorTranparentorWireframe = gui.addFolder("Holes Text Display Options");
+
+	const objOptions = {
+		Solid: "Solid",
+		Transparent: "Transparent",
+		Wireframe: "Wireframe"
+	};
+	solidorTranparentorWireframe.open();
+	solidorTranparentorWireframe
+		.add(params, "wireframeSolidTaranparent", objOptions)
+		.name("OBJ Display Options")
 		.onChange(function () {
-			// Update the hole with its name when selected is true
-			params.wireframeOn = params.wireframeOn ? true : false;
+			// Update the mesh material to wireframe or solid
+			scene.traverse(function (child) {
+				if (child instanceof THREE.Mesh) {
+					switch (params.wireframeSolidTaranparent) {
+						case "Wireframe":
+							child.material.wireframe = true; // Enable wireframe mode
+							child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
+							break;
+						case "Transparent":
+							child.material.wireframe = false;
+							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: true, transparent: true, opacity: 0.5 });
+							break;
+						case "Solid":
+							child.material.wireframe = false;
+							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false });
+							break;
+						default:
+							child.material.wireframe = false;
+							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false });
+							break;
+					}
+					child.material.needsUpdate = true;
+				}
+			});
 		});
 }
 

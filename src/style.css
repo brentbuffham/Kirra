@@ -96,6 +96,7 @@ body {
     top: 10px;
     /* Center vertically */
     left: 10px;
+    margin: 2px;
     /* Adjust as needed */
     transform: translateY(0%);
     z-index: 100;
@@ -104,10 +105,20 @@ body {
 
 #vertical-nav button {
     display: block;
-    size: 30px;
+    width: 35px;
+    height: 30px;
     pointer-events: auto;
-    margin-bottom: 2px;
-    /* Spacing between buttons */
+    margin-bottom: 3px;
+    border-radius: 2px;
+    border: none;
+    /* Remove border */
+    background-color: #ccc;
+    /* Set a flat background color */
+    box-shadow: none;
+    /* Remove any shadow */
+    outline: none;
+    /* Remove focus outline */
+    padding: 0;
     /* Additional styling for buttons */
 }
 
@@ -142,14 +153,24 @@ body {
     transform: translateX(0%);
     z-index: 100;
     pointer-events: none;
+
 }
 
 #horizontal-nav button {
     display: inline-block;
-    size: 30px;
+    width: 35px;
+    height: 30px;
     pointer-events: auto;
-    margin-right: 2px;
-    /* Spacing between buttons */
+    border-radius: 2px;
+    border: none;
+    /* Remove border */
+    background-color: #ccc;
+    /* Set a flat background color */
+    box-shadow: none;
+    /* Remove any shadow */
+    outline: none;
+    /* Remove focus outline */
+    padding: 0;
     /* Additional styling for buttons */
 }
 
@@ -168,13 +189,37 @@ body {
 }
 
 .white-svg {
-    background: url('/assets/svg/kirralogo.svg') no-repeat center center;
+    /*background: url('./assets/svg/kirralogo.svg') no-repeat center center;*/
     filter: invert(100%);
-    padding-left: 3px;
-    stroke-width: 2px;
+    padding-left: 2px;
+    stroke-width: 1px;
     /* Inverts the color to white */
-    width: 50px;
+    width: 60px;
     /* Set as needed */
-    height: 50px;
+    height: 60px;
     /* Set as needed */
+}
+
+#viewHelperContainer {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background-color: rgba(150, 150, 155, 0.3);
+    /* White background with 50% transparency */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    pointer-events: none;
+    /* Ensure the circle itself does not capture pointer events */
+}
+
+#viewHelperCanvas {
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+    /* Ensure the canvas can capture pointer events */
 }

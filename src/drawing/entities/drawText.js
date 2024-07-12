@@ -8,7 +8,7 @@ export function drawText(scene, color, font, vector, value, entityType) {
 	const textGeometry = new TextGeometry(value, {
 		font: font,
 		size: 1,
-		height: 0.05, // Set height to 0 for flat text
+		depth: 0.05, // Set height to 0 for flat text
 		curveSegments: 12,
 		bevelEnabled: false,
 		bevelSegments: 2,
@@ -38,7 +38,6 @@ export function drawText(scene, color, font, vector, value, entityType) {
 		textHeight: textHeight,
 		font: font,
 		colour: color
-
 	};
 	// Add the text mesh to the scene
 	scene.add(textMesh);

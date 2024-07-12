@@ -1,6 +1,8 @@
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { DoubleSide, Color, Vector3, Box3, MeshLambertMaterial, MeshPhongMaterial, ShaderMaterial, AdditiveBlending } from "three";
-import { params } from "../../drawing/createScene.js";
+import { DoubleSide, Color, Vector3, Box3 } from "three";
+import { MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, ShaderMaterial } from "three";
+import { AdditiveBlending, WireframeGeometry, LineSegments } from "three";
+import { params, scene } from "../../drawing/createScene.js";
 
 export function handleOBJNoEvent(file, canvas) {
 	if (!file) {
@@ -25,68 +27,42 @@ export function handleOBJNoEvent(file, canvas) {
 		const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
 
 		const default_material = new MeshLambertMaterial({ color: 0x22ffaa, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
-		const solid_material = new MeshPhongMaterial({ color: 0xcccccc, side: DoubleSide, flatShading: true }); //, transparent: true, opacity: 0.5, depthWrite: false
-
-		//X-RAY SHADER MATERIAL
-		//http://free-tutorials.org/shader-x-ray-effect-with-three-js/
-		/*var materials = {
-			default_material: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
-			default_material2: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
-			wireframeMaterial: new THREE.MeshPhongMaterial({
-				side: THREE.DoubleSide,
-				wireframe: true,
-				shininess: 100,
-				specular: 0x000,
-				emissive: 0x000,
-				flatShading: false,
-				depthWrite: true,
-				depthTest: true
-			}),
-			wireframeMaterial2: new THREE.LineBasicMaterial({ wireframe: true, color: 0xffffff }),
-			wireframeAndModel: new THREE.LineBasicMaterial({ color: 0xffffff }),
-			phongMaterial: new THREE.MeshPhongMaterial({
-				color: 0x555555,
-				specular: 0xffffff,
-				shininess: 10,
-				flatShading: false,
-				side: THREE.DoubleSide,
-				skinning: true
-			}),
-			xrayMaterial: new THREE.ShaderMaterial({
-				uniforms: {
-					p: { type: "f", value: 3 },
-					glowColor: { type: "c", value: new THREE.Color(0x84ccff) }
-				},
-				vertexShader: document.getElementById("vertexShader").textContent,
-				fragmentShader: document.getElementById("fragmentShader").textContent,
-				side: THREE.DoubleSide,
-				blending: THREE.AdditiveBlending,
-				transparent: true,
-				depthWrite: false
-			})
-		};
-		*/
+		const phong_material = new MeshPhongMaterial({ color: 0x999999, side: DoubleSide, flatShading: true }); //, transparent: true, opacity: 0.5, depthWrite: false
+		const basic_material = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
+		const shiny_phong_material = new MeshPhongMaterial({ color: 0x555555, specular: 0xffffff, shininess: 10, flatShading: false, side: DoubleSide });
 
 		// Reposition vertices to center the object at the world center
 		object.traverse(function (child) {
 			if (child.isMesh) {
 				const position = child.geometry.attributes.position;
+
+				// Offset the positions
 				for (let i = 0; i < position.count; i++) {
 					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i) - offsetZ);
 				}
+
+				// Recompute vertex normals
+				child.geometry.computeVertexNormals();
+
+				// Mark positions as needing update
 				position.needsUpdate = true;
+
+				// Set material and wireframe mode based on params.wireframeOn
 				if (params.wireframeOn) {
-					child.material = default_material; // Find out which material works...
-					child.material.wireframe = true; // Set wireframe mode
+					child.material = default_material;
+					child.material.wireframe = true; // Enable wireframe mode
 					child.material.needsUpdate = true;
-					child.geometry.computeBoundingBox();
-					child.geometry.computeBoundingSphere();
 				} else {
-					child.material = solid_material;
+					child.material = phong_material;
 					child.material.needsUpdate = true;
-					child.geometry.computeBoundingBox();
-					child.geometry.computeBoundingSphere();
 				}
+
+				// Recompute bounding box and sphere
+				child.geometry.computeBoundingBox();
+				child.geometry.computeBoundingSphere();
+
+				// Add the child to the scene
+				canvas.scene.add(child);
 			}
 		});
 
@@ -97,8 +73,12 @@ export function handleOBJNoEvent(file, canvas) {
 		//object.rotation.set(Math.PI / 2, 0, 0);
 
 		object.scale.set(1, 1, 1);
+		// object.material.wireframe = true;
+		// canvas.scene.add(object);
+		// canvas.scene.remove(object);
+		// object.material.wireframe = false;
+		// canvas.scene.add(object);
 
-		canvas.scene.add(object);
 		object.name = file.name;
 
 		console.log("Object position after load:", object.position);

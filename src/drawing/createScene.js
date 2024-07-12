@@ -21,7 +21,7 @@ export const params = {
 	holeNameDisplay: true,
 	holeLengthDisplay: false,
 	holeDiameterDisplay: false,
-	wireframeOn: true,
+	wireframeSolidTaranparent: "solid",
 	debugComments: true
 };
 
@@ -40,7 +40,7 @@ function createLighting() {
 function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
-	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, -10000, 10000);
+	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
 	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
@@ -53,15 +53,17 @@ export function updateCameraType() {
 	const up = camera.up.clone();
 
 	const aspect = window.innerWidth / window.innerHeight;
+	cameraPerspective.aspect = aspect;
+	cameraPerspective.updateProjectionMatrix();
+	cameraOrthographic.aspect = aspect;
+	cameraOrthographic.updateProjectionMatrix();
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
-	camera.aspect = aspect;
-	camera.updateProjectionMatrix();
 
 	controls.dispose();
 	controls = new ArcballControls(camera, renderer.domElement, scene);
 	viewHelper.controls = controls;
 	controls.rotateSpeed = 1.0;
-	controls.enableRotate = false;
+	controls.enableRotate = true;
 	controls.enableZoom = true;
 	controls.enablePan = true;
 	controls.zoomSpeed = 1;

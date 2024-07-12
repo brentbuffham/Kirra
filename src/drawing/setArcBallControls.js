@@ -14,7 +14,7 @@ export function setArcBallControls(controls, viewHelper) {
 	// viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
 	controls.rotateSpeed = 1.0;
-	controls.enableRotate = false;
+	controls.enableRotate = true;
 	controls.enableZoom = true;
 	controls.enablePan = true;
 	controls.zoomSpeed = 1;
