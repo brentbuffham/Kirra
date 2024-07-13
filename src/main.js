@@ -1,4 +1,11 @@
 //main.js
+// Import the crappy boostrap stuff
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import * as bootstrap from "bootstrap"; // Import Bootstrap as a namespace
+
+window.bootstrap = bootstrap; // Attach Bootstrap to the window object
+// Import the necessary functions from the other files
 import "./style.css";
 import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileUpload.js";
 import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
@@ -11,7 +18,10 @@ import { drawHoles } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
 import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
 import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js";
+import { bindListenerToImportDXFButton } from "./import/autocad/importDXFButton.js";
+import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
 import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
+
 import * as THREE from "three";
 
 // document.querySelector("#app").innerHTML = `
@@ -31,46 +41,21 @@ document.querySelector("#app").innerHTML = /*html*/ `
 	<!-- Vertical Nav Buttons -->
 	<img src="./assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
 		<button id=import-holes title="File Import">
-			<img src="./assets/tabler-icons-2.36.0/png/file-import.png" alt="File Import" />
+			<img src="./assets/tabler-icons-2.36.0/png/load-holes-csv.png" alt="File Import Holes" />
 		</button>
 	  <button id=import-obj title="File OBJ Loader">
-			<img src="./assets/tabler-icons-2.36.0/png/3d-cube-sphere.png" alt="File OBJ Loader" />
+			<img src="./assets/tabler-icons-2.36.0/png/load-obj.png" alt="File Import OBJ" />
 		</button>
-		<!-- 
-		<button title="Colour Change">
-			<img src="./assets/tabler-icons-2.36.0/png/holecolour.png" alt="Colour Change" />
+		<button id=import-dxf title="File Import DXF">
+			<img src="./assets/tabler-icons-2.36.0/png/load-dxf.png" alt="File Import DXF" />
 		 </button>
-		<button title="File Export">
-			<img src="/assets/tabler-icons-2.36.0/png/file-export.png" alt="File Export" />
-		</button>
-		<button title="Save">
-			<img src="/assets/tabler-icons-2.36.0/png/device-floppy.png" alt="Save" />
-		</button>
-		<button title="Add Hole">
-			<img src="/assets/tabler-icons-2.36.0/png/circle-plus.png" alt="Add Hole" />
-		</button>
-		<button title="Remove Hole">
-			<img src="/assets/tabler-icons-2.36.0/png/circle-x.png" alt="Remove Hole" />
-		</button>
-		<button title="Add Pattern">
-			<img src="/assets/tabler-icons-2.36.0/png/grain.png" alt="Add Pattern" />
-		</button>
-		<button title="Add Pattern2">
-			<img src="/assets/tabler-icons-2.36.0/png/grid-dots.png" alt="Add Pattern2" />
-		</button>
-		<button title="Measure">
-			<img src="/assets/tabler-icons-2.36.0/png/ruler-measure.png" alt="Measure" />
-		</button>
-		<button title="Bearing and Angle Measure">
-			<img src="/assets/tabler-icons-2.36.0/png/geometry.png" alt="Bearing and Angle Measure" />
-		</button>
-		<button title="Help">
-			<img src="/assets/tabler-icons-2.36.0/png/help-triangle.png" alt="Help" />
-		</button>
-		<button title="Settings">
-			<img src="public/assets/tabler-icons-2.36.0/png/settings.png" alt="Settings" />
-		</button>
--->
+		 <button id=import-csv title="File Import CSV">
+			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import CSV" />
+		 </button>
+		 <button id=settings-world title="Settings World Origin">
+			<img src="./assets/tabler-icons-2.36.0/png/world-cog.png" alt="World Origin Point" />
+		 </button>
+
 	</nav>
   <nav id= horizontal-nav>
 	<nav>
@@ -110,6 +95,8 @@ preloadFont(); // Preload the font
 // Example: Adding event listeners to the first button
 bindListenerToImportCSVButton();
 bindListenerToImportOBJButton(canvas);
+bindListenerToImportDXFButton(canvas);
+bindListenerToWorldOriginSettingsButton();
 
 // Reset the Camera
 document.querySelector("#reset").addEventListener("click", function () {
@@ -139,28 +126,6 @@ document.querySelector("#reset").addEventListener("click", function () {
 
 const currentPoints = points; //store the current points
 console.log("main: ", currentPoints);
-//document.querySelector("#info-label").textContent = "File Loaded: " + currentPoints.length + " holes";
-addPointsToLocalStorage(currentPoints); // Add the points to the local storage
-// Add the points to the local storage
-export function addPointsToLocalStorage(points) {
-	localStorage.setItem("points", JSON.stringify(points));
-}
-// Get the points from the local storage
-export function getPointsFromLocalStorage() {
-	return JSON.parse(localStorage.getItem("points"));
-}
-// Clear the points from the local storage
-export function clearPointsFromLocalStorage() {
-	localStorage.removeItem("points");
-}
-
-//function to reload the points on browser refresh confirm with user if they want to clear the points
-export function reloadPoints() {
-	getPointsFromLocalStorage();
-	if (confirm("Do you want to clear the points?")) {
-		clearPointsFromLocalStorage();
-	}
-}
 
 // Function to update the hole display - remove this in future.
 function updateHoleDisplay() {

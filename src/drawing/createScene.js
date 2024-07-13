@@ -9,11 +9,14 @@ import { createViewHelper } from "./viewHelper.js";
 import { onWindowResize } from "./ResizeScene.js";
 import { sceneConfig } from "./sceneConfig.js";
 
+//load in local starge for the world origin settings
+const worldOriginSettings = JSON.parse(localStorage.getItem("WorldOriginSettings"));
+
 export let camera, scene, controls;
-export const params = {
-	worldXCenter: 478786,
-	worldYCenter: 6772350,
-	worldZCenter: 390,
+export let params = {
+	worldXCenter: worldOriginSettings ? worldOriginSettings.worldXCenter : 0,
+	worldYCenter: worldOriginSettings ? worldOriginSettings.worldYCenter : 0,
+	worldZCenter: worldOriginSettings ? worldOriginSettings.worldZCenter : 0,
 	usePerspectiveCam: false,
 	upDirection: "Z",
 	rotationAngle: 0,

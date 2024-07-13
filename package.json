@@ -15,7 +15,10 @@
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.0.5",
+    "bootstrap": "^5.3.3",
     "dat.gui": "^0.7.9",
+    "dxf-json": "^0.0.41",
+    "dxf-parser": "^1.1.2",
     "lil-gui": "^0.19.1",
     "stats.js": "^0.17.0",
     "three": "^0.166.1",

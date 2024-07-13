@@ -1,5 +1,5 @@
 //fileUpload.js
-import { parseCSV } from "./csvParser.js";
+import { parseCSV } from "./fileHOLESLoader.js";
 import { getCentroid } from "../../drawing/helpers/getCentroid.js";
 import { camera, controls, scene } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
@@ -25,7 +25,7 @@ export function renderFileUpload(containerId, canvas) {
 	tempContainer.innerHTML = fileUpload;
 	container.appendChild(tempContainer);
 
-	document.getElementById("file-input").addEventListener("change", e => handleFileUpload(e, canvas));
+	document.getElementById("file-input").addEventListener("change", (e) => handleFileUpload(e, canvas));
 }
 
 export function handleFileUpload(event, canvas) {
@@ -35,7 +35,7 @@ export function handleFileUpload(event, canvas) {
 	}
 	const reader = new FileReader();
 
-	reader.onload = function(event) {
+	reader.onload = function (event) {
 		const data = event.target.result;
 
 		if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -48,12 +48,11 @@ export function handleFileUpload(event, canvas) {
 		points.push(...newPoints);
 
 		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-			x,y,z = getCentroid(points);
-		}
-		else {
+			x, y, (z = getCentroid(points));
+		} else {
 			x = params.worldXCenter;
 			y = params.worldYCenter;
-			z = params.worldZCenter
+			z = params.worldZCenter;
 		}
 		let colour = 0xffffff;
 
@@ -138,7 +137,7 @@ export function createLilGuiFileUpload(canvas) {
 	const fileInput = document.createElement("input");
 	fileInput.type = "file";
 	fileInput.style.display = "none";
-	fileInput.addEventListener("change", e => handleFileUpload(e.target.files[0], canvas));
+	fileInput.addEventListener("change", (e) => handleFileUpload(e.target.files[0], canvas));
 	document.body.appendChild(fileInput);
 }
 
@@ -148,7 +147,7 @@ export function handleFileUploadNoEvent(file) {
 	}
 	const reader = new FileReader();
 
-	reader.onload = function(event) {
+	reader.onload = function (event) {
 		const data = event.target.result;
 
 		if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -165,12 +164,11 @@ export function handleFileUploadNoEvent(file) {
 		points.push(...newPoints);
 
 		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-			x, y, z = getCentroid(points);
-		}
-		else {
+			x, y, (z = getCentroid(points));
+		} else {
 			x = params.worldXCenter;
 			y = params.worldYCenter;
-			z = params.worldZCenter
+			z = params.worldZCenter;
 		}
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
