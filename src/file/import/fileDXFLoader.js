@@ -42,7 +42,7 @@ export function handleDXFNoEvent(file, canvas) {
 					return new THREE.Vector3(vertex.x, vertex.y, vertex.z);
 				});
 				// close the polyline Determine if this is correct in the future.
-				if (entity.closed) {
+				if (entity.shape) {
 					points.push(points[0]);
 				}
 				let color = entity.color ? entity.color : 0xffffff;
