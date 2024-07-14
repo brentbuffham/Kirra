@@ -102,7 +102,7 @@ bindListenerToWorldOriginSettingsButton();
 document.querySelector("#reset").addEventListener("click", function () {
 	// Interaction with Three.js scene
 	//store the current camera position
-	const position = new Vector3(0, 0, 0 + 200);
+	const position = new Vector3(0, 0, 0 + parseFloat(params.cameraDistance));
 	const target = new Vector3(0, 0, 0);
 
 	//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
@@ -152,6 +152,9 @@ function updateHoleDisplay() {
 	let x, y, z;
 	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
 		x, y, (z = getCentroid(points));
+		// params.worldXCenter = x;
+		// params.worldYCenter = y;
+		// params.worldZCenter = z;
 	} else {
 		x = params.worldXCenter;
 		y = params.worldYCenter;
@@ -264,6 +267,9 @@ function updateScene() {
 	// Re-add the holes with updated parameters
 	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
 		x, y, (z = getCentroid(points));
+		// params.worldXCenter = x;
+		// params.worldYCenter = y;
+		// params.worldZCenter = z;
 	} else {
 		x = params.worldXCenter;
 		y = params.worldYCenter;

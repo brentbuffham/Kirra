@@ -1,5 +1,6 @@
 // getCentroid.js
 import { Mesh, Group } from "three";
+import { params } from "../createScene";
 
 export function getCentroid(points) {
 	let sumX = 0,

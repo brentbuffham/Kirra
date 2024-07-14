@@ -1,3 +1,3 @@
 export const sceneConfig = {
-    frustumSize: 100
-}
+	frustumSize: 600
+};

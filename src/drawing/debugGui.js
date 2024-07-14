@@ -37,6 +37,14 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 				params.worldZCenter = 0;
 			}
 		});
+	controllersMap.cameraDistance = gui
+		.add(params, "cameraDistance")
+		.name("Camera Distance")
+		.onChange(function (value) {
+			if (isNaN(value)) {
+				params.cameraDistance = 1000;
+			}
+		});
 
 	gui.add(params, "debugComments")
 		.name("Debug Comments")

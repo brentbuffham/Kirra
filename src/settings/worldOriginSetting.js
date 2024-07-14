@@ -6,6 +6,7 @@ function updateGuiControllers() {
 	if (controllersMap.worldXCenter) controllersMap.worldXCenter.updateDisplay();
 	if (controllersMap.worldYCenter) controllersMap.worldYCenter.updateDisplay();
 	if (controllersMap.worldZCenter) controllersMap.worldZCenter.updateDisplay();
+	if (controllersMap.cameraDistance) controllersMap.cameraDistance.updateDisplay();
 
 	//Add the updated params to a local storage called WorldOriginSettings
 	localStorage.setItem("WorldOriginSettings", JSON.stringify(params));
@@ -40,6 +41,12 @@ export const bindListenerToWorldOriginSettingsButton = () => {
                                 <label for="world-z" class="form-label">World Z Center</label>
                                 <input type="number" class="form-control" id="world-z" placeholder="Enter the world z center value" value="${params.worldZCenter}">
                             </div>
+                            <div class="mb-3">
+                                <label for="information">Z level data is not shifted, this only adjust the look-at-elevation.</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="camera-distance" class="form-label">Camera Distance</label>
+                                <input type="number" class="form-control" id="camera-distance" placeholder="Enter the camera distance value" value="${params.cameraDistance}">
                         </form>
                     </div>
                     <div class="modal-footer">
@@ -60,19 +67,22 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			const x = document.getElementById("world-x").value;
 			const y = document.getElementById("world-y").value;
 			const z = document.getElementById("world-z").value;
+			const d = document.getElementById("camera-distance").value;
 
 			const parsedX = parseFloat(x);
 			const parsedY = parseFloat(y);
 			const parsedZ = parseFloat(z);
+			const parsedD = parseFloat(d);
 
-			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ)) {
+			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
 				alert("Invalid input. Please enter valid numbers.");
 			} else {
 				params.worldXCenter = parsedX;
 				params.worldYCenter = parsedY;
 				params.worldZCenter = parsedZ;
+				params.cameraDistance = parsedD;
 				//alert("Values have been set successfully."); // Changed from confirm to alert for a non-blocking user notification
-				console.log("World Origin Settings Applied: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter);
+				console.log("World Origin Settings Applied: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter, " (camera distance)", params.cameraDistance);
 				updateGuiControllers();
 			}
 		});
@@ -80,19 +90,22 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			const x = document.getElementById("world-x").value;
 			const y = document.getElementById("world-y").value;
 			const z = document.getElementById("world-z").value;
+			const d = document.getElementById("camera-distance").value;
 
 			const parsedX = parseFloat(x);
 			const parsedY = parseFloat(y);
 			const parsedZ = parseFloat(z);
+			const parsedD = parseFloat(d);
 
-			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ)) {
+			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
 				alert("Invalid input. Please enter valid numbers.");
 			} else {
 				params.worldXCenter = parsedX;
 				params.worldYCenter = parsedY;
 				params.worldZCenter = parsedZ;
+				params.cameraDistance = parsedD;
 				//alert("Values have been set successfully."); // Changed from confirm to alert for a non-blocking user notification
-				console.log("World Origin Settings Saved: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter);
+				console.log("World Origin Settings Saved: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter, " (camera distance)", params.cameraDistance);
 				updateGuiControllers();
 				//close the modal
 				modalElement.hide();

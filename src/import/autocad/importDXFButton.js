@@ -1,5 +1,6 @@
 import { handleDXFNoEvent } from "../../file/import/fileDXFLoader.js";
 import { params } from "../../drawing/createScene.js";
+import { getCentroid, getOBJCentroid } from "../../drawing/helpers/getCentroid.js";
 
 export const bindListenerToImportDXFButton = (canvas) => {
 	document.getElementById("import-dxf").addEventListener("click", function () {

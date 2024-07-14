@@ -1,6 +1,10 @@
 import DXFParser from "dxf-parser";
 import * as THREE from "three";
 import { params, scene } from "../../drawing/createScene.js";
+import { Font } from "three/examples/jsm/loaders/FontLoader.js";
+import { TTFLoader } from "three/examples/jsm/loaders/TTFLoader.js";
+import { globalFont } from "../../drawing/helpers/loadGlobalFont.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
 export function handleDXFNoEvent(file, canvas) {
 	if (!file) {
@@ -20,6 +24,9 @@ export function handleDXFNoEvent(file, canvas) {
 		const defaultMaterial = new THREE.LineBasicMaterial({ color: 0xffbb00 });
 
 		const group = new THREE.Group();
+
+		// Use the world center parameters as offsets
+		const offset = new THREE.Vector3(params.worldXCenter, params.worldYCenter, params.worldZCenter);
 
 		dxf.entities.forEach((entity) => {
 			if (entity.type === "LINE") {
@@ -86,28 +93,41 @@ export function handleDXFNoEvent(file, canvas) {
 				group.add(line);
 			}
 			if (entity.type === "TEXT") {
-				let text = new THREE.TextGeometry(entity.text, {
-					font: new THREE.FontLoader().load("fonts/Roboto/Roboto_Regular.ttf"),
-					size: entity.height,
-					height: 0.1
+				let text = new TextGeometry(entity.text, {
+					font: globalFont,
+					size: entity.textHeight,
+					depth: 0.01, // Set height to 0 for flat text
+					curveSegments: 6,
+					bevelEnabled: true,
+					bevelThickness: 0.01,
+					bevelSize: 0.01,
+					bevelSegments: 1
 				});
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let mesh = new THREE.Mesh(text, material);
-				mesh.position.set(entity.position.x, entity.position.y, entity.position.z);
+				mesh.position.set(entity.startPoint.x - offset.x, entity.startPoint.y - offset.y, entity.startPoint.z);
+				mesh.dxfType = entity.type;
 				console.log("DXF TEXT:", mesh);
 				group.add(mesh);
 			}
 			if (entity.type === "MTEXT") {
-				let text = new THREE.TextGeometry(entity.text, {
-					font: new THREE.FontLoader().load("fonts/helvetiker_regular.typeface.json"),
+				let text = new TextGeometry(entity.text, {
+					font: globalFont,
 					size: entity.height,
-					height: 0.1
+					depth: 0.01, // Set height to 0 for flat text
+					curveSegments: 6,
+					bevelEnabled: true,
+					bevelThickness: 0.01,
+					bevelSize: 0.01,
+					bevelSegments: 1
 				});
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let mesh = new THREE.Mesh(text, material);
-				mesh.position.set(entity.position.x, entity.position.y, entity.position.z);
+				mesh.position.set(entity.position.x - offset.x, entity.position.y - offset.y, entity.position.z);
+				mesh.dxfType = entity.type;
+				console.log("DXF MTEXT:", mesh);
 				group.add(mesh);
 			}
 			if (entity.type === "DIMENSION") {
@@ -118,6 +138,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let line = new THREE.Line(geometry, material);
+				console.log("DXF DIMENSION:", line);
 				group.add(line);
 			}
 			if (entity.type === "POINT") {
@@ -125,6 +146,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				console.log("DXF POINT:", point);
 				group.add(point);
 			}
 			if (entity.type === "INSERT") {
@@ -132,6 +154,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				console.log("DXF INSERT:", point);
 				group.add(point);
 			}
 			if (entity.type === "BLOCK") {
@@ -139,6 +162,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				console.log("DXF BLOCK:", point);
 				group.add(point);
 			}
 			if (entity.type === "HATCH") {
@@ -146,6 +170,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				console.log("DXF HATCH:", point);
 				group.add(point);
 			}
 		});
@@ -157,16 +182,33 @@ export function handleDXFNoEvent(file, canvas) {
 		// Determine the offsets based on world center parameters
 		const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
 		const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
-		const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
+		//const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
 
 		// Reposition vertices to center the object at the world center
 		group.traverse(function (child) {
-			if (child.isMesh || child.isLine) {
+			if (child.isMesh) {
+				const position = child.geometry.attributes.position;
+				//Text is offset before the mesh so there is no artifacting
+				if (child.type === "TEXT" || child.type === "MTEXT") {
+					for (let i = 0; i < position.count; i++) {
+						position.setXYZ(i, position.getX(i), position.getY(i), position.getZ(i));
+					}
+				}
+				// Mark positions as needing update
+				position.needsUpdate = true;
+
+				// Recompute bounding box and sphere
+				child.geometry.computeBoundingBox();
+				child.geometry.computeBoundingSphere();
+			}
+			if (child.isLine) {
 				const position = child.geometry.attributes.position;
 
-				// Offset the positions
-				for (let i = 0; i < position.count; i++) {
-					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i) - offsetZ);
+				if (child.type !== "TEXT" || child.type !== "MTEXT") {
+					// Offset the positions
+					for (let i = 0; i < position.count; i++) {
+						position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i));
+					}
 				}
 
 				// Mark positions as needing update

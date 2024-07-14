@@ -38,7 +38,7 @@ export function handleOBJNoEvent(file, canvas) {
 
 				// Offset the positions
 				for (let i = 0; i < position.count; i++) {
-					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i) - offsetZ);
+					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i));
 				}
 
 				// Recompute vertex normals
