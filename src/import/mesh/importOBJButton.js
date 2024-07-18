@@ -3,15 +3,16 @@ import { params } from "../../drawing/createScene.js";
 
 export const bindListenerToImportOBJButton = (canvas) => {
 	document.getElementById("import-obj").addEventListener("click", function () {
-		// Interaction with Three.js scene
 		const fileInput = document.createElement("input");
 		fileInput.type = "file";
-		fileInput.accept = ".obj";
+		fileInput.accept = ".obj,.mtl,image/*"; // Accept OBJ, MTL, and texture files
+		fileInput.multiple = true; // Allow multiple file selection
 		fileInput.style.display = "none"; // Hide the file input
 
 		fileInput.onchange = (e) => {
-			if (e.target.files && e.target.files[0]) {
-				handleOBJNoEvent(e.target.files[0], canvas);
+			if (e.target.files) {
+				const files = Array.from(e.target.files);
+				handleOBJNoEvent(files, canvas);
 			}
 		};
 
@@ -21,6 +22,10 @@ export const bindListenerToImportOBJButton = (canvas) => {
 		if (params.debugComments) {
 			console.log("Load OBJ button clicked");
 		}
-		document.querySelector("#info-label").textContent = "File OBJ Loaded: " + fileInput.name;
+		document.querySelector("#info-label").textContent =
+			"Files selected: " +
+			Array.from(fileInput.files)
+				.map((f) => f.name)
+				.join(", ");
 	});
 };

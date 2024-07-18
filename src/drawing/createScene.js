@@ -34,9 +34,9 @@ export let transformControls;
 export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
-	const ambientLight = new AmbientLight(0xffffff, 0.5);
+	const ambientLight = new AmbientLight(0xffffff, 0.5 * sceneConfig.lightIntensity);
 	scene.add(ambientLight);
-	const directionalLight = new DirectionalLight(0xffffff, 3);
+	const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
 	directionalLight.position.set(0, 1000, 1000);
 	scene.add(directionalLight);
 }
@@ -144,9 +144,9 @@ export function createScene(points) {
 
 	let position = new Vector3(0, 0, 0 + parseFloat(params.cameraDistance));
 	camera.position.set(0, 0, parseFloat(params.cameraDistance)); // Corrected here
-	camera.lookAt(0, 0, 0);
+	camera.lookAt(0, 0, params.worldZCenter);
 	camera.up.set(0, 1, 0);
-	controls.target.set(0, 0, 0);
+	controls.target.set(0, 0, params.worldZCenter);
 	camera.position.copy(position);
 	controls.target.copy(objectCenter.position);
 	controls.update();

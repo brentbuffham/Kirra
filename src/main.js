@@ -103,7 +103,7 @@ document.querySelector("#reset").addEventListener("click", function () {
 	// Interaction with Three.js scene
 	//store the current camera position
 	const position = new Vector3(0, 0, 0 + parseFloat(params.cameraDistance));
-	const target = new Vector3(0, 0, 0);
+	const target = new Vector3(0, 0, params.worldZCenter);
 
 	//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
 	if (controls instanceof TrackballControls) {
@@ -111,9 +111,9 @@ document.querySelector("#reset").addEventListener("click", function () {
 	}
 	if (controls instanceof ArcballControls) {
 		camera.position.copy(position);
-		camera.lookAt(0, 0, 0);
+		camera.lookAt(0, 0, params.worldZCenter);
 		camera.up.set(0, 1, 0);
-		controls.target.set(0, 0, 0);
+		controls.target.set(0, 0, params.worldZCenter);
 		//set the controls to the stored position and target
 		camera.position.copy(position);
 		controls.target.copy(target);
@@ -149,16 +149,12 @@ function updateHoleDisplay() {
 		scene.remove(hole);
 	}
 
-	let x, y, z;
-	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-		x, y, (z = getCentroid(points));
-		// params.worldXCenter = x;
-		// params.worldYCenter = y;
-		// params.worldZCenter = z;
+	let x, y;
+	if (params.worldXCenter === 0 && params.worldYCenter === 0) {
+		x, y;
 	} else {
 		x = params.worldXCenter;
 		y = params.worldYCenter;
-		z = params.worldZCenter;
 	}
 	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
 		const colour = 0xffffff;

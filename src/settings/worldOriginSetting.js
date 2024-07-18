@@ -49,10 +49,15 @@ export const bindListenerToWorldOriginSettingsButton = () => {
                                 <input type="number" class="form-control" id="camera-distance" placeholder="Enter the camera distance value" value="${params.cameraDistance}">
                         </form>
                     </div>
+					
                     <div class="modal-footer">
+						<button type="button" class="btn btn-danger" id="clear-world-origin-settings">Clear</button>
+						<div class="col mx-3">
+                			<!-- Horizontal spacer -->
+            			</div>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="button" class="btn btn-primary" id="apply-world-origin-settings">Apply</button>
-                        <button type="button" class="btn btn-primary" id="save-world-origin-settings">Save</button>
+                        <button type="button" class="btn btn-success" id="save-world-origin-settings">Save</button>
                     </div>
                 </div>
             </div>
@@ -63,6 +68,19 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 		const modalElement = new window.bootstrap.Modal(modal);
 		modalElement.show();
 
+		document.getElementById("clear-world-origin-settings").addEventListener("click", function () {
+			params.worldXCenter = 0;
+			params.worldYCenter = 0;
+			params.worldZCenter = 0;
+
+			document.getElementById("world-x").value = 0;
+			document.getElementById("world-y").value = 0;
+			document.getElementById("world-z").value = 0;
+
+			//alert("Values have been cleared successfully."); // Changed from confirm to alert for a non-blocking user notification
+			console.log("World Origin Settings Cleared: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter);
+			updateGuiControllers();
+		});
 		document.getElementById("apply-world-origin-settings").addEventListener("click", function () {
 			const x = document.getElementById("world-x").value;
 			const y = document.getElementById("world-y").value;

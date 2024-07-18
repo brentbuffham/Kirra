@@ -1,11 +1,17 @@
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { DoubleSide, Color, Vector3, Box3 } from "three";
-import { MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, ShaderMaterial } from "three";
-import { AdditiveBlending, WireframeGeometry, LineSegments } from "three";
-import { params, scene } from "../../drawing/createScene.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
+import { TextureLoader, MeshPhongMaterial, DoubleSide, Vector3, Box3 } from "three";
+import { params } from "../../drawing/createScene.js";
+import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 
-export function handleOBJNoEvent(file, canvas) {
-	if (!file) {
+export function handleOBJNoEvent(files, canvas) {
+	const objFile = files.find((file) => file.name.endsWith(".obj"));
+	const mtlFile = files.find((file) => file.name.endsWith(".mtl"));
+	const textureFiles = files.filter((file) => file.type.startsWith("image/"));
+
+	//Exit when no file is found
+	if (!objFile) {
+		console.error("OBJ file not found");
 		return;
 	}
 
@@ -13,91 +19,109 @@ export function handleOBJNoEvent(file, canvas) {
 
 	reader.onload = function (event) {
 		const contents = event.target.result;
+		alert("OBJ file loaded successfully.\nFile name: " + objFile.name);
+
 		const objLoader = new OBJLoader();
 
-		const object = objLoader.parse(contents);
+		if (mtlFile) {
+			const mtlReader = new FileReader();
+			mtlReader.onload = function (mtlEvent) {
+				const mtlContents = mtlEvent.target.result;
+				const mtlLoader = new MTLLoader();
+				const materials = mtlLoader.parse(mtlContents);
 
-		// Compute the bounding box of the object
-		const boundingBox = new Box3().setFromObject(object);
-		const center = boundingBox.getCenter(new Vector3());
+				console.log("Materials info keys:", Object.keys(materials.materialsInfo));
+				console.log("Parsed materials:", materials.materialsInfo);
 
-		// Determine the offsets based on world center parameters
-		const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
-		const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
-		const offsetZ = params.worldZCenter !== 0 ? params.worldZCenter : center.z;
+				const textureLoader = new TextureLoader();
+				textureFiles.forEach((textureFile) => {
+					const url = URL.createObjectURL(textureFile);
+					textureLoader.load(url, (texture) => {
+						console.log("Texture loaded:", texture);
+						// Apply the texture to the material
+						if (materials.materialsInfo["texture"]) {
+							console.log("Applying texture ", textureFile.name, " to material 'texture'");
 
-		const default_material = new MeshLambertMaterial({ color: 0x22ffaa, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
-		const phong_material = new MeshPhongMaterial({ color: 0x999999, side: DoubleSide, flatShading: true }); //, transparent: true, opacity: 0.5, depthWrite: false
-		const basic_material = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide, blending: AdditiveBlending, depthWrite: false });
-		const shiny_phong_material = new MeshPhongMaterial({ color: 0x555555, specular: 0xffffff, shininess: 10, flatShading: false, side: DoubleSide });
+							const material = new MeshPhongMaterial({ color: 0xffffff, side: DoubleSide, map: texture });
+							//adjust texture map settings to remove shiny effect
+							material.shininess = 0;
+							material.specular = 0xffffff;
+							material.flatShading = true;
 
-		// Reposition vertices to center the object at the world center
-		object.traverse(function (child) {
-			if (child.isMesh) {
-				const position = child.geometry.attributes.position;
+							material.needsUpdate = true;
+							console.log("Material after texture application", material);
+						}
+					});
+				});
 
-				// Offset the positions
-				for (let i = 0; i < position.count; i++) {
-					position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i));
-				}
+				materials.preload();
+				objLoader.setMaterials(materials);
 
-				// Recompute vertex normals
-				child.geometry.computeVertexNormals();
-
-				// Mark positions as needing update
-				position.needsUpdate = true;
-
-				// Set material and wireframe mode based on params.wireframeOn
-				if (params.wireframeOn) {
-					child.material = default_material;
-					child.material.wireframe = true; // Enable wireframe mode
-					child.material.needsUpdate = true;
-				} else {
-					child.material = phong_material;
-					child.material.needsUpdate = true;
-				}
-
-				// Recompute bounding box and sphere
-				child.geometry.computeBoundingBox();
-				child.geometry.computeBoundingSphere();
-
-				// Add the child to the scene
-				canvas.scene.add(child);
-			}
-		});
-
-		// Force position to 0, 0, 0
-		object.position.set(0, 0, 0);
-
-		// Rotate object to Z up
-		//object.rotation.set(Math.PI / 2, 0, 0);
-
-		object.scale.set(1, 1, 1);
-		// object.material.wireframe = true;
-		// canvas.scene.add(object);
-		// canvas.scene.remove(object);
-		// object.material.wireframe = false;
-		// canvas.scene.add(object);
-
-		object.name = file.name;
-
-		console.log("Object position after load:", object.position);
-		console.log("Object rotation after load:", object.rotation);
-		console.log("Object scale after load:", object.scale);
-
-		// Adjust the camera to ensure the object is visible
-		const size = boundingBox.getSize(new Vector3());
-
-		if (params.debugComments) {
-			console.log("Loaded OBJ position:", object.position);
-			console.log("Loaded OBJ rotation:", object.rotation);
-			console.log("Loaded OBJ scale:", object.scale);
+				const object = objLoader.parse(contents);
+				processLoadedObject(object, canvas);
+			};
+			mtlReader.readAsText(mtlFile);
+		} else {
+			const object = objLoader.parse(contents);
+			processLoadedObject(object, canvas);
 		}
 	};
 
 	reader.onerror = function (error) {
-		console.log("Error reading the OBJ file:", error);
+		console.error("Error reading the OBJ file:", error);
 	};
 
-	reader.readAsText(file);
+	reader.readAsText(objFile);
+}
+
+function processLoadedObject(object, canvas) {
+	const boundingBox = new Box3().setFromObject(object);
+	const center = boundingBox.getCenter(new Vector3());
+
+	const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
+	const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
+
+	//set the world center
+	if (params.worldXCenter === 0 || params.worldYCenter === 0) {
+		params.worldXCenter = center.x;
+		params.worldYCenter = center.y;
+		updateGuiControllers();
+	}
+
+	object.position.set(0, 0, 0);
+	object.scale.set(1, 1, 1);
+	object.name = object.name;
+
+	//backup material for objects without mtl file
+	const phong_material = new MeshPhongMaterial({ color: 0xffffff, side: DoubleSide, flatShading: true });
+
+	object.traverse(function (child) {
+		if (child.isMesh) {
+			const position = child.geometry.attributes.position;
+			for (let i = 0; i < position.count; i++) {
+				//offset as the objects are in UTM and real world coordinates and float32 precision is not enough - offset to 0,0
+				position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i));
+			}
+
+			child.geometry.computeVertexNormals();
+			position.needsUpdate = true;
+
+			//Got no materila or texture? - apply default material
+			if (!child.material || !child.material.map) {
+				child.material = phong_material;
+				child.material.needsUpdate = true;
+			}
+
+			child.geometry.computeBoundingBox();
+			child.geometry.computeBoundingSphere();
+
+			canvas.scene.add(child);
+		}
+	});
+
+	if (params.debugComments) {
+		console.log("Loaded OBJ position:", object.position);
+		console.log("Loaded OBJ rotation:", object.rotation);
+		console.log("Loaded OBJ scale:", object.scale);
+	}
 }
