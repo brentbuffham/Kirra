@@ -6,7 +6,7 @@ const greyBackground = 0x808080;
 
 export const sceneConfig = {
 	frustumSize: 1000,
-	lightIntensity: 2,
+	lightIntensity: 1,
 	ambientIntensity: 0.2,
 	sceneBackground: blackBackground
 };

@@ -35,10 +35,11 @@ export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
 	const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
+	//const ambientLight = new AmbientLight(0xffffff, sceneConfig.lightIntensity);
 	scene.add(ambientLight);
 	scene.background = new THREE.Color(sceneConfig.sceneBackground);
 	const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
-	directionalLight.position.set(0, 1000, 1000);
+	directionalLight.position.set(0, -3000, 3000);
 	scene.add(directionalLight);
 }
 

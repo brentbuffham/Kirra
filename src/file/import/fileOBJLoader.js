@@ -2,7 +2,7 @@
 // Dependencies: OBJLoader.js, MTLLoader.js, TextureLoader.js, MeshPhongMaterial.js, DoubleSide.js, Vector3.js, Box3.js, createScene.js, worldOriginSetting.js
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
-import { TextureLoader, MeshPhongMaterial, DoubleSide, Vector3, Box3 } from "three";
+import { TextureLoader, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 
@@ -80,11 +80,12 @@ function applyTextureToMaterials(texture) {
 	if (materials) {
 		for (const material of Object.values(materials.materials)) {
 			//Attempt to condition the material to show the texture better
+			texture.colorSpace = SRGBColorSpace;
 			material.map = texture;
-			material.flatShading = true;
+			material.flatShading = false;
 			material.side = DoubleSide;
 			material.blending = 1;
-			material.opacity = 0.5;
+			material.opacity = 1;
 
 			console.log("09) Applying Texture:", material.map);
 			material.needsUpdate = true;
@@ -162,7 +163,7 @@ function processLoadedObject(object, canvas, materials) {
 				child.material.needsUpdate = true;
 			} else {
 				console.log("17) child.material", child.material);
-				child.material.flatShading = true;
+				child.material.flatShading = false;
 				child.material.side = DoubleSide;
 				child.material.needsUpdate = true;
 			}
