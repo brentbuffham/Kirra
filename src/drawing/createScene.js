@@ -34,8 +34,9 @@ export let transformControls;
 export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
-	const ambientLight = new AmbientLight(0xffffff, 0.5 * sceneConfig.lightIntensity);
+	const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
 	scene.add(ambientLight);
+	scene.background = new THREE.Color(sceneConfig.sceneBackground);
 	const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
 	directionalLight.position.set(0, 1000, 1000);
 	scene.add(directionalLight);
@@ -45,8 +46,9 @@ function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
 	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
-	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -5000, 10000);
+	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
+	const cameraPosition = new Vector3(0, 0, params.cameraDistance);
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
 }
@@ -142,11 +144,11 @@ export function createScene(points) {
 
 	createLighting(scene);
 
-	let position = new Vector3(0, 0, 0 + parseFloat(params.cameraDistance));
+	let position = new Vector3(0, 0, 0);
 	camera.position.set(0, 0, parseFloat(params.cameraDistance)); // Corrected here
-	camera.lookAt(0, 0, params.worldZCenter);
+	camera.lookAt(0, 0, 0);
 	camera.up.set(0, 1, 0);
-	controls.target.set(0, 0, params.worldZCenter);
+	controls.target.set(position.x, position.y, position.z);
 	camera.position.copy(position);
 	controls.target.copy(objectCenter.position);
 	controls.update();

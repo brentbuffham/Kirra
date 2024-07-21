@@ -4,6 +4,7 @@ import { getCentroid } from "../../drawing/helpers/getCentroid.js";
 import { camera, controls, scene } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
+import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 
 export let points = [];
 //const logit = false;
@@ -163,12 +164,15 @@ export function handleFileUploadNoEvent(file) {
 		const newPoints = parseCSV(data);
 		points.push(...newPoints);
 
-		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-			x, y, (z = getCentroid(points));
+		if (params.worldXCenter === 0 && params.worldYCenter === 0) {
+			(x = getCentroid(points).x), (y = getCentroid(points).y), z;
+			params.worldXCenter = x;
+			params.worldYCenter = y;
+			updateGuiControllers();
 		} else {
-			x = params.worldXCenter;
-			y = params.worldYCenter;
-			z = params.worldZCenter;
+			x = params.worldXCenter || 0;
+			y = params.worldYCenter || 0;
+			z = params.worldZCenter || 0;
 		}
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
@@ -209,9 +213,9 @@ export function handleFileUploadNoEvent(file) {
 			}
 		} else if (data.split("\n")[0].split(",").length === 10) {
 			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
-				}
+				// if (logit && params.debugComments) {
+				// 	console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+				// }
 				const tempPoint = {
 					pointID: point.pointID,
 					startXLocation: point.startXLocation - x,
@@ -228,9 +232,9 @@ export function handleFileUploadNoEvent(file) {
 			}
 		} else if (data.split("\n")[0].split(",").length === 11) {
 			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
-				}
+				// if (logit && params.debugComments) {
+				// 	console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+				// }
 				const tempPoint = {
 					pointID: point.pointID,
 					startXLocation: point.startXLocation - x,

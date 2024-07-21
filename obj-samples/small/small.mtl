@@ -5,6 +5,6 @@ Ka 0 0 0
 Kd 1 1 1
 Ks 0 0 0
 Tr 0
-illum 1
-Ns 50
+illum 0
+Ns 0
 map_Kd 231208_PIT_texture.jpg

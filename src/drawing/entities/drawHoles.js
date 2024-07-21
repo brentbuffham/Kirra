@@ -175,11 +175,11 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	if (params.holeNameDisplay) {
 		if (globalFont) {
 			const textObject = drawText(scene, colour, globalFont, { x: collarXYZ.x - textLength / 2, y: collarXYZ.y + textSize / 2, z: collarXYZ.z + 0.1 }, name, "holeNameText");
-			console.log("Hole Name Display On: ", params.holeNameDisplay)
+			//console.log("Hole Name Display On: ", params.holeNameDisplay);
 		}
 	} else {
 		//draw nothing
-		console.log("Hole Name Display On: ", params.holeNameDisplay)
+		console.log("Hole Name Display On: ", params.holeNameDisplay);
 	}
 	if (params.holeLengthDisplay) {
 		if (globalFont) {

@@ -118,5 +118,6 @@ export function parseCSV(data) {
 	}
 	//Add the Holes to the Loacal storage
 	localStorage.setItem("Holes", JSON.stringify(points));
+
 	return points;
 }

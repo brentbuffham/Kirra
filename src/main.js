@@ -149,12 +149,13 @@ function updateHoleDisplay() {
 		scene.remove(hole);
 	}
 
-	let x, y;
-	if (params.worldXCenter === 0 && params.worldYCenter === 0) {
-		x, y;
+	let x, y, z;
+	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
+		(x = 0), (y = 0), (z = 0);
 	} else {
-		x = params.worldXCenter;
-		y = params.worldYCenter;
+		x = params.worldXCenter || 0;
+		y = params.worldYCenter || 0;
+		z = 0; //No offset for Z
 	}
 	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
 		const colour = 0xffffff;
@@ -167,10 +168,10 @@ function updateHoleDisplay() {
 				endXLocation: point.endXLocation - x,
 				endYLocation: point.endYLocation - y,
 				endZLocation: point.endZLocation - z,
-				diameter: point.diameter,
-				subdrill: point.subdrill,
-				shapeType: params.holeDisplay,
-				holeColour: point.holeColour
+				diameter: point.diameter || 500,
+				subdrill: point.subdrill || 0,
+				shapeType: params.holeDisplay || "mesh-cylinder",
+				holeColour: point.holeColour || colour
 			};
 
 			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
@@ -260,17 +261,14 @@ function updateScene() {
 	}
 
 	let x, y, z;
-	// Re-add the holes with updated parameters
 	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-		x, y, (z = getCentroid(points));
-		// params.worldXCenter = x;
-		// params.worldYCenter = y;
-		// params.worldZCenter = z;
+		(x = 0), (y = 0), (z = 0);
 	} else {
-		x = params.worldXCenter;
-		y = params.worldYCenter;
-		z = params.worldZCenter;
+		x = params.worldXCenter || 0;
+		y = params.worldYCenter || 0;
+		z = 0; //No offset for Z
 	}
+
 	if (points.endXLocation !== null && points.endYLocation !== null && points.endZLocation !== null && points.diameter !== null) {
 		const colour = 0xffffff;
 		points.forEach((point) => {
@@ -282,12 +280,12 @@ function updateScene() {
 				endXLocation: point.endXLocation - x,
 				endYLocation: point.endYLocation - y,
 				endZLocation: point.endZLocation - z,
-				diameter: point.diameter,
-				subdrill: point.subdrill,
-				shapeType: point.shapeType,
-				holeColour: point.holeColour
+				diameter: point.diameter || 500,
+				subdrill: point.subdrill || 0,
+				shapeType: point.shapeType || "mesh-cylinder",
+				holeColour: point.holeColour || colour
 			};
-
+			console.log("tempPoint: ", tempPoint);
 			// Draw the holes again with updated parameters
 			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 		});
