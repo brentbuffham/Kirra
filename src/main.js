@@ -7,7 +7,7 @@ import * as bootstrap from "bootstrap"; // Import Bootstrap as a namespace
 window.bootstrap = bootstrap; // Attach Bootstrap to the window object
 // Import the necessary functions from the other files
 import "./style.css";
-import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileUpload.js";
+import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
 import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
 import { Vector3 } from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
@@ -16,6 +16,7 @@ import { controls, createScene, params, updateCameraType } from "./drawing/creat
 import { getCentroid } from "./drawing/helpers/getCentroid.js";
 import { drawHoles } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
+import { bindListenerToImportK3DButton } from "./import/csv/openHolesButton.js";
 import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
 import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js";
 import { bindListenerToImportDXFButton } from "./import/autocad/importDXFButton.js";
@@ -35,11 +36,15 @@ import * as THREE from "three";
 document.querySelector("#app").innerHTML = /*html*/ `
 </div>
 <div id="scene-container">
+	<!-- Three.js Canvas -->
 	<div id="canvas"></div> <!-- Three.js Canvas -->
 
 	<nav id="vertical-nav">
 	<!-- Vertical Nav Buttons -->
 	<img src="./assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
+		<button id=open-holes title="File Open">
+			<img src="./assets/tabler-icons-2.36.0/png/load-holes-k3d.png" alt="File Open Holes" />
+		</button>
 		<button id=import-holes title="File Import">
 			<img src="./assets/tabler-icons-2.36.0/png/load-holes-csv.png" alt="File Import Holes" />
 		</button>
@@ -93,6 +98,7 @@ const { scene, camera, renderer } = canvas;
 preloadFont(); // Preload the font
 
 // Example: Adding event listeners to the first button
+bindListenerToImportK3DButton();
 bindListenerToImportCSVButton();
 bindListenerToImportOBJButton(canvas);
 bindListenerToImportDXFButton(canvas);
@@ -191,25 +197,32 @@ function updateHoleDisplay() {
 
 //function to turn params.wireframeOn on and off
 document.querySelector("#obj-display").addEventListener("click", () => {
-	params.wireframeSolidTaranparent = params.wireframeSolidTaranparent === "Solid" ? "Transparent" : params.wireframeSolidTaranparent === "Transparent" ? "Wireframe" : "Solid";
+	params.wireframeSolidTransparentTexture = params.wireframeSolidTransparentTexture === "Texture" ? "Solid" : params.wireframeSolidTransparentTexture === "Solid" ? "Transparent" : params.wireframeSolidTransparentTexture === "Transparent" ? "Wireframe" : "Texture";
 
 	scene.traverse(function (child) {
 		if (child instanceof THREE.Mesh) {
-			if (params.wireframeSolidTaranparent === "Solid") {
+			if (params.wireframeSolidTransparentTexture === "Texture") {
+				//update infolable
+				document.querySelector("#info-label").textContent = "Texture On";
+				//Change the icon on the button #texture-on-off
+				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-material.png" alt="Texture Display" />`;
+				child.material.wireframe = false;
+				child.material = child.userData.originalMaterial || child.material;
+			} else if (params.wireframeSolidTransparentTexture === "Solid") {
 				//update infolable
 				document.querySelector("#info-label").textContent = "Solid On";
-				//Change the icon on the button #wireframe-on-off
+				//Change the icon on the button #solid-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="Solid Display" />`;
 				child.material.wireframe = false;
 				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, side: THREE.DoubleSide });
-			} else if (params.wireframeSolidTaranparent === "Transparent") {
+			} else if (params.wireframeSolidTransparentTexture === "Transparent") {
 				//update infolable
 				document.querySelector("#info-label").textContent = "Transparent On";
-				//Change the icon on the button #wireframe-on-off
+				//Change the icon on the button #transparent-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-transparent.png" alt="Transparent Display" />`;
 				child.material.wireframe = false;
 				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: true, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
-			} else if (params.wireframeSolidTaranparent === "Wireframe") {
+			} else if (params.wireframeSolidTransparentTexture === "Wireframe") {
 				//update infolable
 				document.querySelector("#info-label").textContent = "Wireframe On";
 				//Change the icon on the button #wireframe-on-off

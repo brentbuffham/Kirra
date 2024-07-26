@@ -25,7 +25,7 @@ export let params = {
 	holeNameDisplay: true,
 	holeLengthDisplay: false,
 	holeDiameterDisplay: false,
-	wireframeSolidTaranparent: "solid",
+	wireframeSolidTransparentTexture: "solid",
 	debugComments: true
 };
 
@@ -39,7 +39,7 @@ function createLighting() {
 	scene.add(ambientLight);
 	scene.background = new THREE.Color(sceneConfig.sceneBackground);
 	const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
-	directionalLight.position.set(0, -3000, 3000);
+	directionalLight.position.set(0, 0, 2000);
 	scene.add(directionalLight);
 }
 

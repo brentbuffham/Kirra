@@ -1,5 +1,5 @@
 //fileUpload.js
-import { parseCSV } from "./fileHOLESLoader.js";
+import { parseCSV } from "./fileK3DLoader.js";
 import { getCentroid } from "../../drawing/helpers/getCentroid.js";
 import { camera, controls, scene } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
@@ -48,54 +48,19 @@ export function handleFileUpload(event, canvas) {
 		const newPoints = parseCSV(data);
 		points.push(...newPoints);
 
-		if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-			x, y, (z = getCentroid(points));
+		if (params.worldXCenter === 0 && params.worldYCenter === 0) {
+			(x = getCentroid(points).x), (y = getCentroid(points).y), z;
+			params.worldXCenter = x;
+			params.worldYCenter = y;
+			updateGuiControllers();
 		} else {
-			x = params.worldXCenter;
-			y = params.worldYCenter;
-			z = params.worldZCenter;
+			x = params.worldXCenter || 0;
+			y = params.worldYCenter || 0;
+			z = params.worldZCenter || 0;
 		}
 		let colour = 0xffffff;
 
-		if (data.split("\n")[0].split(",").length === 4) {
-			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/drawDummys: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-				}
-				const tempPoint = {
-					pointID: point.pointID,
-					startXLocation: point.startXLocation - x,
-					startYLocation: point.startYLocation - y,
-					startZLocation: point.startZLocation - z
-				};
-				drawDummys(canvas.scene, colour, tempPoint);
-			}
-		} else if (data.split("\n")[0].split(",").length === 7) {
-			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
-			const currentHoleDisplay = params.holeDisplay;
-			const currentIndex = holeOptions.indexOf(currentHoleDisplay);
-			let nextIndex = currentIndex;
-			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-				}
-				const tempPoint = {
-					pointID: point.pointID,
-					startXLocation: point.startXLocation - x,
-					startYLocation: point.startYLocation - y,
-					startZLocation: point.startZLocation - z,
-					endXLocation: point.endXLocation - x,
-					endYLocation: point.endYLocation - y,
-					endZLocation: point.endZLocation - z
-				};
-				//with each point cycle through the hole display options and assign to the shapeType variable
-
-				nextIndex = (currentIndex + 1) % holeOptions.length;
-				const shapeType = holeOptions[nextIndex];
-				console.log("shapeType: ", shapeType);
-				drawHoles(canvas.scene, colour, tempPoint, 165, 1, shapeType);
-			}
-		} else if (data.split("\n")[0].split(",").length === 10) {
+		if (data.split("\n")[0].split(",").length === 12) {
 			const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle", "line-diamond", "line-square", "line-triangle"];
 			const currentHoleDisplay = params.holeDisplay;
 			const currentIndex = holeOptions.indexOf(currentHoleDisplay);
@@ -105,6 +70,7 @@ export function handleFileUpload(event, canvas) {
 					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
+					blastName: point.blastName,
 					pointID: point.pointID,
 					startXLocation: point.startXLocation - x,
 					startYLocation: point.startYLocation - y,
@@ -151,7 +117,7 @@ export function handleFileUploadNoEvent(file) {
 	reader.onload = function (event) {
 		const data = event.target.result;
 
-		if (!file.name.toLowerCase().endsWith(".csv")) {
+		if (!file.name.toLowerCase().endsWith(".k3d")) {
 			return;
 		}
 		console.log("FileName: " + file.name);
@@ -178,64 +144,13 @@ export function handleFileUploadNoEvent(file) {
 			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
 		}
 		let colour = 0xffffff;
-		if (data.split("\n")[0].split(",").length === 4) {
-			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUploadNoEvent/drawDummy: " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-				}
-				const tempPoint = {
-					pointID: point.pointID,
-					startXLocation: point.startXLocation - x,
-					startYLocation: point.startYLocation - y,
-					startZLocation: point.startZLocation - z
-				};
-				drawDummys(scene, colour, tempPoint);
-			}
-		} else if (data.split("\n")[0].split(",").length === 7) {
-			// const holeOptions = ["mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square", "line-triangle"];
-
-			// let nextIndex = 0;
-			for (const point of points) {
-				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation);
-				}
-				const tempPoint = {
-					pointID: point.pointID,
-					startXLocation: point.startXLocation - x,
-					startYLocation: point.startYLocation - y,
-					startZLocation: point.startZLocation - z,
-					endXLocation: point.endXLocation - x,
-					endYLocation: point.endYLocation - y,
-					endZLocation: point.endZLocation - z
-				};
-				const shapeType = params.holeDisplay;
-				drawHoles(scene, colour, tempPoint, 165, 1, shapeType);
-			}
-		} else if (data.split("\n")[0].split(",").length === 10) {
+		if (data.split("\n")[0].split(",").length === 12) {
 			for (const point of points) {
 				// if (logit && params.debugComments) {
 				// 	console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				// }
 				const tempPoint = {
-					pointID: point.pointID,
-					startXLocation: point.startXLocation - x,
-					startYLocation: point.startYLocation - y,
-					startZLocation: point.startZLocation - z,
-					endXLocation: point.endXLocation - x,
-					endYLocation: point.endYLocation - y,
-					endZLocation: point.endZLocation - z,
-					diameter: point.diameter,
-					subdrill: point.subdrill,
-					shapeType: point.shapeType
-				};
-				drawHoles(scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-			}
-		} else if (data.split("\n")[0].split(",").length === 11) {
-			for (const point of points) {
-				// if (logit && params.debugComments) {
-				// 	console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
-				// }
-				const tempPoint = {
+					blastName: point.blastName,
 					pointID: point.pointID,
 					startXLocation: point.startXLocation - x,
 					startYLocation: point.startYLocation - y,
@@ -250,6 +165,8 @@ export function handleFileUploadNoEvent(file) {
 				};
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 			}
+		} else {
+			alert("Invalid file format\n\nCheck the columns in the file.\nblastName,pointID,startXLocation,startYLocation,\nstartZLocation,endXLocation,endYLocation,\nendZLocation,diameter,subdrill,\nshapeType,holeColour");
 		}
 
 		if (params.debugComments) {

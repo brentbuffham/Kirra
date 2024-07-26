@@ -168,21 +168,21 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 			params.holeDiameter = params.holeDiameter ? true : false;
 		});
 
-	const solidorTranparentorWireframe = gui.addFolder("Holes Text Display Options");
+	const wireframeSolidTransparentTexture = gui.addFolder("Holes Text Display Options");
 
 	const objOptions = {
 		Solid: "Solid",
 		Transparent: "Transparent",
 		Wireframe: "Wireframe"
 	};
-	solidorTranparentorWireframe.open();
-	solidorTranparentorWireframe
-		.add(params, "wireframeSolidTaranparent", objOptions)
+	wireframeSolidTransparentTexture.open();
+	wireframeSolidTransparentTexture
+		.add(params, "wireframeSolidTaranparentTexture", objOptions)
 		.name("OBJ Display Options")
 		.onChange(function () {
 			scene.traverse(function (child) {
 				if (child instanceof THREE.Mesh) {
-					switch (params.wireframeSolidTaranparent) {
+					switch (params.wireframeSolidTransparentTexture) {
 						case "Wireframe":
 							child.material.wireframe = true;
 							child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
@@ -195,6 +195,9 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 							child.material.wireframe = false;
 							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false });
 							break;
+						case "Texture":
+							child.material.wireframe = false;
+							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, map: child.material.map });
 						default:
 							child.material.wireframe = false;
 							child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false });

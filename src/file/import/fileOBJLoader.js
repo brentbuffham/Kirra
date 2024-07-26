@@ -2,7 +2,7 @@
 // Dependencies: OBJLoader.js, MTLLoader.js, TextureLoader.js, MeshPhongMaterial.js, DoubleSide.js, Vector3.js, Box3.js, createScene.js, worldOriginSetting.js
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
-import { TextureLoader, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
+import { TextureLoader, MeshBasicMaterial, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 
@@ -81,12 +81,19 @@ function applyTextureToMaterials(texture) {
 		for (const material of Object.values(materials.materials)) {
 			//Attempt to condition the material to show the texture better
 			texture.colorSpace = SRGBColorSpace;
-			material.map = texture;
+			texture.brighness = 1;
+			texture.contrast = 0.5;
+			texture.anisotropy = 16;
+
+			//Adjust Texture properties
+			texture.anisotropy = 16; //Default is 1
+			material.colorSpace = SRGBColorSpace;
 			material.flatShading = false;
 			material.side = DoubleSide;
+			material.luminence = 1;
 			material.blending = 1;
 			material.opacity = 1;
-
+			material.map = texture;
 			console.log("09) Applying Texture:", material.map);
 			material.needsUpdate = true;
 		}
@@ -170,6 +177,9 @@ function processLoadedObject(object, canvas, materials) {
 
 			child.geometry.computeBoundingBox();
 			child.geometry.computeBoundingSphere();
+
+			// Store the original material
+			child.userData.originalMaterial = child.material;
 
 			canvas.scene.add(child);
 		}
