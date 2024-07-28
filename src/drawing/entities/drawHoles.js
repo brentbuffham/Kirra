@@ -36,6 +36,14 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	const drawDiam = diameter * holeScale;
 	//Hole Types: "mesh-cross", "mesh-circle", "mesh-diamond", "mesh-square", "mesh-cylinder", "line-cross", "outline-circle", "filled-circle","line-diamond", "line-square"
 	switch (shapeType) {
+		case "mesh-cube": {
+			const materialType = "phong";
+			drawMeshCubeHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, 4);
+			if (logit && params.debugComments) {
+				console.log("mesh-cubeHoleID: " + name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+			}
+			break;
+		}
 		case "mesh-cylinder": {
 			const materialType = "phong";
 			drawMeshCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, 32);

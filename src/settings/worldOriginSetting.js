@@ -127,6 +127,8 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 				updateGuiControllers();
 				//close the modal
 				modalElement.hide();
+				//modalElement is nonresponsive after closing, so remove it from the DOM
+				modal.remove();
 			}
 		});
 	});

@@ -5,14 +5,14 @@ import { params } from "../../createScene";
 
 //Use this to draw holes that don't have diameter provided
 export function drawMeshCubeHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
-	diameter = diameter || 100;
+	const diameter = 100;
 	materialType = materialType || "phong";
 	const hole = new Group();
-	hole.add(createCylinder(color, materialType, collarXYZ, intervalXYZ, diameter, radialSegments));
+	hole.add(createCylinder(color, materialType, collarXYZ, intervalXYZ, radialSegments));
 	color = getRandomColor();
 	if (intervalXYZ.distanceTo(toeXYZ) > 0) {
 		color = "red";
-		hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, diameter, radialSegments));
+		hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, radialSegments));
 	}
 
 	hole.name = name;

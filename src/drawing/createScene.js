@@ -14,10 +14,10 @@ const worldOriginSettings = JSON.parse(localStorage.getItem("WorldOriginSettings
 
 export let camera, scene, controls;
 export let params = {
-	worldXCenter: worldOriginSettings ? worldOriginSettings.worldXCenter : 0,
-	worldYCenter: worldOriginSettings ? worldOriginSettings.worldYCenter : 0,
-	worldZCenter: worldOriginSettings ? worldOriginSettings.worldZCenter : 0,
-	cameraDistance: worldOriginSettings ? worldOriginSettings.cameraDistance : 1000,
+	worldXCenter: worldOriginSettings && worldOriginSettings.worldXCenter !== null ? worldOriginSettings.worldXCenter : 0,
+	worldYCenter: worldOriginSettings && worldOriginSettings.worldYCenter !== null ? worldOriginSettings.worldYCenter : 0,
+	worldZCenter: worldOriginSettings && worldOriginSettings.worldZCenter !== null ? worldOriginSettings.worldZCenter : 0,
+	cameraDistance: worldOriginSettings && worldOriginSettings.cameraDistance !== null ? worldOriginSettings.cameraDistance : 1000,
 	usePerspectiveCam: false,
 	upDirection: "Z",
 	rotationAngle: 0,

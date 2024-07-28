@@ -1,182 +1,186 @@
 // fileCSVUpload.js
-import { parseHoles } from "./fileCSVLoader.js";
+import { showCustomModal } from "../../modals/csvModal.js";
+import Papa from "papaparse";
 import { getCentroid } from "../../drawing/helpers/getCentroid.js";
 import { camera, controls, scene } from "../../drawing/createScene.js";
 import { drawDummys, drawHoles } from "../../drawing/entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
+import { parseCSV } from "./fileCSVLoader.js";
 
-export let points = [];
-const logit = true;
-let x = 0;
-let y = 0;
-let z = 0;
+let points = []; // To store parsed points
 
-export function renderFileUpload(containerId, canvas) {
-	const container = document.querySelector(containerId);
-	const fileUpload = `
-    <div id="file-upload">
-         <input type="file" id="file-input" />
-         <label for="file-input">Choose a file</label>
-    </div>
-`;
+export const handleFileUploadNoEvent = (data) => {
+	const results = Papa.parse(data, {
+		header: true,
+		skipEmptyLines: true,
+		dynamicTyping: true,
+		complete: function (results) {
+			console.log("CSV parsed", results);
+			const columns = results.meta.fields;
+			const csvData = results.data;
 
-	const tempContainer = document.createElement("div");
-	tempContainer.innerHTML = fileUpload;
-	container.appendChild(tempContainer);
+			const columnOrder = JSON.parse(localStorage.getItem("columnOrder") || "{}");
+			const headerRows = parseInt(columnOrder.headerRows) || 0;
 
-	document.getElementById("file-input").addEventListener("change", (e) => handleFileUpload(e, canvas));
-}
+			let previewContent;
+			if (headerRows === 0) {
+				previewContent = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).join(","))].join("\n");
+			} else {
+				previewContent = csvData
+					.slice(headerRows - 1)
+					.map((row) => Object.values(row).join(","))
+					.join("\n");
+			}
 
-export function handleFileUpload(event, canvas) {
-	const file = event.target.files[0];
-	if (!file) {
-		return;
-	}
-	const reader = new FileReader();
+			showCustomModal(columns, previewContent, csvData);
 
-	reader.onload = function (event) {
-		const data = event.target.result;
-
-		if (!file.name.toLowerCase().endsWith(".csv")) {
-			return;
+			// Call handleFileSubmit with csvData and columnOrder after showing the modal
+			//handleFileSubmit(csvData, columnOrder);
 		}
+	});
+};
 
-		// Get selected columns from local storage or default
-		const selectedColumns = JSON.parse(localStorage.getItem("columnOrder")) || {
-			holeName: 0,
-			startX: 1,
-			startY: 2,
-			startZ: 3
+export const handleFileSubmit = (data, columnOrder) => {
+	points.length = 0; // Clear the existing points
+	const newPoints = parseCSV(data, columnOrder);
+	points.push(...newPoints);
+
+	let x, y, z;
+
+	if (params.worldXCenter === 0 && params.worldYCenter === 0) {
+		console.log("Calculating centroid...");
+		const centroid = getCentroid(points);
+		x = centroid.x;
+		y = centroid.y;
+		params.worldXCenter = x;
+		params.worldYCenter = y;
+		updateGuiControllers();
+	} else {
+		x = params.worldXCenter || 0;
+		y = params.worldYCenter || 0;
+		z = params.worldZCenter || 0;
+	}
+
+	const timeDateNow = Date.now();
+	const tempBlastName = "tempBlast" + timeDateNow;
+
+	let colour = 0xffffff;
+	for (const point of points) {
+		console.log("Processing point: ", point);
+		const tempPoint = {
+			blastName: point.blastName || null,
+			pointID: point.pointID.toString(),
+			startXLocation: point.startXLocation - x,
+			startYLocation: point.startYLocation - y,
+			startZLocation: point.startZLocation - z,
+			endXLocation: point.endXLocation - x || null,
+			endYLocation: point.endYLocation - y || null,
+			endZLocation: point.endZLocation - z || null,
+			diameter: point.diameter || null,
+			subdrill: point.subdrill || null,
+			shapeType: point.shapeType || null,
+			holeColour: point.holeColour || null
 		};
 
-		Papa.parse(data, {
-			header: true,
-			skipEmptyLines: true,
-			complete: function (results) {
-				const newPoints = parseHoles(results.data, selectedColumns);
-				points.push(...newPoints);
-
-				if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
-					const centroid = getCentroid(points);
-					x = centroid.x;
-					y = centroid.y;
-					z = centroid.z;
-				} else {
-					x = params.worldXCenter;
-					y = params.worldYCenter;
-					z = params.worldZCenter;
-				}
-				let colour = 0xffffff;
-
-				points.forEach((point) => {
-					const tempPoint = {
-						pointID: point.pointID,
-						startXLocation: point.startXLocation - x,
-						startYLocation: point.startYLocation - y,
-						startZLocation: point.startZLocation - z,
-						endXLocation: point.endXLocation !== null ? point.endXLocation - x : null,
-						endYLocation: point.endYLocation !== null ? point.endYLocation - y : null,
-						endZLocation: point.endZLocation !== null ? point.endZLocation - z : null,
-						diameter: point.diameter,
-						subdrill: point.subdrill,
-						shapeType: point.shapeType,
-						holeColour: point.holeColour
-					};
-					drawHoles(canvas.scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-				});
-
-				canvas.camera.position.set(0, 0, 100);
-				canvas.camera.lookAt(0, 0, 0);
-				controls.target.set(0, 0, 0);
-				canvas.camera.updateMatrixWorld();
-			}
-		});
-	};
-
-	reader.readAsText(file);
-}
-
-// Only use for the lilGUI
-export function createLilGuiFileUpload(canvas) {
-	const fileInput = document.createElement("input");
-	fileInput.type = "file";
-	fileInput.style.display = "none";
-	fileInput.addEventListener("change", (e) => handleFileUpload(e.target.files[0], canvas));
-	document.body.appendChild(fileInput);
-}
-
-export function handleFileUploadNoEvent(file) {
-	if (!file) {
-		return;
-	}
-	const reader = new FileReader();
-
-	reader.onload = function (event) {
-		const data = event.target.result;
-
-		if (!file.name.toLowerCase().endsWith(".csv")) {
-			return;
+		// Apply drawing conditions
+		// Draw dummy if endXLocation, endYLocation, endZLocation, subdrill, diameter, holeColour, shapeType are null
+		if (
+			(tempPoint.pointID !== null || tempPoint.pointID !== undefined) &&
+			(tempPoint.startXLocation !== null || tempPoint.startXLocation !== undefined) &&
+			(tempPoint.startYLocation !== null || tempPoint.startYLocation !== undefined) &&
+			(tempPoint.startZLocation !== null || tempPoint.startZLocation !== undefined) &&
+			(tempPoint.endXLocation === null || tempPoint.endXLocation === undefined) &&
+			(tempPoint.endYLocation === null || tempPoint.endYLocation === undefined) &&
+			(tempPoint.endZLocation === null || tempPoint.endZLocation === undefined) &&
+			(tempPoint.subdrill === null || tempPoint.subdrill === undefined) &&
+			(tempPoint.diameter === null || tempPoint.diameter === undefined) &&
+			(tempPoint.holeColour === null || tempPoint.holeColour === undefined) &&
+			(tempPoint.shapeType === null || tempPoint.shapeType === undefined)
+		) {
+			drawDummys(scene, tempPoint.holeColour, tempPoint);
+			console.log("Drawing dummy...");
 		}
-		console.log("FileName: " + file.name);
+		// Draw mesh-cube if subdrill, diameter, holeColour, shapeType are null
+		else if (
+			(tempPoint.pointID !== null || tempPoint.pointID !== undefined) &&
+			(tempPoint.startXLocation !== null || tempPoint.startXLocation !== undefined) &&
+			(tempPoint.startYLocation !== null || tempPoint.startYLocation !== undefined) &&
+			(tempPoint.startZLocation !== null || tempPoint.startZLocation !== undefined) &&
+			(tempPoint.endXLocation !== null || tempPoint.endXLocation !== undefined) &&
+			(tempPoint.endYLocation !== null || tempPoint.endYLocation !== undefined) &&
+			(tempPoint.endZLocation !== null || tempPoint.endZLocation !== undefined) &&
+			(tempPoint.subdrill === null || tempPoint.subdrill === undefined) &&
+			(tempPoint.diameter === null || tempPoint.diameter === undefined) &&
+			(tempPoint.holeColour === null || tempPoint.holeColour === undefined) &&
+			(tempPoint.shapeType === null || tempPoint.shapeType === undefined)
+		) {
+			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, "mesh-cube");
+			console.log("Drawing mesh-cube...");
+		}
+		// Draw mesh-cylinder if subdrill, holeColour, shapeType are null
+		else if (
+			(tempPoint.pointID !== null || tempPoint.pointID !== undefined) &&
+			(tempPoint.startXLocation !== null || tempPoint.startXLocation !== undefined) &&
+			(tempPoint.startYLocation !== null || tempPoint.startYLocation !== undefined) &&
+			(tempPoint.startZLocation !== null || tempPoint.startZLocation !== undefined) &&
+			(tempPoint.endXLocation !== null || tempPoint.endXLocation !== undefined) &&
+			(tempPoint.endYLocation !== null || tempPoint.endYLocation !== undefined) &&
+			(tempPoint.endZLocation !== null || tempPoint.endZLocation !== undefined) &&
+			(tempPoint.subdrill === null || tempPoint.subdrill === undefined) &&
+			(tempPoint.diameter !== null || tempPoint.diameter !== undefined) &&
+			(tempPoint.holeColour === null || tempPoint.holeColour === undefined) &&
+			(tempPoint.shapeType === null || tempPoint.shapeType === undefined)
+		) {
+			drawHoles(scene, colour, tempPoint, tempPoint.diameter, 0, "mesh-cylinder");
+			console.log("Drawing mesh-cylinder...");
+		}
+		// Draw hole with colour if subdrill, shapeType are null
+		else if (
+			(tempPoint.pointID !== null || tempPoint.pointID !== undefined) &&
+			(tempPoint.startXLocation !== null || tempPoint.startXLocation !== undefined) &&
+			(tempPoint.startYLocation !== null || tempPoint.startYLocation !== undefined) &&
+			(tempPoint.startZLocation !== null || tempPoint.startZLocation !== undefined) &&
+			(tempPoint.endXLocation !== null || tempPoint.endXLocation !== undefined) &&
+			(tempPoint.endYLocation !== null || tempPoint.endYLocation !== undefined) &&
+			(tempPoint.endZLocation !== null || tempPoint.endZLocation !== undefined) &&
+			(tempPoint.subdrill === null || tempPoint.subdrill === undefined) &&
+			(tempPoint.diameter !== null || tempPoint.diameter !== undefined) &&
+			(tempPoint.holeColour !== null || tempPoint.holeColour !== undefined) &&
+			(tempPoint.shapeType === null || tempPoint.shapeType === undefined)
+		) {
+			drawHoles(scene, colour, tempPoint, tempPoint.diameter, 0, tempPoint.shapeType);
+			console.log("Drawing Hole with colour...");
+		}
+		// Draw hole with everything if subdrill, diameter, holeColour, shapeType are not null
+		else if (
+			(tempPoint.pointID !== null || tempPoint.pointID !== undefined) &&
+			(tempPoint.startXLocation !== null || tempPoint.startXLocation !== undefined) &&
+			(tempPoint.startYLocation !== null || tempPoint.startYLocation !== undefined) &&
+			(tempPoint.startZLocation !== null || tempPoint.startZLocation !== undefined) &&
+			(tempPoint.endXLocation !== null || tempPoint.endXLocation !== undefined) &&
+			(tempPoint.endYLocation !== null || tempPoint.endYLocation !== undefined) &&
+			(tempPoint.endZLocation !== null || tempPoint.endZLocation !== undefined) &&
+			(tempPoint.subdrill !== null || tempPoint.subdrill !== undefined) &&
+			(tempPoint.diameter !== null || tempPoint.diameter !== undefined) &&
+			(tempPoint.holeColour !== null || tempPoint.holeColour !== undefined) &&
+			(tempPoint.shapeType !== null || tempPoint.shapeType !== undefined)
+		) {
+			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+			console.log("Drawing Hole with everything...");
+		}
+	}
 
-		// Get selected columns from local storage or default
-		const selectedColumns = JSON.parse(localStorage.getItem("columnOrder")) || {
-			holeName: 0,
-			startX: 1,
-			startY: 2,
-			startZ: 3
-		};
+	if (params.debugComments) {
+		console.log("fileUpload/handleFileSubmit/points: ", points);
+	}
 
-		Papa.parse(data, {
-			header: true,
-			skipEmptyLines: true,
-			complete: function (results) {
-				const newPoints = parseHoles(results.data, selectedColumns);
-				points.push(...newPoints);
+	camera.position.set(0, 0, 200);
+	camera.lookAt(0, 0, 0);
+	controls.target.set(0, 0, 0);
 
-				if (params.worldXCenter === 0 && params.worldYCenter === 0) {
-					const centroid = getCentroid(points);
-					x = centroid.x;
-					y = centroid.y;
-					z = centroid.z;
-					params.worldXCenter = x;
-					params.worldYCenter = y;
-					updateGuiControllers();
-				} else {
-					x = params.worldXCenter || 0;
-					y = params.worldYCenter || 0;
-					z = params.worldZCenter || 0;
-				}
-				if (params.debugComments) {
-					console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
-				}
-				let colour = 0xffffff;
-
-				points.forEach((point) => {
-					const tempPoint = {
-						pointID: point.pointID,
-						startXLocation: point.startXLocation - x,
-						startYLocation: point.startYLocation - y,
-						startZLocation: point.startZLocation - z,
-						endXLocation: point.endXLocation !== null ? point.endXLocation - x : null,
-						endYLocation: point.endYLocation !== null ? point.endYLocation - y : null,
-						endZLocation: point.endZLocation !== null ? point.endZLocation - z : null,
-						diameter: point.diameter,
-						subdrill: point.subdrill,
-						shapeType: point.shapeType,
-						holeColour: point.holeColour
-					};
-					drawHoles(scene, colour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-				});
-
-				camera.position.set(0, 0, 200);
-				camera.lookAt(0, 0, 0);
-				controls.target.set(0, 0, 0);
-				camera.updateMatrixWorld();
-			}
-		});
-	};
-
-	reader.readAsText(file);
-}
+	if (params.debugComments) {
+		console.log("fileUpload/handleFileSubmit/controls.target", controls.target);
+	}
+	camera.updateMatrixWorld();
+};

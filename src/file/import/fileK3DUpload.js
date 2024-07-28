@@ -67,7 +67,7 @@ export function handleFileUpload(event, canvas) {
 			let nextIndex = currentIndex;
 			for (const point of points) {
 				if (logit && params.debugComments) {
-					console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+					console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
 					blastName: point.blastName,
@@ -146,9 +146,9 @@ export function handleFileUploadNoEvent(file) {
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 12) {
 			for (const point of points) {
-				// if (logit && params.debugComments) {
-				// 	console.log("fileUpload/handleFileUpload/draw/10 " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
-				// }
+				if (logit && params.debugComments) {
+					console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+				}
 				const tempPoint = {
 					blastName: point.blastName,
 					pointID: point.pointID,
