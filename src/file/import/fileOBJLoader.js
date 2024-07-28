@@ -150,7 +150,7 @@ function processLoadedObject(object, canvas, materials) {
 	object.name = object.name;
 
 	// Backup material for objects without MTL file
-	const phong_material = new MeshPhongMaterial({ color: 0xffffff, side: DoubleSide, flatShading: true });
+	const phong_material = new MeshPhongMaterial({ color: 0x888888, side: DoubleSide, flatShading: true });
 
 	object.traverse(function (child) {
 		if (child.isMesh) {
