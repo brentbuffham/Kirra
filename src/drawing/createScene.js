@@ -14,19 +14,19 @@ const worldOriginSettings = JSON.parse(localStorage.getItem("WorldOriginSettings
 
 export let camera, scene, controls;
 export let params = {
-	worldXCenter: worldOriginSettings && worldOriginSettings.worldXCenter !== null ? worldOriginSettings.worldXCenter : 0,
-	worldYCenter: worldOriginSettings && worldOriginSettings.worldYCenter !== null ? worldOriginSettings.worldYCenter : 0,
-	worldZCenter: worldOriginSettings && worldOriginSettings.worldZCenter !== null ? worldOriginSettings.worldZCenter : 0,
-	cameraDistance: worldOriginSettings && worldOriginSettings.cameraDistance !== null ? worldOriginSettings.cameraDistance : 1000,
-	usePerspectiveCam: false,
-	upDirection: "Z",
-	rotationAngle: 0,
-	holeDisplay: "mesh-cross",
-	holeNameDisplay: true,
-	holeLengthDisplay: false,
-	holeDiameterDisplay: false,
-	wireframeSolidTransparentTexture: "solid",
-	debugComments: true
+    worldXCenter: worldOriginSettings && worldOriginSettings.worldXCenter !== null ? worldOriginSettings.worldXCenter : 0,
+    worldYCenter: worldOriginSettings && worldOriginSettings.worldYCenter !== null ? worldOriginSettings.worldYCenter : 0,
+    worldZCenter: worldOriginSettings && worldOriginSettings.worldZCenter !== null ? worldOriginSettings.worldZCenter : 0,
+    cameraDistance: worldOriginSettings && worldOriginSettings.cameraDistance !== null ? worldOriginSettings.cameraDistance : 1000,
+    usePerspectiveCam: false,
+    upDirection: "Z",
+    rotationAngle: 0,
+    holeDisplay: "mesh-cross",
+    holeNameDisplay: true,
+    holeLengthDisplay: false,
+    holeDiameterDisplay: false,
+    wireframeSolidTransparentTexture: "solid",
+    debugComments: true,
 };
 
 export let renderer, clock;
@@ -34,169 +34,169 @@ export let transformControls;
 export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
-	const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
-	//const ambientLight = new AmbientLight(0xffffff, sceneConfig.lightIntensity);
-	scene.add(ambientLight);
-	scene.background = new THREE.Color(sceneConfig.sceneBackground);
-	const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
-	directionalLight.position.set(0, 0, 2000);
-	scene.add(directionalLight);
+    const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
+    //const ambientLight = new AmbientLight(0xffffff, sceneConfig.lightIntensity);
+    scene.add(ambientLight);
+    scene.background = new THREE.Color(sceneConfig.sceneBackground);
+    const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
+    directionalLight.position.set(0, 0, 2000);
+    scene.add(directionalLight);
 }
 
 function setCamera(aspect) {
-	const { frustumSize } = sceneConfig;
+    const { frustumSize } = sceneConfig;
 
-	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
-	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
+    cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
+    cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
-	const cameraPosition = new Vector3(0, 0, params.cameraDistance);
-	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
-	return { cameraPerspective, cameraOrthographic };
+    const cameraPosition = new Vector3(0, 0, params.cameraDistance);
+    camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
+    return { cameraPerspective, cameraOrthographic };
 }
 
 export function updateCameraType() {
-	const position = camera.position.clone();
-	const target = controls.target.clone();
-	const up = camera.up.clone();
+    const position = camera.position.clone();
+    const target = controls.target.clone();
+    const up = camera.up.clone();
 
-	const aspect = window.innerWidth / window.innerHeight;
-	cameraPerspective.aspect = aspect;
-	cameraPerspective.updateProjectionMatrix();
-	cameraOrthographic.aspect = aspect;
-	cameraOrthographic.updateProjectionMatrix();
-	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
+    const aspect = window.innerWidth / window.innerHeight;
+    cameraPerspective.aspect = aspect;
+    cameraPerspective.updateProjectionMatrix();
+    cameraOrthographic.aspect = aspect;
+    cameraOrthographic.updateProjectionMatrix();
+    camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 
-	controls.dispose();
-	controls = new ArcballControls(camera, renderer.domElement, scene);
-	viewHelper.controls = controls;
-	controls.rotateSpeed = 1.0;
-	controls.enableRotate = true;
-	controls.enableZoom = true;
-	controls.enablePan = true;
-	controls.zoomSpeed = 1;
-	controls.panSpeed = 1;
-	controls.cursorZoom = true;
-	controls.enableGrid = true;
-	controls.activateGizmos(false);
-	controls.setGizmosVisible(false);
-	controls.update();
+    controls.dispose();
+    controls = new ArcballControls(camera, renderer.domElement, scene);
+    viewHelper.controls = controls;
+    controls.rotateSpeed = 1.0;
+    controls.enableRotate = true;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.zoomSpeed = 1;
+    controls.panSpeed = 1;
+    controls.cursorZoom = true;
+    controls.enableGrid = true;
+    controls.activateGizmos(false);
+    controls.setGizmosVisible(false);
+    controls.update();
 
-	camera.position.copy(position);
-	controls.target.copy(target);
-	camera.up.copy(up);
-	camera.lookAt(target);
+    camera.position.copy(position);
+    controls.target.copy(target);
+    camera.up.copy(up);
+    camera.lookAt(target);
 
-	console.log("Camera updated:", camera);
-	console.log("Controls updated:", controls);
+    console.log("Camera updated:", camera);
+    console.log("Controls updated:", controls);
 
-	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
+    bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 }
 
-const objectCenter = new Object3D();
+export let objectCenter = new Object3D();
 export function createScene(points) {
-	console.log("createScene(points)", points);
-	scene = new Scene();
-	const canvasElement = document.querySelector("#canvas");
+    console.log("createScene(points)", points);
+    scene = new Scene();
+    const canvasElement = document.querySelector("#canvas");
 
-	let aspect = canvasElement.offsetWidth / canvasElement.offsetHeight;
-	clock = new THREE.Clock();
+    let aspect = canvasElement.offsetWidth / canvasElement.offsetHeight;
+    clock = new THREE.Clock();
 
-	if (points === null || points.length === 0) {
-		objectCenter.position.set(0, 0, 0);
-	}
-	// Create an ArrowHelper with 50% opacity
-	function createTransparentArrowHelper(dir, origin, length, hex, headLength, headWidth) {
-		const arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex, headLength, headWidth);
+    if (points === null || points.length === 0) {
+        objectCenter.position.set(0, 0, 0);
+    }
+    // Create an ArrowHelper with 50% opacity
+    function createTransparentArrowHelper(dir, origin, length, hex, headLength, headWidth) {
+        const arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex, headLength, headWidth);
 
-		// Set the opacity to 50% for both the shaft and the head of the arrow
-		arrowHelper.line.material.transparent = true;
-		arrowHelper.line.material.opacity = 0.5;
+        // Set the opacity to 50% for both the shaft and the head of the arrow
+        arrowHelper.line.material.transparent = true;
+        arrowHelper.line.material.opacity = 0.5;
 
-		arrowHelper.cone.material.transparent = true;
-		arrowHelper.cone.material.opacity = 0.5;
+        arrowHelper.cone.material.transparent = true;
+        arrowHelper.cone.material.opacity = 0.5;
 
-		return arrowHelper;
-	}
+        return arrowHelper;
+    }
 
-	//const objectCenter = new THREE.Object3D();
+    //const objectCenter = new THREE.Object3D();
 
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+    objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
+    objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
+    objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
 
-	objectCenter.name = "objectCenter";
-	scene.add(objectCenter);
+    objectCenter.name = "objectCenter";
+    scene.add(objectCenter);
 
-	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
+    let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
 
-	renderer = new WebGLRenderer({
-		antialias: true,
-		depth: true,
-		precision: "highp",
-		powerPreference: "high-performance",
-		stencil: false
-	});
-	renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
-	renderer.setPixelRatio(window.devicePixelRatio);
-	renderer.autoClear = false;
-	canvasElement.appendChild(renderer.domElement);
+    renderer = new WebGLRenderer({
+        antialias: true,
+        depth: true,
+        precision: "highp",
+        powerPreference: "high-performance",
+        stencil: false,
+    });
+    renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.autoClear = false;
+    canvasElement.appendChild(renderer.domElement);
 
-	controls = new ArcballControls(camera, renderer.domElement, scene);
+    controls = new ArcballControls(camera, renderer.domElement, scene);
 
-	createLighting(scene);
+    createLighting(scene);
 
-	let position = new Vector3(0, 0, 0);
-	camera.position.set(0, 0, parseFloat(params.cameraDistance)); // Corrected here
-	camera.lookAt(0, 0, 0);
-	camera.up.set(0, 1, 0);
-	controls.target.set(position.x, position.y, position.z);
-	camera.position.copy(position);
-	controls.target.copy(objectCenter.position);
-	controls.update();
+    let position = new Vector3(0, 0, 0);
+    camera.position.set(0, 0, parseFloat(params.cameraDistance)); // Corrected here
+    camera.lookAt(0, 0, 0);
+    camera.up.set(0, 1, 0);
+    controls.target.set(position.x, position.y, position.z);
+    camera.position.copy(position);
+    controls.target.copy(objectCenter.position);
+    controls.update();
 
-	let viewHelper = createViewHelper();
+    let viewHelper = createViewHelper();
 
-	setArcBallControls(controls, viewHelper);
+    setArcBallControls(controls, viewHelper);
 
-	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
+    bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 
-	debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
+    debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
 
-	if (points !== null && points.length > 0) {
-		const holeFolder = gui.addFolder("Hole Text Display Options");
-		holeFolder.close();
-		holeFolder
-			.add(params, "holeNameDisplay")
-			.name("Hole Name")
-			.onChange(function () {});
-		holeFolder
-			.add(params, "holeLengthDisplay")
-			.name("Hole Length")
-			.onChange(function () {});
-		holeFolder
-			.add(params, "holeDiameterDisplay")
-			.name("Hole Diameter")
-			.onChange(function () {});
-	}
+    if (points !== null && points.length > 0) {
+        const holeFolder = gui.addFolder("Hole Text Display Options");
+        holeFolder.close();
+        holeFolder
+            .add(params, "holeNameDisplay")
+            .name("Hole Name")
+            .onChange(function () {});
+        holeFolder
+            .add(params, "holeLengthDisplay")
+            .name("Hole Length")
+            .onChange(function () {});
+        holeFolder
+            .add(params, "holeDiameterDisplay")
+            .name("Hole Diameter")
+            .onChange(function () {});
+    }
 
-	animate();
+    animate();
 
-	function animate() {
-		requestAnimationFrame(animate);
-		renderer.clear();
-		const delta = clock.getDelta();
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.clear();
+        const delta = clock.getDelta();
 
-		if (viewHelper.animating) viewHelper.update(delta);
+        if (viewHelper.animating) viewHelper.update(delta);
 
-		renderer.render(scene, camera);
-		viewHelper.render(renderer);
-	}
+        renderer.render(scene, camera);
+        viewHelper.render(renderer);
+    }
 
-	if (params.debugComments) {
-		console.log("Initialized canvas:", { scene, camera, renderer });
-	}
+    if (params.debugComments) {
+        console.log("Initialized canvas:", { scene, camera, renderer });
+    }
 
-	return { scene, camera, renderer };
+    return { scene, camera, renderer };
 }
 
 onWindowResize();
