@@ -39,7 +39,7 @@ function createLighting() {
     scene.add(ambientLight);
     scene.background = new THREE.Color(sceneConfig.sceneBackground);
     const directionalLight = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
-    directionalLight.position.set(0, 0, 2000);
+    directionalLight.position.set(sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
     scene.add(directionalLight);
 }
 

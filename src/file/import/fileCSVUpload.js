@@ -8,8 +8,7 @@ import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { parseCSV } from "./fileCSVLoader.js";
 import { Vector3 } from "three";
-
-let points = []; // To store parsed points
+import { points } from "./fileK3DUpload.js";
 
 export const handleFileUploadNoEvent = (data) => {
     const results = Papa.parse(data, {
@@ -22,6 +21,7 @@ export const handleFileUploadNoEvent = (data) => {
             const csvData = results.data;
 
             const columnOrder = JSON.parse(localStorage.getItem("columnOrder") || "{}");
+
             const headerRows = parseInt(columnOrder.headerRows) || 0;
 
             let previewContent;
@@ -52,6 +52,7 @@ export const handleFileSubmit = (data, columnOrder) => {
     console.log("Points: ", points);
 
     let x, y, z;
+    let diameterUnits = columnOrder.units === "mm";
 
     if (params.worldXCenter === 0 && params.worldYCenter === 0) {
         console.log("Calculating centroid...");
@@ -76,7 +77,7 @@ export const handleFileSubmit = (data, columnOrder) => {
     for (const point of points) {
         console.log("Processing point: ", point);
         const tempPoint = {
-            blastName: point.blastName ?? tempBlastName,
+            blastName: point.blastName || tempBlastName,
             pointID: point.pointID.toString(),
             startXLocation: point.startXLocation - x,
             startYLocation: point.startYLocation - y,
@@ -84,7 +85,7 @@ export const handleFileSubmit = (data, columnOrder) => {
             endXLocation: point.endXLocation - x || null,
             endYLocation: point.endYLocation - y || null,
             endZLocation: point.endZLocation - z || null,
-            diameter: point.diameter || null,
+            diameter: diameterUnits ? "mm" : point.diameter !== null ? point.diameter * 1000 : null,
             subdrill: point.subdrill || null,
             shapeType: point.shapeType || null,
             holeColour: point.holeColour || null,
@@ -183,13 +184,16 @@ export const handleFileSubmit = (data, columnOrder) => {
         console.log("fileUpload/handleFileSubmit/points: ", points);
     }
 
-    camera.position.set(0, 0, 200);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(0, 0, parseFloat(params.cameraDistance));
+    //camera.lookAt(0, 0, 0);
     centroid = getCentroid(points);
     objectCenter.position.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
     console.log("objectCenter: ", objectCenter.position);
     console.log("Centroid: ", centroid);
-    controls.target.set(0, 0, 0);
+    controls.target.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
+    camera.lookAt(objectCenter.position);
+    camera.updateProjectionMatrix();
+    controls.update();
 
     if (params.debugComments) {
         console.log("fileUpload/handleFileSubmit/controls.target", controls.target);

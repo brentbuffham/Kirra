@@ -4,8 +4,8 @@ import { parseCSV } from "../file/import/fileCSVLoader.js";
 import { handleFileSubmit } from "../file/import/fileCSVUpload.js"; // Import the handleFileSubmit function
 
 export const showCustomModal = (columns, previewContent, csvData) => {
-	console.log("Showing custom modal...");
-	const modalHtml = `
+    console.log("Showing custom modal...");
+    const modalHtml = `
         <div class="modal fade" id="csvModal" tabindex="-1" aria-labelledby="csvModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -44,111 +44,111 @@ export const showCustomModal = (columns, previewContent, csvData) => {
             </div>
         </div>`;
 
-	const style = document.createElement("style");
-	style.innerHTML = `
+    const style = document.createElement("style");
+    style.innerHTML = `
         .custom-modal-header {
             background-color: #cccccc;
         }
     `;
-	document.head.appendChild(style);
+    document.head.appendChild(style);
 
-	const modalContainer = document.createElement("div");
-	modalContainer.innerHTML = modalHtml;
-	document.body.appendChild(modalContainer);
+    const modalContainer = document.createElement("div");
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
 
-	const csvModal = new Modal(document.getElementById("csvModal"));
-	csvModal.show();
+    const csvModal = new Modal(document.getElementById("csvModal"));
+    csvModal.show();
 
-	const savedOrder = JSON.parse(localStorage.getItem("columnOrder"));
-	if (savedOrder) {
-		for (const [key, value] of Object.entries(savedOrder)) {
-			const input = document.getElementById(key);
-			if (input) {
-				input.value = value;
-			}
-		}
-	}
+    const savedOrder = JSON.parse(localStorage.getItem("columnOrder"));
+    if (savedOrder) {
+        for (const [key, value] of Object.entries(savedOrder)) {
+            const input = document.getElementById(key);
+            if (input) {
+                input.value = value;
+            }
+        }
+    }
 
-	document.getElementById("clear-settings").addEventListener("click", function () {
-		console.log("Clear settings clicked");
-		const inputs = document.querySelectorAll("#csvForm input[type='number']");
-		inputs.forEach((input) => {
-			input.value = "";
-		});
-		updatePreview(csvData);
-	});
+    document.getElementById("clear-settings").addEventListener("click", function () {
+        console.log("Clear settings clicked");
+        const inputs = document.querySelectorAll("#csvForm input[type='number']");
+        inputs.forEach((input) => {
+            input.value = "";
+        });
+        updatePreview(csvData);
+    });
 
-	document.getElementById("set-order").addEventListener("click", function () {
-		console.log("Set order clicked");
-		const formData = new FormData(document.getElementById("csvForm"));
-		const columnOrder = {};
-		formData.forEach((value, key) => {
-			if (value) {
-				columnOrder[key] = value;
-			}
-		});
-		localStorage.setItem("columnOrder", JSON.stringify(columnOrder));
-		alert("Column order has been set.");
-	});
+    document.getElementById("set-order").addEventListener("click", function () {
+        console.log("Set order clicked");
+        const formData = new FormData(document.getElementById("csvForm"));
+        const columnOrder = {};
+        formData.forEach((value, key) => {
+            if (value) {
+                columnOrder[key] = value;
+            }
+        });
+        localStorage.setItem("columnOrder", JSON.stringify(columnOrder));
+        alert("Column order has been set.");
+    });
 
-	document.getElementById("submit").addEventListener("click", function () {
-		console.log("Submit clicked");
-		const formData = new FormData(document.getElementById("csvForm"));
-		const data = {};
-		formData.forEach((value, key) => {
-			if (value) {
-				data[key] = value;
-			}
-		});
-		console.log(data);
+    document.getElementById("submit").addEventListener("click", function () {
+        console.log("Submit clicked");
+        const formData = new FormData(document.getElementById("csvForm"));
+        const data = {};
+        formData.forEach((value, key) => {
+            if (value) {
+                data[key] = value;
+            }
+        });
+        console.log(data);
 
-		const selectedColumns = {};
-		for (const [key, value] of Object.entries(data)) {
-			selectedColumns[key] = value;
-		}
+        const selectedColumns = {};
+        for (const [key, value] of Object.entries(data)) {
+            selectedColumns[key] = value;
+        }
 
-		handleFileSubmit(csvData, selectedColumns); // Call handleFileSubmit with csvData and selectedColumns
-		csvModal.hide();
-		document.body.removeChild(modalContainer);
-	});
+        handleFileSubmit(csvData, selectedColumns); // Call handleFileSubmit with csvData and selectedColumns
+        csvModal.hide();
+        document.body.removeChild(modalContainer);
+    });
 
-	document.getElementById("headerRows").addEventListener("input", () => updatePreview(csvData));
+    document.getElementById("headerRows").addEventListener("input", () => updatePreview(csvData));
 };
 
 const generateFormGroups = (columns, section) => {
-	const fieldsLeft = [
-		{ id: "headerRows", label: "Rows to Ignore", type: "number", placeholder: "# rows" },
-		{ id: "blastName", label: "Blast Name", placeholder: "Col #", type: "number" },
-		{ id: "pointID", label: "Hole Name", type: "number", placeholder: "Col #", required: true },
-		{ id: "startXLocation", label: "Start X (Easting)", type: "number", placeholder: "Col #", required: true },
-		{ id: "startYLocation", label: "Start Y (Northing)", type: "number", placeholder: "Col #", required: true },
-		{ id: "startZLocation", label: "Start Z (Elevation)", type: "number", placeholder: "Col #", required: true },
-		{ id: "endXLocation", label: "End X (Easting)", placeholder: "Col #", type: "number" },
-		{ id: "endYLocation", label: "End Y (Northing)", placeholder: "Col #", type: "number" },
-		{ id: "endZLocation", label: "End Z (Elevation)", placeholder: "Col #", type: "number" },
-		{ id: "diameter", label: "Diameter", placeholder: "Col #", type: "number", unit: true }
-	];
+    const fieldsLeft = [
+        { id: "headerRows", label: "Rows to Ignore", type: "number", placeholder: "# rows" },
+        { id: "blastName", label: "Blast Name", placeholder: "Col #", type: "number" },
+        { id: "pointID", label: "Hole Name", type: "number", placeholder: "Col #", required: true },
+        { id: "startXLocation", label: "Start X (Easting)", type: "number", placeholder: "Col #", required: true },
+        { id: "startYLocation", label: "Start Y (Northing)", type: "number", placeholder: "Col #", required: true },
+        { id: "startZLocation", label: "Start Z (Elevation)", type: "number", placeholder: "Col #", required: true },
+        { id: "endXLocation", label: "End X (Easting)", placeholder: "Col #", type: "number" },
+        { id: "endYLocation", label: "End Y (Northing)", placeholder: "Col #", type: "number" },
+        { id: "endZLocation", label: "End Z (Elevation)", placeholder: "Col #", type: "number" },
+        { id: "diameter", label: "Diameter", placeholder: "Col #", type: "number", unit: true },
+    ];
 
-	const fieldsRight = [
-		{ id: "subdrill", label: "Subdrill", placeholder: "Col #", type: "number" },
-		{ id: "shapeType", label: "Shape Type", placeholder: "Col #", type: "number" },
-		{ id: "holeColour", label: "Hole Colour", placeholder: "Col #", type: "number" },
-		{ id: "holeLength", label: "Length", placeholder: "Col #", type: "number" },
-		{ id: "holeBearing", label: "Bearing", placeholder: "Col #", type: "number" },
-		{ id: "holeAzimuth", label: "Azimuth", placeholder: "Col #", type: "number" },
-		{ id: "holeBurden", label: "Burden", placeholder: "Col #", type: "number" },
-		{ id: "holeSpacing", label: "Spacing", placeholder: "Col #", type: "number" },
-		{ id: "fromHole", label: "From Hole", placeholder: "Col #", type: "number" },
-		{ id: "delay", label: "Delay", placeholder: "Col #", type: "number" },
-		{ id: "delayColour", label: "Delay Colour", placeholder: "Col #", type: "number" }
-	];
+    const fieldsRight = [
+        { id: "subdrill", label: "Subdrill", placeholder: "Col #", type: "number" },
+        { id: "shapeType", label: "Shape Type", placeholder: "Col #", type: "number" },
+        { id: "holeColour", label: "Hole Colour", placeholder: "Col #", type: "number" },
+        { id: "holeLength", label: "Length", placeholder: "Col #", type: "number" },
+        { id: "holeBearing", label: "Bearing", placeholder: "Col #", type: "number" },
+        { id: "holeAzimuth", label: "Azimuth", placeholder: "Col #", type: "number" },
+        { id: "holeBurden", label: "Burden", placeholder: "Col #", type: "number" },
+        { id: "holeSpacing", label: "Spacing", placeholder: "Col #", type: "number" },
+        { id: "fromHole", label: "From Hole", placeholder: "Col #", type: "number" },
+        { id: "delay", label: "Delay", placeholder: "Col #", type: "number" },
+        { id: "delayColour", label: "Delay Colour", placeholder: "Col #", type: "number" },
+    ];
 
-	const fields = section === "left" ? fieldsLeft : fieldsRight;
+    const fields = section === "left" ? fieldsLeft : fieldsRight;
 
-	return fields
-		.map((field) => {
-			if (["holeName", "startXLocation", "startYLocation", "startZLocation"].includes(field.id)) {
-				return `
+    return fields
+        .map((field) => {
+            if (["holeName", "startXLocation", "startYLocation", "startZLocation"].includes(field.id)) {
+                return `
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
@@ -160,8 +160,8 @@ const generateFormGroups = (columns, section) => {
                         </div>
                     </div>
                 </div>`;
-			} else if (field.unit) {
-				return `
+            } else if (field.unit) {
+                return `
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
@@ -174,31 +174,31 @@ const generateFormGroups = (columns, section) => {
                         </div>
                     </div>
                 </div>`;
-			} else {
-				return `
+            } else {
+                return `
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
                         <input type="${field.type}" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" ${field.required ? "required" : ""}>
                     </div>
                 </div>`;
-			}
-		})
-		.join("");
+            }
+        })
+        .join("");
 };
 
 const updatePreview = (csvData) => {
-	const headerRows = parseInt(document.getElementById("headerRows").value, 10) || 0;
-	if (csvData) {
-		let previewContent;
-		if (headerRows === 0) {
-			previewContent = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).join(","))].join("\n");
-		} else {
-			previewContent = csvData
-				.slice(headerRows - 1)
-				.map((row) => Object.values(row).join(","))
-				.join("\n");
-		}
-		document.getElementById("filePreview").value = previewContent;
-	}
+    const headerRows = parseInt(document.getElementById("headerRows").value, 10) || 0;
+    if (csvData) {
+        let previewContent;
+        if (headerRows === 0) {
+            previewContent = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).join(","))].join("\n");
+        } else {
+            previewContent = csvData
+                .slice(headerRows - 1)
+                .map((row) => Object.values(row).join(","))
+                .join("\n");
+        }
+        document.getElementById("filePreview").value = previewContent;
+    }
 };

@@ -145,9 +145,17 @@ function updateHoleDisplay() {
     params.holeDisplay = holeOptions[nextIndex];
 
     const holeObjectsArray = [];
+    let dummyholescount = 0;
     scene.traverse(function (object) {
-        if (object.userData.entityType === "hole") {
+        if (object.userData.entityType === "hole" && object.userData.entityType !== "dummy") {
             holeObjectsArray.push(object);
+        } else if (object.userData.entityType === "dummy") {
+            console.log("Dummy objects are not supported for this operation.");
+            // alert on the last first dummy object found but not an any others
+            if (dummyholescount === 0) {
+                alert("Dummy objects are not supported for this operation.");
+            }
+            dummyholescount++;
         }
     });
 
@@ -174,13 +182,17 @@ function updateHoleDisplay() {
                 endXLocation: point.endXLocation - x,
                 endYLocation: point.endYLocation - y,
                 endZLocation: point.endZLocation - z,
-                diameter: point.diameter || 500,
+                diameter: point.diameter,
                 subdrill: point.subdrill || 0,
-                shapeType: params.holeDisplay || "mesh-cylinder",
+                shapeType: params.holeDisplay,
                 holeColour: point.holeColour || colour,
             };
-
-            drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
+            if (tempPoint.diameter ?? 0 > 0) {
+                // Check if the diameter is greater than 0
+                drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
+            } else {
+                drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
+            }
             document.querySelector("#info-label").textContent = "Current Hole Display: " + params.holeDisplay;
         });
     } else {
@@ -208,6 +220,12 @@ document.querySelector("#obj-display").addEventListener("click", () => {
                 document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-material.png" alt="Texture Display" />`;
                 child.material.wireframe = false;
                 child.material = child.userData.originalMaterial || child.material;
+                //adjust the scenes directional light intensity to make the texture more visible
+                scene.traverse(function (object) {
+                    if (object instanceof THREE.DirectionalLight) {
+                        object.intensity = 0.6;
+                    }
+                });
             } else if (params.wireframeSolidTransparentTexture === "Solid") {
                 //update infolable
                 document.querySelector("#info-label").textContent = "Solid On";
@@ -215,6 +233,12 @@ document.querySelector("#obj-display").addEventListener("click", () => {
                 document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="Solid Display" />`;
                 child.material.wireframe = false;
                 child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, side: THREE.DoubleSide });
+                //adjust the scenes directional light intensity to reduce brightness
+                scene.traverse(function (object) {
+                    if (object instanceof THREE.DirectionalLight) {
+                        object.intensity = 0.6;
+                    }
+                });
             } else if (params.wireframeSolidTransparentTexture === "Transparent") {
                 //update infolable
                 document.querySelector("#info-label").textContent = "Transparent On";
