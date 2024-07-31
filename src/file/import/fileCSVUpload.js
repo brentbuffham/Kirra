@@ -12,7 +12,7 @@ import { points } from "./fileK3DUpload.js";
 
 export const handleFileUploadNoEvent = (data) => {
     const results = Papa.parse(data, {
-        header: true,
+        header: false,
         skipEmptyLines: true,
         dynamicTyping: true,
         complete: function (results) {
@@ -29,7 +29,7 @@ export const handleFileUploadNoEvent = (data) => {
                 previewContent = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).join(","))].join("\n");
             } else {
                 previewContent = csvData
-                    .slice(headerRows - 1)
+                    .slice(headerRows)
                     .map((row) => Object.values(row).join(","))
                     .join("\n");
             }

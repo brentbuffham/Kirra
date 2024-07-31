@@ -26,7 +26,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                             <div class="row mt-3">
                                 <div class="col-12">
                                     <div class="form-group">
-                                        <label for="filePreviewTable">File Contents Preview</label>
+                                        <label for="filePreviewTable">File Contents Preview (Set Order to refresh column view)</label>
                                         <div id="filePreviewTable" style="max-height: 300px; overflow-y: auto;"></div>
                                     </div>
                                 </div>
@@ -52,7 +52,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 8px;
+            font-size: 9px;
         }
         th, td {
             padding: 1px;
@@ -61,7 +61,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
         }
         th {
             background-color: #f2f2f2;
-            font-size: 10px;
+            font-size: 11px;
         }
         .ignored-column {
             color: gray;
@@ -223,9 +223,9 @@ const generateFormGroups = (columns, section) => {
 const updatePreview = (csvData) => {
     const headerRows = parseInt(document.getElementById("headerRows").value, 10) || 0;
     const columnOrder = JSON.parse(localStorage.getItem("columnOrder") || "{}");
-    if (csvData) {
+
+    if (csvData.length > 0) {
         let tableContent = '<table class="table table-striped"><thead><tr>';
-        const keys = Object.keys(csvData[0]);
 
         // Mapping of column ids to labels
         const columnLabels = {
@@ -251,25 +251,36 @@ const updatePreview = (csvData) => {
             delayColour: "Delay Colour",
         };
 
-        // Generate table header
-        tableContent += keys
-            .map((key, index) => {
-                const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == index + 1);
-                if (fieldName) {
-                    return `<th>${columnLabels[fieldName]}</th>`;
-                } else {
-                    return `<th class="ignored-column">ignored</th>`;
-                }
-            })
-            .join("");
+        // Generate table header based on all columns, marking unused columns as "ignored"
+        const totalColumns = csvData[0].length; // Total number of columns in the CSV data
+        for (let i = 0; i < totalColumns; i++) {
+            const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == (i + 1).toString());
+            if (fieldName) {
+                tableContent += `<th>${columnLabels[fieldName]}</th>`;
+            } else {
+                tableContent += `<th class="ignored-column">ignored</th>`;
+            }
+        }
         tableContent += "</tr></thead><tbody>";
 
-        // Generate table rows
-        const rows = headerRows === 0 ? csvData : csvData.slice(headerRows - 1);
+        // Generate table rows, correctly ignoring the specified number of rows
+        const rows = csvData.slice(headerRows);
         tableContent += rows
             .map((row) => {
-                const values = Object.values(row);
-                return "<tr>" + values.map((value) => `<td>${value}</td>`).join("") + "</tr>";
+                return (
+                    "<tr>" +
+                    row
+                        .map((value, index) => {
+                            const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == (index + 1).toString());
+                            if (fieldName) {
+                                return `<td>${value}</td>`;
+                            } else {
+                                return `<td>${value}</td>`; // Keep the data but mark as ignored in the header
+                            }
+                        })
+                        .join("") +
+                    "</tr>"
+                );
             })
             .join("");
 
