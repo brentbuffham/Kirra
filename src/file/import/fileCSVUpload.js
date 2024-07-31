@@ -52,7 +52,9 @@ export const handleFileSubmit = (data, columnOrder) => {
     console.log("Points: ", points);
 
     let x, y, z;
-    let diameterUnits = columnOrder.units === "mm";
+    let diameterUnits = columnOrder.diameter_units || "mm";
+
+    console.log("Column Order: ", columnOrder);
 
     if (params.worldXCenter === 0 && params.worldYCenter === 0) {
         console.log("Calculating centroid...");
@@ -85,7 +87,7 @@ export const handleFileSubmit = (data, columnOrder) => {
             endXLocation: point.endXLocation - x || null,
             endYLocation: point.endYLocation - y || null,
             endZLocation: point.endZLocation - z || null,
-            diameter: diameterUnits ? "mm" : point.diameter !== null ? point.diameter * 1000 : null,
+            diameter: point.diameter || null,
             subdrill: point.subdrill || null,
             shapeType: point.shapeType || null,
             holeColour: point.holeColour || null,

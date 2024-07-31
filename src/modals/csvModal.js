@@ -26,8 +26,8 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                             <div class="row mt-3">
                                 <div class="col-12">
                                     <div class="form-group">
-                                        <label for="filePreview">File Contents Preview</label>
-                                        <textarea class="form-control" id="filePreview" rows="10" readonly>${previewContent}</textarea>
+                                        <label for="filePreviewTable">File Contents Preview</label>
+                                        <div id="filePreviewTable" style="max-height: 300px; overflow-y: auto;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -49,6 +49,24 @@ export const showCustomModal = (columns, previewContent, csvData) => {
         .custom-modal-header {
             background-color: #cccccc;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+        }
+        th, td {
+            padding: 1px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-size: 10px;
+        }
+        .ignored-column {
+            color: gray;
+            font-style: italic;
+        }
     `;
     document.head.appendChild(style);
 
@@ -59,6 +77,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
     const csvModal = new Modal(document.getElementById("csvModal"));
     csvModal.show();
 
+    // Save the settings to local storage
     const savedOrder = JSON.parse(localStorage.getItem("columnOrder"));
     if (savedOrder) {
         for (const [key, value] of Object.entries(savedOrder)) {
@@ -67,17 +86,23 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                 input.value = value;
             }
         }
+        if (savedOrder.diameter_unit) {
+            document.querySelector(`input[name="diameter_unit"][value="${savedOrder.diameter_unit}"]`).checked = true;
+        }
     }
 
+    // Clear the settings and clear the local store
     document.getElementById("clear-settings").addEventListener("click", function () {
         console.log("Clear settings clicked");
         const inputs = document.querySelectorAll("#csvForm input[type='number']");
         inputs.forEach((input) => {
             input.value = "";
         });
+        localStorage.removeItem("columnOrder");
         updatePreview(csvData);
     });
 
+    // Set and store the import layout
     document.getElementById("set-order").addEventListener("click", function () {
         console.log("Set order clicked");
         const formData = new FormData(document.getElementById("csvForm"));
@@ -87,10 +112,14 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                 columnOrder[key] = value;
             }
         });
+        columnOrder.diameter_unit = document.querySelector('input[name="diameter_unit"]:checked').value;
         localStorage.setItem("columnOrder", JSON.stringify(columnOrder));
+        console.log(columnOrder);
         alert("Column order has been set.");
+        updatePreview(csvData); // Update preview when order is set
     });
 
+    // Submit the form and process the points
     document.getElementById("submit").addEventListener("click", function () {
         console.log("Submit clicked");
         const formData = new FormData(document.getElementById("csvForm"));
@@ -100,6 +129,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                 data[key] = value;
             }
         });
+        data.diameter_unit = document.querySelector('input[name="diameter_unit"]:checked').value;
         console.log(data);
 
         const selectedColumns = {};
@@ -113,6 +143,9 @@ export const showCustomModal = (columns, previewContent, csvData) => {
     });
 
     document.getElementById("headerRows").addEventListener("input", () => updatePreview(csvData));
+
+    // Call updatePreview to generate the initial table content
+    updatePreview(csvData);
 };
 
 const generateFormGroups = (columns, section) => {
@@ -167,9 +200,9 @@ const generateFormGroups = (columns, section) => {
                     <div class="col-sm-6">
                         <input type="number" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" ${field.required ? "required" : ""}>
                         <div>
-                            <input type="radio" id="${field.id}_mm" name="${field.id}_unit" value="mm" checked>
+                            <input type="radio" id="${field.id}_mm" name="diameter_unit" value="mm">
                             <label for="${field.id}_mm">mm</label>
-                            <input type="radio" id="${field.id}_m" name="${field.id}_unit" value="m">
+                            <input type="radio" id="${field.id}_m" name="diameter_unit" value="m">
                             <label for="${field.id}_m">m</label>
                         </div>
                     </div>
@@ -189,16 +222,62 @@ const generateFormGroups = (columns, section) => {
 
 const updatePreview = (csvData) => {
     const headerRows = parseInt(document.getElementById("headerRows").value, 10) || 0;
+    const columnOrder = JSON.parse(localStorage.getItem("columnOrder") || "{}");
     if (csvData) {
-        let previewContent;
-        if (headerRows === 0) {
-            previewContent = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).join(","))].join("\n");
-        } else {
-            previewContent = csvData
-                .slice(headerRows - 1)
-                .map((row) => Object.values(row).join(","))
-                .join("\n");
-        }
-        document.getElementById("filePreview").value = previewContent;
+        let tableContent = '<table class="table table-striped"><thead><tr>';
+        const keys = Object.keys(csvData[0]);
+
+        // Mapping of column ids to labels
+        const columnLabels = {
+            blastName: "Blast Name",
+            pointID: "Hole Name",
+            startXLocation: "Start X (Easting)",
+            startYLocation: "Start Y (Northing)",
+            startZLocation: "Start Z (Elevation)",
+            endXLocation: "End X (Easting)",
+            endYLocation: "End Y (Northing)",
+            endZLocation: "End Z (Elevation)",
+            diameter: `Diameter (${columnOrder.diameter_unit || "mm"})`,
+            subdrill: "Subdrill",
+            shapeType: "Shape Type",
+            holeColour: "Hole Colour",
+            holeLength: "Length",
+            holeBearing: "Bearing",
+            holeAzimuth: "Azimuth",
+            holeBurden: "Burden",
+            holeSpacing: "Spacing",
+            fromHole: "From Hole",
+            delay: "Delay",
+            delayColour: "Delay Colour",
+        };
+
+        // Generate table header
+        tableContent += keys
+            .map((key, index) => {
+                const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == index + 1);
+                if (fieldName) {
+                    return `<th>${columnLabels[fieldName]}</th>`;
+                } else {
+                    return `<th class="ignored-column">ignored</th>`;
+                }
+            })
+            .join("");
+        tableContent += "</tr></thead><tbody>";
+
+        // Generate table rows
+        const rows = headerRows === 0 ? csvData : csvData.slice(headerRows - 1);
+        tableContent += rows
+            .map((row) => {
+                const values = Object.values(row);
+                return "<tr>" + values.map((value) => `<td>${value}</td>`).join("") + "</tr>";
+            })
+            .join("");
+
+        tableContent += "</tbody></table>";
+
+        console.log("Table content generated: ", tableContent);
+
+        // Set the table content to the div
+        document.getElementById("filePreviewTable").innerHTML = tableContent;
     }
 };
