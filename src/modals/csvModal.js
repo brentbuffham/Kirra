@@ -180,13 +180,13 @@ const generateFormGroups = (columns, section) => {
 
     return fields
         .map((field) => {
-            if (["holeName", "startXLocation", "startYLocation", "startZLocation"].includes(field.id)) {
+            if (field.required) {
                 return `
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
                         <div class="input-group">
-                            <input type="number" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" ${field.required ? "required" : ""}>
+                            <input type="number" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" required>
                             <div class="input-group-append">
                                 <span class="input-group-text text-danger">required</span>
                             </div>
@@ -198,7 +198,7 @@ const generateFormGroups = (columns, section) => {
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
-                        <input type="number" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" ${field.required ? "required" : ""}>
+                        <input type="number" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}">
                         <div>
                             <input type="radio" id="${field.id}_mm" name="diameter_unit" value="mm">
                             <label for="${field.id}_mm">mm</label>
@@ -212,7 +212,7 @@ const generateFormGroups = (columns, section) => {
                 <div class="row mb-1">
                     <label for="${field.id}" class="col-md-6 col-form-label">${field.label}</label>
                     <div class="col-sm-6">
-                        <input type="${field.type}" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}" ${field.required ? "required" : ""}>
+                        <input type="${field.type}" class="form-control" id="${field.id}" name="${field.id}" placeholder="${field.placeholder}">
                     </div>
                 </div>`;
             }
