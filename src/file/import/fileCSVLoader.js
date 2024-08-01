@@ -1,37 +1,55 @@
-// fileCSVLoader.js
 export const parseCSV = (data, columnOrder) => {
-    if (!data) {
-        console.error("Data is null or undefined");
-        return [];
-    }
+	if (!data) {
+		console.error("Data is null or undefined");
+		return [];
+	}
+	let minX = Infinity;
+	let minY = Infinity;
+	let points = [];
+	const headerRows = parseInt(columnOrder.headerRows, 10) || 0;
+	let pointIDCounter = -1; // Initialize pointID counter for default incremental values
+	const datetimeNow = Date.now();
+	data.slice(headerRows).forEach((row, index) => {
+		const point = {};
 
-    let parsedData = [];
-    const headerRows = parseInt(columnOrder.headerRows) || 0;
+		// Map columns based on user-defined column order
+		const blastName = row[Object.keys(row)[columnOrder.blastName - 1]] || `tempBlast_${datetimeNow}`;
+		const pointID = row[Object.keys(row)[columnOrder.pointID - 1]] || pointIDCounter--;
+		const startXLocation = parseFloat(row[Object.keys(row)[columnOrder.startXLocation - 1]]);
+		const startYLocation = parseFloat(row[Object.keys(row)[columnOrder.startYLocation - 1]]);
+		const startZLocation = parseFloat(row[Object.keys(row)[columnOrder.startZLocation - 1]]);
+		const endXLocation = parseFloat(row[Object.keys(row)[columnOrder.endXLocation - 1]]) || null;
+		const endYLocation = parseFloat(row[Object.keys(row)[columnOrder.endYLocation - 1]]) || null;
+		const endZLocation = parseFloat(row[Object.keys(row)[columnOrder.endZLocation - 1]]) || null;
+		const diameter_2 = parseFloat(row[Object.keys(row)[columnOrder.diameter - 1]] * 1000); // if diameter is in meters
+		const diameter_1 = parseFloat(row[Object.keys(row)[columnOrder.diameter - 1]]); // if diameter is in mm
+		const diameter = parseFloat(columnOrder.diameter_unit === "mm" ? diameter_1 || 0 : diameter_2 || 0);
+		const subdrill = parseFloat(row[Object.keys(row)[columnOrder.subdrill - 1]] || 0);
+		const shapeType = row[Object.keys(row)[columnOrder.shapeType - 1]] || (point.diameter === 0 ? "mesh-cube" : "mesh-cylinder");
+		const holeColour = row[Object.keys(row)[columnOrder.holeColour - 1]] || 0xffffff;
 
-    data.slice(headerRows - 1).forEach((row) => {
-        const point = {};
+		if (!isNaN(startXLocation) && !isNaN(startYLocation) && !isNaN(startZLocation) && !isNaN(endXLocation) && !isNaN(endYLocation) && !isNaN(endZLocation)) {
+			// check if they are valid numbers
+			points.push({
+				pointID,
+				startXLocation,
+				startYLocation,
+				startZLocation,
+				endXLocation,
+				endYLocation,
+				endZLocation,
+				diameter,
+				subdrill,
+				shapeType,
+				holeColour
+			});
+			minX = Math.min(minX, startXLocation);
+			minY = Math.min(minY, startYLocation);
+		}
+	});
 
-        // Map columns based on user-defined column order
-        point.blastName = row[Object.keys(row)[columnOrder.blastName - 1]];
-        point.pointID = row[Object.keys(row)[columnOrder.pointID - 1]];
-        point.startXLocation = row[Object.keys(row)[columnOrder.startXLocation - 1]];
-        point.startYLocation = row[Object.keys(row)[columnOrder.startYLocation - 1]];
-        point.startZLocation = row[Object.keys(row)[columnOrder.startZLocation - 1]];
-        point.endXLocation = row[Object.keys(row)[columnOrder.endXLocation - 1]];
-        point.endYLocation = row[Object.keys(row)[columnOrder.endYLocation - 1]];
-        point.endZLocation = row[Object.keys(row)[columnOrder.endZLocation - 1]];
-        const diameter_2 = row[Object.keys(row)[columnOrder.diameter - 1]] * 1000; //if diameter is in meters
-        const diameter_1 = row[Object.keys(row)[columnOrder.diameter - 1]]; //if diameter is in mm
-        point.diameter = columnOrder.diameter_unit === "mm" ? diameter_1 : diameter_2;
-        point.subdrill = row[Object.keys(row)[columnOrder.subdrill - 1]];
-        point.shapeType = row[Object.keys(row)[columnOrder.shapeType - 1]];
-        point.holeColour = row[Object.keys(row)[columnOrder.holeColour - 1]];
+	// Save the points to localStorage
+	localStorage.setItem("Holes", JSON.stringify(points));
 
-        parsedData.push(point);
-    });
-
-    // Save the points to localStorage
-    localStorage.setItem("Holes", JSON.stringify(parsedData));
-
-    return parsedData;
+	return points;
 };
