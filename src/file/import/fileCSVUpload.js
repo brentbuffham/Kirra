@@ -16,7 +16,7 @@ export const handleFileUploadNoEvent = (data) => {
 		skipEmptyLines: true,
 		dynamicTyping: true,
 		complete: function (results) {
-			console.log("CSV parsed", results);
+			//console.log("CSV parsed", results);
 			const columns = results.meta.fields;
 			const csvData = results.data;
 
@@ -43,24 +43,24 @@ let centroid = new Vector3(0, 0, 0);
 
 export const handleFileSubmit = (data, columnOrder) => {
 	try {
-		points.length = 0; // Clear the existing points
+		//points.length = 0; // Clear the existing points
 		const newPoints = parseCSV(data, columnOrder);
-		console.log("New points: ", newPoints);
+		//console.log("New points: ", newPoints);
 		points.push(...newPoints);
-		console.log("Points: ", points);
+		//console.log("Points: ", points);
 
 		let x, y, z;
 		let diameterUnits = columnOrder.diameter_units || "mm";
 
-		console.log("Column Order: ", columnOrder);
+		//console.log("Column Order: ", columnOrder);
 
 		if (params.worldXCenter === 0 && params.worldYCenter === 0) {
-			console.log("Calculating centroid...");
+			//console.log("Calculating centroid...");
 			centroid = getCentroid(points);
 			x = centroid.x;
 			y = centroid.y;
 			z = centroid.z;
-			console.log("Centroid: ", centroid);
+			//console.log("Centroid: ", centroid);
 			params.worldXCenter = x;
 			params.worldYCenter = y;
 			updateGuiControllers();
@@ -74,12 +74,12 @@ export const handleFileSubmit = (data, columnOrder) => {
 		const tempBlastName = "tempBlast" + timeDateNow;
 
 		let colour = 0xffffff;
-		console.log("Points List from points[]: ", points);
+		//console.log("Points List from points[]: ", points);
 		for (const point of points) {
-			console.log("Processing point: ", point);
+			//console.log("Processing point: ", point);
 			const tempPoint = {
 				blastName: point.blastName,
-				pointID: point.pointID.toString(),
+				pointID: `${point.pointID}`,
 				startXLocation: point.startXLocation - x,
 				startYLocation: point.startYLocation - y,
 				startZLocation: point.startZLocation - z,
@@ -93,7 +93,7 @@ export const handleFileSubmit = (data, columnOrder) => {
 			};
 			if (tempPoint.blastName === null || tempPoint.blastName === undefined || tempPoint.blastName === "" || tempPoint.blastName === "null" || tempPoint.blastName === "undefined" || tempPoint.blastName === " ") {
 				tempPoint.blastName = tempBlastName;
-				console.log("Due to like null value Blastname has been altered: ", tempPoint.blastName);
+				//console.log("Due to like null value Blastname has been altered: ", tempPoint.blastName);
 			}
 
 			// Apply drawing conditions
@@ -124,10 +124,11 @@ export const handleFileSubmit = (data, columnOrder) => {
 				(tempPoint.endYLocation !== null || tempPoint.endYLocation !== undefined) && //endYLocation is not null
 				(tempPoint.endZLocation !== null || tempPoint.endZLocation !== undefined) && //endZLocation is not null
 				(tempPoint.subdrill === null || tempPoint.subdrill === undefined || tempPoint.subdrill !== null || tempPoint.subdrill !== undefined) && //subdrill is null or not null
-				(tempPoint.diameter === null || tempPoint.diameter === undefined) && //diameter is null
+				(tempPoint.diameter === null || tempPoint.diameter === undefined || tempPoint.diameter === 0) && //diameter is null
 				(tempPoint.holeColour === null || tempPoint.holeColour === undefined || tempPoint.holeColour !== null || tempPoint.holeColour !== undefined) && //holeColour is null
 				(tempPoint.shapeType === null || tempPoint.shapeType === undefined || tempPoint.shapeType !== null || tempPoint.shapeType !== undefined) //shapeType is null
 			) {
+				//console.log("1)Drawing mesh-cube...BEFORE", tempPoint);
 				if (!tempPoint.shapeType) {
 					tempPoint.shapeType = "mesh-cube";
 				}
@@ -141,6 +142,7 @@ export const handleFileSubmit = (data, columnOrder) => {
 					tempPoint.diameter = 0;
 				}
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				//console.log("2)Drawing mesh-cube...AFTER", tempPoint);
 				console.log("Drawing mesh-cube...");
 			}
 			// Draw mesh-cylinder if subdrill, holeColour, shapeType are null
@@ -209,7 +211,6 @@ export const handleFileSubmit = (data, columnOrder) => {
 				(tempPoint.holeColour !== null || tempPoint.holeColour !== undefined) && //holeColour is not null
 				(tempPoint.shapeType !== null || tempPoint.shapeType !== undefined) //shapeType is not null
 			) {
-				drawHoleText(scene, tempPoint.holeColour, tempPoint);
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 				console.log("Drawing Hole with everything...");
 			}
@@ -217,24 +218,25 @@ export const handleFileSubmit = (data, columnOrder) => {
 
 		if (params.debugComments) {
 			console.log("fileCSVUpload/handleFileSubmit/points: ", points);
+			console.log("Objects in scene: ", scene.children);
 		}
 
 		camera.position.set(0, 0, parseFloat(params.cameraDistance));
 		//camera.lookAt(0, 0, 0);
 		centroid = getCentroid(points);
 		objectCenter.position.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
-		console.log("objectCenter: ", objectCenter.position);
-		console.log("Centroid: ", centroid);
+		//console.log("objectCenter: ", objectCenter.position);
+		//console.log("Centroid: ", centroid);
 		controls.target.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();
 		controls.update();
 
 		if (params.debugComments) {
-			console.log("fileUpload/handleFileSubmit/controls.target", controls.target);
+			//console.log("fileUpload/handleFileSubmit/controls.target", controls.target);
 		}
 		camera.updateMatrixWorld();
 	} catch (err) {
-		console.error("Error in handleFileSubmit: ", err);
+		//console.error("Error in handleFileSubmit: ", err);
 	}
 };

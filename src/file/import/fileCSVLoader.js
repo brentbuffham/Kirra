@@ -14,7 +14,7 @@ export const parseCSV = (data, columnOrder) => {
 
 		// Map columns based on user-defined column order
 		const blastName = row[Object.keys(row)[columnOrder.blastName - 1]] || `tempBlast_${datetimeNow}`;
-		const pointID = row[Object.keys(row)[columnOrder.pointID - 1]] || pointIDCounter--;
+		const pointID = String(row[Object.keys(row)[columnOrder.pointID - 1]] || pointIDCounter--);
 		const startXLocation = parseFloat(row[Object.keys(row)[columnOrder.startXLocation - 1]]);
 		const startYLocation = parseFloat(row[Object.keys(row)[columnOrder.startYLocation - 1]]);
 		const startZLocation = parseFloat(row[Object.keys(row)[columnOrder.startZLocation - 1]]);
@@ -25,7 +25,7 @@ export const parseCSV = (data, columnOrder) => {
 		const diameter_1 = parseFloat(row[Object.keys(row)[columnOrder.diameter - 1]]); // if diameter is in mm
 		const diameter = parseFloat(columnOrder.diameter_unit === "mm" ? diameter_1 || 0 : diameter_2 || 0);
 		const subdrill = parseFloat(row[Object.keys(row)[columnOrder.subdrill - 1]] || 0);
-		const shapeType = row[Object.keys(row)[columnOrder.shapeType - 1]] || (point.diameter === 0 ? "mesh-cube" : "mesh-cylinder");
+		const shapeType = row[Object.keys(row)[columnOrder.shapeType - 1]] || (point.diameter === 0 || point.diameter === null || point.diameter === undefined ? "mesh-cube" : "mesh-cylinder");
 		const holeColour = row[Object.keys(row)[columnOrder.holeColour - 1]] || 0xffffff;
 
 		if (!isNaN(startXLocation) && !isNaN(startYLocation) && !isNaN(startZLocation) && !isNaN(endXLocation) && !isNaN(endYLocation) && !isNaN(endZLocation)) {

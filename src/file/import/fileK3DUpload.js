@@ -45,7 +45,7 @@ export function handleFileUpload(event, canvas) {
 		}
 
 		//so the points array reference is not lost
-		points.length = 0;
+		//points.length = 0; clears the points array
 		const newPoints = parseCSV(data);
 		points.push(...newPoints);
 
@@ -68,7 +68,7 @@ export function handleFileUpload(event, canvas) {
 			let nextIndex = currentIndex;
 			for (const point of points) {
 				if (logit && params.debugComments) {
-					console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+					//console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
 					blastName: point.blastName,
@@ -92,12 +92,12 @@ export function handleFileUpload(event, canvas) {
 		canvas.camera.lookAt(0, 0, 0);
 		centroid = getCentroid(points);
 		objectCenter.position.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
-		console.log("objectCenter: ", objectCenter.position);
-		console.log("Centroid: ", centroid);
+		//console.log("objectCenter: ", objectCenter.position);
+		//console.log("Centroid: ", centroid);
 		controls.target.set(0, 0, 0);
 
 		if (params.debugComments) {
-			console.log(controls.target);
+			//console.log(controls.target);
 		}
 		canvas.camera.updateMatrixWorld();
 	};
@@ -126,10 +126,10 @@ export function handleFileUploadNoEvent(file) {
 		if (!file.name.toLowerCase().endsWith(".k3d")) {
 			return;
 		}
-		console.log("FileName: " + file.name);
+		//console.log("FileName: " + file.name);
 
 		//console log the file contents
-		console.log("FileContents: " + data);
+		//console.log("FileContents: " + data);
 
 		//so the points array reference is not lost
 		points.length = 0;
@@ -147,13 +147,13 @@ export function handleFileUploadNoEvent(file) {
 			z = 0;
 		}
 		if (params.debugComments) {
-			console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
+			//console.log("fileUpload/handleFileUploadNoEvent/points: ", points);
 		}
 		let colour = 0xffffff;
 		if (data.split("\n")[0].split(",").length === 12) {
 			for (const point of points) {
 				if (logit && params.debugComments) {
-					console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
+					//console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
 					blastName: point.blastName,
@@ -177,16 +177,20 @@ export function handleFileUploadNoEvent(file) {
 		}
 
 		if (params.debugComments) {
-			console.log("fileUpload/handleFileUploadNoEvent/centroidPoints: ", x, y, z);
-			console.log("fileUpload/handleFileUploadNoEvent/centroidActual: ", x - x, y - y, z - z);
+			//console.log("fileUpload/handleFileUploadNoEvent/centroidPoints: ", x, y, z);
+			//console.log("fileUpload/handleFileUploadNoEvent/centroidActual: ", x - x, y - y, z - z);
+		}
+		if (params.debugComments) {
+			console.log("fileK3DUpload/handleFileUploadNoEvent/points: ", points);
+			console.log("Objects in scene: ", scene.children);
 		}
 
 		camera.position.set(0, 0, parseFloat(params.cameraDistance));
 		//camera.lookAt(0, 0, 0);
 		centroid = getCentroid(points);
 		objectCenter.position.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
-		console.log("objectCenter: ", objectCenter.position);
-		console.log("Centroid: ", centroid);
+		//console.log("objectCenter: ", objectCenter.position);
+		//console.log("Centroid: ", centroid);
 		controls.target.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();

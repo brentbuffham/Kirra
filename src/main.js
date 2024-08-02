@@ -265,6 +265,8 @@ document.querySelector("#obj-display").addEventListener("click", () => {
  * Updates the scene by removing existing hole objects and rendering new ones based on the provided parameters.
  */
 function updateScene() {
+	console.clear();
+	console.log("Objects in scene BEFORE updateScene():\n", scene.children);
 	// Gather all objects of entity type "hole" into an array
 	const holeObjectsArray = [];
 	const holeNameTextArray = [];
@@ -340,6 +342,7 @@ function updateScene() {
 	} else {
 		console.error("Renderer is not initialized.");
 	}
+	console.log("Objects in scene AFTER updateScene():\n", scene.children);
 }
 
 // Attach event listener to the button

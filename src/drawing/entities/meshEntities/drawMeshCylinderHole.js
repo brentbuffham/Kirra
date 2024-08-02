@@ -9,12 +9,12 @@ export function drawMeshCylinderHole(scene, color, materialType, name, collarXYZ
 	const hole = new Group();
 	hole.add(createCylinder(color, materialType, collarXYZ, intervalXYZ, diameter, radialSegments));
 	color = getRandomColor();
-if (intervalXYZ.distanceTo(toeXYZ) > 0) {
+	if (intervalXYZ.distanceTo(toeXYZ) > 0) {
 		color = "red";
 		hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, diameter, radialSegments));
-}
-	
-	hole.name = name;
+	}
+
+	hole.name = name + "-" + "hole";
 	hole.userData = {
 		entityType: "hole",
 		pointID: name,
@@ -30,6 +30,6 @@ if (intervalXYZ.distanceTo(toeXYZ) > 0) {
 
 	scene.add(hole);
 	if (params.debugComments) {
-		console.log("drawCylinderHole > UUID: " + hole.uuid + " Name: " + hole.name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+		//console.log("drawCylinderHole > UUID: " + hole.uuid + " Name: " + hole.name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
 	}
 }

@@ -30,6 +30,7 @@ export function drawText(scene, color, font, vector, value, entityType) {
 
 	// Set the position of the text mesh
 	textMesh.position.set(parseFloat(vector.x), parseFloat(vector.y), parseFloat(vector.z));
+	textMesh.name = value + "- text";
 	textMesh.userData = {
 		entityType: entityType,
 		vector: vector,
