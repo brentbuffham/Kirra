@@ -9,7 +9,7 @@ export const bindListenerToImportCSVButton = () => {
 
 		const fileInput = document.createElement("input");
 		fileInput.type = "file";
-		fileInput.accept = ".csv";
+		fileInput.accept = ".csv , .txt";
 		fileInput.style.display = "none";
 
 		fileInput.onchange = (e) => {

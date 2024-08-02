@@ -209,55 +209,46 @@ function updateHoleDisplay() {
 
 //function to turn params.wireframeOn on and off
 document.querySelector("#obj-display").addEventListener("click", () => {
-	params.wireframeSolidTransparentTexture = params.wireframeSolidTransparentTexture === "Texture" ? "Solid" : params.wireframeSolidTransparentTexture === "Solid" ? "Transparent" : params.wireframeSolidTransparentTexture === "Transparent" ? "Wireframe" : "Texture";
+	params.wireframeSolidTransparentTexture = params.wireframeSolidTransparentTexture === "Texture" ? "Solid" : params.wireframeSolidTransparentTexture === "Solid" ? "Transparent" : params.wireframeSolidTransparentTexture === "Transparent" ? "Wireframe" : params.wireframeSolidTransparentTexture === "Wireframe" ? "Invisible" : "Texture";
 
 	scene.traverse(function (child) {
-		if (child instanceof THREE.Mesh) {
+		if (child instanceof THREE.Mesh && child.userData.isOBJMesh) {
+			// Check if it is the OBJ mesh
 			if (params.wireframeSolidTransparentTexture === "Texture") {
-				//update infolable
 				document.querySelector("#info-label").textContent = "Texture On";
-				//Change the icon on the button #texture-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-material.png" alt="Texture Display" />`;
-				child.material.wireframe = false;
 				child.material = child.userData.originalMaterial || child.material;
-				//adjust the scenes directional light intensity to make the texture more visible
 				scene.traverse(function (object) {
 					if (object instanceof THREE.DirectionalLight) {
 						object.intensity = 0.6;
 					}
 				});
 			} else if (params.wireframeSolidTransparentTexture === "Solid") {
-				//update infolable
 				document.querySelector("#info-label").textContent = "Solid On";
-				//Change the icon on the button #solid-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="Solid Display" />`;
-				child.material.wireframe = false;
 				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, side: THREE.DoubleSide });
-				//adjust the scenes directional light intensity to reduce brightness
 				scene.traverse(function (object) {
 					if (object instanceof THREE.DirectionalLight) {
 						object.intensity = 0.6;
 					}
 				});
 			} else if (params.wireframeSolidTransparentTexture === "Transparent") {
-				//update infolable
 				document.querySelector("#info-label").textContent = "Transparent On";
-				//Change the icon on the button #transparent-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-transparent.png" alt="Transparent Display" />`;
-				child.material.wireframe = false;
 				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: true, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
 			} else if (params.wireframeSolidTransparentTexture === "Wireframe") {
-				//update infolable
 				document.querySelector("#info-label").textContent = "Wireframe On";
-				//Change the icon on the button #wireframe-on-off
 				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-wireframe.png" alt="Wireframe Display" />`;
-				child.material.wireframe = true; // Enable wireframe mode
 				child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
+			} else if (params.wireframeSolidTransparentTexture === "Invisible") {
+				document.querySelector("#info-label").textContent = "Invisible On";
+				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-letter-x.png" alt="Invisible Display" />`;
+				child.material = new THREE.MeshBasicMaterial({ color: child.material.color, visible: false });
 			}
 			child.material.needsUpdate = true;
 		}
 	});
-	//Update the holes as they are meshes aswell
+	//Update the holes as they are meshes as well
 	updateScene();
 });
 

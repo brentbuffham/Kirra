@@ -48,6 +48,8 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 	style.innerHTML = `
         .custom-modal-header {
             background-color: #cccccc;
+			font-size: 12px;
+			height: 2.5em;
         }
         table {
             width: 100%;
@@ -64,9 +66,28 @@ export const showCustomModal = (columns, previewContent, csvData) => {
             font-size: 11px;
         }
         .ignored-column {
-            color: gray;
+            color: red;
             font-style: italic;
         }
+		.modal-body label {
+        	font-size: 12px; /* Adjust the font size of the labels */
+        	height: 1.5em; /* Adjust the height of the labels */
+    	}
+    	.modal-body .form-control {
+        	font-size: 12px; /* Adjust the font size of the input fields */
+        	height: 2em; /* Adjust the height of the input fields */
+        	padding: .25rem .5rem; /* Adjust the padding of the input fields */
+		}
+		.text-danger {
+			font-size: 12px; /* Adjust the font size of the text-danger span */
+			height: 2em; /* Adjust the height of the labels */
+			align-items: center;
+		}	
+		.text-warning {
+			font-size: 12px; /* Adjust the font size of the text-warning span */
+			height: 2em; /* Adjust the height of the labels */
+			align-items: center;
+		}
     `;
 	document.head.appendChild(style);
 

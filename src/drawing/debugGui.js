@@ -183,6 +183,10 @@ export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHe
 			scene.traverse(function (child) {
 				if (child instanceof THREE.Mesh) {
 					switch (params.wireframeSolidTransparentTexture) {
+						case "Invisible":
+							child.material.wireframe = false;
+							child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: false, opacity: 0 });
+							break;
 						case "Wireframe":
 							child.material.wireframe = true;
 							child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
