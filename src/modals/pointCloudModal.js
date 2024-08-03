@@ -1,7 +1,7 @@
-// csvModal.js
+// pointCloudModal.js
 import { Modal } from "bootstrap";
-import { parseCSV } from "../file/import/fileCSVLoader.js";
-import { handleFileSubmit } from "../file/import/fileCSVUpload.js"; // Import the handleFileSubmit function
+import { parsePointCloud } from "../file/import/filePointCloudLoader.js";
+import { handleFileSubmit } from "../file/import/filePointCloudUpload.js"; // Import the handleFileSubmit function
 
 export const showCustomModal = (columns, previewContent, csvData) => {
 	console.log("Showing custom modal...");
@@ -10,7 +10,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header custom-modal-header">
-                        <h5 class="modal-title" id="csvModalLabel">Text File Import (.csv and .txt auto delimeter)</h5>
+                        <h5 class="modal-title" id="csvModalLabel">XYZ Point Cloud Import (.xyz .csv .txt auto-delimeter)</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
@@ -29,7 +29,11 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                                         <label for="filePreviewTable">File Contents Preview (Set Order to refresh column view)</label>
                                         <div id="filePreviewTable" style="max-height: 300px; overflow-y: auto;"></div>
                                     </div>
-                                </div>
+                                    <div class="form-group">
+                                        <input type="checkbox" id="createMesh" name="createMesh">
+                                        <label for="createMesh">Create Mesh</label>
+                                    </div>
+                                </div>                   
                             </div>
                         </form>
                     </div>
@@ -95,20 +99,17 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 	modalContainer.innerHTML = modalHtml;
 	document.body.appendChild(modalContainer);
 
-	const csvModal = new Modal(document.getElementById("csvModal"));
-	csvModal.show();
+	const pointCloudModal = new Modal(document.getElementById("csvModal"));
+	pointCloudModal.show();
 
 	// Save the settings to local storage
-	const savedOrder = JSON.parse(localStorage.getItem("columnOrder"));
+	const savedOrder = JSON.parse(localStorage.getItem("pointCloudOrder"));
 	if (savedOrder) {
 		for (const [key, value] of Object.entries(savedOrder)) {
 			const input = document.getElementById(key);
 			if (input) {
 				input.value = value;
 			}
-		}
-		if (savedOrder.diameter_unit) {
-			document.querySelector(`input[name="diameter_unit"][value="${savedOrder.diameter_unit}"]`).checked = true;
 		}
 	}
 
@@ -119,7 +120,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 		inputs.forEach((input) => {
 			input.value = "";
 		});
-		localStorage.removeItem("columnOrder");
+		localStorage.removeItem("pointCloudOrder");
 		updatePreview(csvData);
 	});
 
@@ -127,15 +128,14 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 	document.getElementById("set-order").addEventListener("click", function () {
 		console.log("Set order clicked");
 		const formData = new FormData(document.getElementById("csvForm"));
-		const columnOrder = {};
+		const pointCloudOrder = {};
 		formData.forEach((value, key) => {
 			if (value) {
-				columnOrder[key] = value;
+				pointCloudOrder[key] = value;
 			}
 		});
-		columnOrder.diameter_unit = document.querySelector('input[name="diameter_unit"]:checked').value;
-		localStorage.setItem("columnOrder", JSON.stringify(columnOrder));
-		console.log(columnOrder);
+		localStorage.setItem("pointCloudOrder", JSON.stringify(pointCloudOrder));
+		console.log("Set pointColumnOrder is: ", pointCloudOrder);
 		alert("Column order has been set.");
 		updatePreview(csvData); // Update preview when order is set
 	});
@@ -150,7 +150,6 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 				data[key] = value;
 			}
 		});
-		data.diameter_unit = document.querySelector('input[name="diameter_unit"]:checked').value;
 		console.log(data);
 
 		const selectedColumns = {};
@@ -159,9 +158,9 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 		}
 
 		//check if the required columns are selected and alert the user if not
-		if (!selectedColumns.startXLocation || !selectedColumns.startYLocation || !selectedColumns.startZLocation) {
-			alert("Please ensure that Start X, Start Y, and Start Z columns are selected.");
-			console.error("Please ensure that Start X, Start Y, and Start Z columns are selected.");
+		if (!selectedColumns.pointX || !selectedColumns.pointY || !selectedColumns.pointZ) {
+			alert("Please ensure that Point X, Point Y, and Point Z columns are selected.");
+			console.error("Please ensure that Point X, Point Y, and Point Z columns are selected.");
 		}
 
 		//check if the value occurs more than once in the selected columns object and if so, alert the user
@@ -173,9 +172,9 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 			alert("Some columns are represented more than once.\nDisplay may not be as intended.\nPreferably a column is selected only once.\n");
 		}
 		//check if the required columns are selected and proceed if they are
-		if (selectedColumns.startXLocation && selectedColumns.startYLocation && selectedColumns.startZLocation) {
+		if (selectedColumns.pointX && selectedColumns.pointY && selectedColumns.pointZ) {
 			handleFileSubmit(csvData, selectedColumns); // Call handleFileSubmit with csvData and selectedColumns
-			csvModal.hide();
+			pointCloudModal.hide();
 			document.body.removeChild(modalContainer);
 		}
 	});
@@ -189,29 +188,17 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 const generateFormGroups = (columns, section) => {
 	const fieldsLeft = [
 		{ id: "headerRows", label: "Rows to Ignore", type: "number", placeholder: "# rows", required: true, unused: false },
-		{ id: "blastName", label: "Blast Name", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "pointID", label: "Hole Name", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "startXLocation", label: "Start X (Easting)", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "startYLocation", label: "Start Y (Northing)", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "startZLocation", label: "Start Z (Elevation)", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "endXLocation", label: "End X (Easting)", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "endYLocation", label: "End Y (Northing)", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "endZLocation", label: "End Z (Elevation)", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "diameter", label: "Diameter", placeholder: "Col #", type: "number", unit: true, required: false, unused: false }
+		{ id: "pointID", label: "Point ID", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointX", label: "Point X", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointY", label: "Point Y", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointZ", label: "Point Z", type: "number", placeholder: "Col #", required: true, unused: false }
 	];
 
 	const fieldsRight = [
-		{ id: "subdrill", label: "Subdrill", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "shapeType", label: "Shape Type", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "holeColour", label: "Hole Colour", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "holeLength", label: "Length", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "holeBearing", label: "Bearing", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "holeAngle", label: "Angle", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "holeBurden", label: "Burden", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "holeSpacing", label: "Spacing", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "fromHole", label: "From Hole", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "delay", label: "Delay", placeholder: "Col #", type: "number", required: false, unused: true },
-		{ id: "delayColour", label: "Delay Colour", placeholder: "Col #", type: "number", required: false, unused: true }
+		{ id: "pointR", label: "Point Red", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointG", label: "Point Green", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointB", label: "Point Blue", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointA", label: "Point Alpha", placeholder: "Col #", type: "number", required: false, unused: false }
 	];
 
 	const fields = section === "left" ? fieldsLeft : fieldsRight;
@@ -281,10 +268,10 @@ const updatePreview = (csvData) => {
 	const headerRows = parseInt(document.getElementById("headerRows").value, 10) || 0;
 
 	// Get the user-defined column order from local storage and parse it as JSON.
-	const columnOrder = JSON.parse(localStorage.getItem("columnOrder") || "{}");
+	const pointCloudOrder = JSON.parse(localStorage.getItem("pointCloudOrder") || "{}");
 
 	// Exclude the headerRows from the column order as it is only for row removal.
-	delete columnOrder.headerRows;
+	delete pointCloudOrder.headerRows;
 
 	// Proceed only if there is data in csvData.
 	if (csvData.length > 0) {
@@ -292,33 +279,21 @@ const updatePreview = (csvData) => {
 
 		// Mapping of column ids to labels
 		const columnLabels = {
-			blastName: "Blast Name",
-			pointID: "Hole Name",
-			startXLocation: "Start X (Easting)",
-			startYLocation: "Start Y (Northing)",
-			startZLocation: "Start Z (Elevation)",
-			endXLocation: "End X (Easting)",
-			endYLocation: "End Y (Northing)",
-			endZLocation: "End Z (Elevation)",
-			diameter: `Diameter (${columnOrder.diameter_unit || "mm"})`,
-			subdrill: "Subdrill",
-			shapeType: "Shape Type",
-			holeColour: "Hole Colour",
-			holeLength: "Length",
-			holeBearing: "Bearing",
-			holeAzimuth: "Azimuth",
-			holeBurden: "Burden",
-			holeSpacing: "Spacing",
-			fromHole: "From Hole",
-			delay: "Delay",
-			delayColour: "Delay Colour"
+			pointID: "Point ID",
+			pointX: "Point X",
+			pointY: "Point Y",
+			pointZ: "Point Z",
+			pointR: "Point Red",
+			pointG: "Point Green",
+			pointB: "Point Blue",
+			pointA: "Point Alpha"
 		};
 
 		// Generate table header based on column order, marking unused columns as "ignored".
 		const totalColumns = Object.keys(csvData[0]).length; // Total number of columns in the CSV data.
 		for (let i = 0; i < totalColumns; i++) {
 			// Find the field name that corresponds to the current column index.
-			const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == (i + 1).toString());
+			const fieldName = Object.keys(pointCloudOrder).find((col) => pointCloudOrder[col] == (i + 1).toString());
 			if (fieldName) {
 				// Add the corresponding label for the field name.
 				tableContent += `<th>${columnLabels[fieldName]}</th>`;
@@ -338,7 +313,7 @@ const updatePreview = (csvData) => {
 					Object.keys(row)
 						.map((key, index) => {
 							// Find the field name that corresponds to the current column index.
-							const fieldName = Object.keys(columnOrder).find((col) => columnOrder[col] == (index + 1).toString());
+							const fieldName = Object.keys(pointCloudOrder).find((col) => pointCloudOrder[col] == (index + 1).toString());
 							if (fieldName) {
 								return `<td>${row[key]}</td>`;
 							} else {

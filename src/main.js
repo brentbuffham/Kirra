@@ -20,6 +20,7 @@ import { bindListenerToImportK3DButton } from "./import/csv/openHolesButton.js";
 import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
 import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js";
 import { bindListenerToImportDXFButton } from "./import/autocad/importDXFButton.js";
+import { bindListenerToImportPointCloudButton } from "./import/csv/importPointCloudButton.js";
 import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
 import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
 
@@ -54,8 +55,8 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		<button id=import-dxf title="File Import DXF">
 			<img src="./assets/tabler-icons-2.36.0/png/load-dxf.png" alt="File Import DXF" />
 		 </button>
-		 <button id=import-csv title="File Import CSV">
-			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import CSV" />
+		 <button id=import-pointcloud title="File Import Point Cloud CSV">
+			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import Text Based Point Cloud" />
 		 </button>
 		 <button id=settings-world title="Settings World Origin">
 			<img src="./assets/tabler-icons-2.36.0/png/world-cog.png" alt="World Origin Point" />
@@ -102,6 +103,7 @@ bindListenerToImportK3DButton();
 bindListenerToImportCSVButton();
 bindListenerToImportOBJButton(canvas);
 bindListenerToImportDXFButton(canvas);
+bindListenerToImportPointCloudButton();
 bindListenerToWorldOriginSettingsButton();
 
 // Reset the Camera

@@ -62,3 +62,24 @@ export function getOBJCentroid(object) {
 	// Default return if the object is neither a Mesh nor a Group
 	return { x: 0, y: 0, z: 0 };
 }
+
+export function getPointCloudCentroid(points) {
+	let sumX = 0,
+		sumY = 0,
+		sumZ = 0;
+
+	points.forEach((point) => {
+		sumX += point.pointX;
+		sumY += point.pointY;
+		sumZ += point.pointZ;
+	});
+
+	const centroid = {
+		x: parseFloat((sumX / points.length).toFixed(3)),
+		y: parseFloat((sumY / points.length).toFixed(3)),
+		z: parseFloat((sumZ / points.length).toFixed(3))
+	};
+
+	console.log("Centroid in getPointCloudCentroid: ", centroid);
+	return centroid;
+}
