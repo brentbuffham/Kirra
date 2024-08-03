@@ -2,6 +2,7 @@
 import { Modal } from "bootstrap";
 import { parsePointCloud } from "../file/import/filePointCloudLoader.js";
 import { handleFileSubmit } from "../file/import/filePointCloudUpload.js"; // Import the handleFileSubmit function
+import { hexToRgb } from "../drawing/helpers/colorToOther.js";
 
 export const showCustomModal = (columns, previewContent, csvData) => {
 	console.log("Showing custom modal...");
@@ -21,6 +22,12 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                                 </div>
                                 <div class="col-md-6">
                                     ${generateFormGroups(columns, "right")}
+                                    <div class="row mb-1">
+                                        <label for="maxEdgeLength" class="col-sm-5 col-form-label">Max Edge Length (m)</label>
+                                        <div class="col-sm-6">
+                                            <input type="number" class="form-control" id="maxEdgeLength" name="maxEdgeLength" value="10" min="0">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="row mt-3">
@@ -32,6 +39,13 @@ export const showCustomModal = (columns, previewContent, csvData) => {
                                     <div class="form-group">
                                         <input type="checkbox" id="createMesh" name="createMesh">
                                         <label for="createMesh">Create Mesh</label>
+                                    </div>
+                                    <div class="form-group d-flex align-items-center">
+                                        <label for="pointColor">Mesh/Point Colour</label>
+                                        <input type="color" class="form-control form-control-color mx-2" id="pointColor" value="#ffAA00" title="Choose your colour">
+                                        <div id="colorPalette" class="d-flex flex-wrap">
+                                            <!-- Palette colors will be added here dynamically -->
+                                        </div>
                                     </div>
                                 </div>                   
                             </div>
@@ -92,6 +106,13 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 			height: 2em; /* Adjust the height of the labels */
 			align-items: center;
 		}
+		#colorPalette .color-swatch {
+			width: 24px;
+			height: 24px;
+			margin: 2px;
+			border: 1px solid #ddd;
+			cursor: pointer;
+		}
     `;
 	document.head.appendChild(style);
 
@@ -113,6 +134,27 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 		}
 	}
 
+	// Retrieve the createMesh and maxEdgeLength state from local storage and set the input states
+	const createMeshState = JSON.parse(localStorage.getItem("createMeshState"));
+	if (createMeshState !== null) {
+		document.getElementById("createMesh").checked = createMeshState;
+	}
+
+	const savedMaxEdgeLength = localStorage.getItem("maxEdgeLength");
+	if (savedMaxEdgeLength !== null) {
+		document.getElementById("maxEdgeLength").value = savedMaxEdgeLength;
+	}
+
+	// Event listener to save the createMesh state to local storage when it changes
+	document.getElementById("createMesh").addEventListener("change", function () {
+		localStorage.setItem("createMeshState", JSON.stringify(this.checked));
+	});
+
+	// Event listener to save the maxEdgeLength to local storage when it changes
+	document.getElementById("maxEdgeLength").addEventListener("input", function () {
+		localStorage.setItem("maxEdgeLength", this.value);
+	});
+
 	// Clear the settings and clear the local store
 	document.getElementById("clear-settings").addEventListener("click", function () {
 		console.log("Clear settings clicked");
@@ -121,6 +163,10 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 			input.value = "";
 		});
 		localStorage.removeItem("pointCloudOrder");
+		localStorage.removeItem("createMeshState");
+		localStorage.removeItem("maxEdgeLength");
+		document.getElementById("createMesh").checked = false;
+		document.getElementById("maxEdgeLength").value = 10;
 		updatePreview(csvData);
 	});
 
@@ -157,23 +203,40 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 			selectedColumns[key] = value;
 		}
 
-		//check if the required columns are selected and alert the user if not
+		// Check if the required columns are selected and alert the user if not
 		if (!selectedColumns.pointX || !selectedColumns.pointY || !selectedColumns.pointZ) {
 			alert("Please ensure that Point X, Point Y, and Point Z columns are selected.");
 			console.error("Please ensure that Point X, Point Y, and Point Z columns are selected.");
+			return;
 		}
 
-		//check if the value occurs more than once in the selected columns object and if so, alert the user
+		// Check if the value occurs more than once in the selected columns object and if so, alert the user
 		let values = Object.values(selectedColumns);
 		let headerRows = selectedColumns.headerRows;
 		let duplicates = values.filter((item, index) => item !== headerRows && values.indexOf(item) !== index);
 		if (duplicates.length > 0) {
 			console.log("Duplicates: ", duplicates);
 			alert("Some columns are represented more than once.\nDisplay may not be as intended.\nPreferably a column is selected only once.\n");
+			return;
 		}
-		//check if the required columns are selected and proceed if they are
+
+		// Get the selected color and convert it to RGB
+		const hexColor = document.getElementById("pointColor").value;
+		const defaultColor = hexToRgb(hexColor);
+		const defaultRedValue = defaultColor.r;
+		const defaultGreenValue = defaultColor.g;
+		const defaultBlueValue = defaultColor.b;
+
+		// Get the max edge length
+		const maxEdgeLength = parseFloat(document.getElementById("maxEdgeLength").value);
+
+		console.log("Red:", defaultRedValue);
+		console.log("Green:", defaultGreenValue);
+		console.log("Blue:", defaultBlueValue);
+		console.log("Max Edge Length:", maxEdgeLength);
+
 		if (selectedColumns.pointX && selectedColumns.pointY && selectedColumns.pointZ) {
-			handleFileSubmit(csvData, selectedColumns); // Call handleFileSubmit with csvData and selectedColumns
+			handleFileSubmit(csvData, selectedColumns, hexColor, maxEdgeLength); // Pass the RGB color object and maxEdgeLength to handleFileSubmit
 			pointCloudModal.hide();
 			document.body.removeChild(modalContainer);
 		}
@@ -183,22 +246,36 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 
 	// Call updatePreview to generate the initial table content
 	updatePreview(csvData);
+
+	// Initialize the color palette
+	const paletteColors = ["#990000", "#FF0000", "#FFAA00", "#CCCC00", "#FFF000", "#00ff00", "#00bb00", "#00bbff", "#0055FF", "#aa00ff", "#F1F1F1", "#E3E3E3", "#C6C6C6", "#7F7F7F", "#555555", "#393939", "#1C1C1C", "#00FFFF", "#006699", "#FF00FF"];
+
+	const colorPalette = document.getElementById("colorPalette");
+	paletteColors.forEach((color) => {
+		const colorSwatch = document.createElement("div");
+		colorSwatch.className = "color-swatch";
+		colorSwatch.style.backgroundColor = color;
+		colorSwatch.addEventListener("click", () => {
+			document.getElementById("pointColor").value = color;
+		});
+		colorPalette.appendChild(colorSwatch);
+	});
 };
 
 const generateFormGroups = (columns, section) => {
 	const fieldsLeft = [
 		{ id: "headerRows", label: "Rows to Ignore", type: "number", placeholder: "# rows", required: true, unused: false },
-		{ id: "pointID", label: "Point ID", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "pointX", label: "Point X", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "pointY", label: "Point Y", type: "number", placeholder: "Col #", required: true, unused: false },
-		{ id: "pointZ", label: "Point Z", type: "number", placeholder: "Col #", required: true, unused: false }
+		{ id: "pointID", label: "Point ID (col#)", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointX", label: "Point X (col#)", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointY", label: "Point Y (col#)", type: "number", placeholder: "Col #", required: true, unused: false },
+		{ id: "pointZ", label: "Point Z (col#)", type: "number", placeholder: "Col #", required: true, unused: false }
 	];
 
 	const fieldsRight = [
-		{ id: "pointR", label: "Point Red", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "pointG", label: "Point Green", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "pointB", label: "Point Blue", placeholder: "Col #", type: "number", required: false, unused: false },
-		{ id: "pointA", label: "Point Alpha", placeholder: "Col #", type: "number", required: false, unused: false }
+		{ id: "pointR", label: "Point Red (col#)", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointG", label: "Point Green (col#)", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointB", label: "Point Blue (col#)", placeholder: "Col #", type: "number", required: false, unused: false },
+		{ id: "pointA", label: "Point Alpha (col#)", placeholder: "Col #", type: "number", required: false, unused: false }
 	];
 
 	const fields = section === "left" ? fieldsLeft : fieldsRight;

@@ -1,4 +1,4 @@
-import { BufferGeometry, Float32BufferAttribute, MeshPhongMaterial, Mesh, Vector3, DoubleSide, LineSegments, LineBasicMaterial, EdgesGeometry } from "three";
+import { BufferGeometry, Float32BufferAttribute, MeshBasicMaterial, MeshPhongMaterial, Mesh, Vector3, DoubleSide, LineSegments, LineBasicMaterial, EdgesGeometry } from "three";
 import Delaunator from "delaunator";
 
 /**
@@ -116,7 +116,7 @@ function calculateCentroid(points) {
  * @param {Number} maxEdgeLength - Maximum allowable edge length for triangles.
  * @returns {Mesh} - The created mesh.
  */
-export function createDelaunayMeshFromPointCloud(pointVertices, maxEdgeLength) {
+export function createDelaunayMeshFromPointCloud(pointVertices, maxEdgeLength, defaultColour) {
 	const triangles = delaunayTriangles(pointVertices, maxEdgeLength);
 	console.log(triangles);
 
@@ -140,20 +140,22 @@ export function createDelaunayMeshFromPointCloud(pointVertices, maxEdgeLength) {
 	geometry.setIndex(indices);
 	geometry.computeVertexNormals();
 
-	const material = new MeshPhongMaterial({ color: 0x00ff00, side: DoubleSide, wireframe: false });
+	const material = new MeshPhongMaterial({ color: defaultColour, side: DoubleSide, wireframe: false });
 	const mesh = new Mesh(geometry, material);
 
-	const wireframe = new LineSegments(new EdgesGeometry(geometry), new LineBasicMaterial({ color: 0x000000, linewidth: 1 }));
-	mesh.add(wireframe);
+	//const wireframe = new LineSegments(new EdgesGeometry(geometry), new LineBasicMaterial({ color: 0x000000, linewidth: 1 }));
+	//mesh.add(wireframe);
 
 	const centroid = calculateCentroid(pointVertices.map((p) => new Vector3(p.x, p.y, p.z)));
-
+	const timeDateNow = Date.now();
+	const tempPointCloudName = "Cloud" + timeDateNow;
 	mesh.userData = {
-		name: "pointCloudMesh",
+		name: "tempPointCloudName",
 		isTXTMesh: true,
 		vertices: pointVertices.length,
 		triangles: triangles.length,
-		meshCenter: centroid
+		meshCenter: centroid,
+		originalMaterial: material
 	};
 
 	console.log("pointCloudMesh", mesh.userData);

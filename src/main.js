@@ -14,7 +14,7 @@ import { TrackballControls } from "three/examples/jsm/controls/TrackballControls
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
 import { controls, createScene, params, updateCameraType } from "./drawing/createScene.js";
 import { getCentroid } from "./drawing/helpers/getCentroid.js";
-import { drawHoles, drawHoleText } from "./drawing/entities/drawHoles.js";
+import { drawDummys, drawHoles, drawHoleText } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
 import { bindListenerToImportK3DButton } from "./import/csv/openHolesButton.js";
 import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
@@ -151,14 +151,14 @@ function updateHoleDisplay() {
 	scene.traverse(function (object) {
 		if (object.userData.entityType === "hole" && object.userData.entityType !== "dummy") {
 			holeObjectsArray.push(object);
-		} else if (object.userData.entityType === "dummy") {
-			console.log("Dummy objects are not supported for this operation.");
-			// alert on the last first dummy object found but not an any others
-			if (dummyholescount === 0) {
-				alert("Dummy objects are not supported for this operation.");
-			}
-			dummyholescount++;
-		}
+		} //else if (object.userData.entityType === "dummy") {
+		// 	console.log("Dummy objects are not supported for this operation.");
+		// 	// alert on the last first dummy object found but not an any others
+		// 	if (dummyholescount === 0) {
+		// 		alert("Dummy objects are not supported for this operation.");
+		// 	}
+		// 	dummyholescount++;
+		// }
 	});
 
 	for (const hole of holeObjectsArray) {
@@ -173,7 +173,7 @@ function updateHoleDisplay() {
 		y = params.worldYCenter || 0;
 		z = 0; //No offset for Z
 	}
-	if (currentPoints.endXLocation !== null && currentPoints.endYLocation !== null && currentPoints.endZLocation !== null && currentPoints.diameter !== null) {
+	if (/*currentPoints.endXLocation != null && currentPoints.endYLocation != null && currentPoints.endZLocation != null && currentPoints.diameter != null*/ currentPoints.length > 0) {
 		const colour = 0xffffff;
 		currentPoints.forEach((point) => {
 			const tempPoint = {
@@ -181,20 +181,26 @@ function updateHoleDisplay() {
 				startXLocation: point.startXLocation - x,
 				startYLocation: point.startYLocation - y,
 				startZLocation: point.startZLocation - z,
-				endXLocation: point.endXLocation - x,
-				endYLocation: point.endYLocation - y,
-				endZLocation: point.endZLocation - z,
+				endXLocation: isNaN(point.endXLocation) ? null : point.endXLocation - x,
+				endYLocation: isNaN(point.endYLocation) ? null : point.endYLocation - y,
+				endZLocation: isNaN(point.endZLocation) ? null : point.endZLocation - z,
 				diameter: point.diameter,
-				subdrill: point.subdrill || 0,
-				shapeType: params.holeDisplay,
-				holeColour: point.holeColour || colour
+				subdrill: point.subdrill,
+				shapeType: point.endXLocation != null || point.endYLocation != null || point.endZLocation != null ? params.holeDisplay : "mesh-dummy",
+				holeColour: point.holeColour
 			};
-			if (tempPoint.diameter ?? 0 > 0) {
-				// Check if the diameter is greater than 0
-				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
-			} else {
-				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay); // Pass the correct shape parameter
+			if (tempPoint.diameter > 0) {
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay);
+				console.log("diameter is greater then 0");
+			} else if (isNaN(tempPoint.diameter)) {
+				shapeType = "mesh-cube";
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, shapeType);
+				console.log("diameter is not a number");
+			} else if (endXLocation != null || endYLocation != null || endZLocation != null) {
+				drawDummys(scene, "cyan", tempPoint);
+				console.log("of type dummy");
 			}
+
 			document.querySelector("#info-label").textContent = "Current Hole Display: " + params.holeDisplay;
 		});
 	} else {
@@ -214,7 +220,7 @@ document.querySelector("#obj-display").addEventListener("click", () => {
 	params.wireframeSolidTransparentTexture = params.wireframeSolidTransparentTexture === "Texture" ? "Solid" : params.wireframeSolidTransparentTexture === "Solid" ? "Transparent" : params.wireframeSolidTransparentTexture === "Transparent" ? "Wireframe" : params.wireframeSolidTransparentTexture === "Wireframe" ? "Invisible" : "Texture";
 
 	scene.traverse(function (child) {
-		if (child instanceof THREE.Mesh && child.userData.isOBJMesh) {
+		if (child.userData.isOBJMesh || child.userData.isTXTMesh) {
 			// Check if it is the OBJ mesh
 			if (params.wireframeSolidTransparentTexture === "Texture") {
 				document.querySelector("#info-label").textContent = "Texture On";
@@ -312,9 +318,9 @@ function updateScene() {
 				startXLocation: point.startXLocation - x,
 				startYLocation: point.startYLocation - y,
 				startZLocation: point.startZLocation - z,
-				endXLocation: point.endXLocation - x,
-				endYLocation: point.endYLocation - y,
-				endZLocation: point.endZLocation - z,
+				endXLocation: isNaN(point.endXLocation) ? null : point.endXLocation - x,
+				endYLocation: isNaN(point.endYLocation) ? null : point.endYLocation - y,
+				endZLocation: isNaN(point.endZLocation) ? null : point.endZLocation - z,
 				diameter: point.diameter,
 				subdrill: point.subdrill,
 				shapeType: point.shapeType,
@@ -322,7 +328,9 @@ function updateScene() {
 			};
 
 			console.log("Inside updateScene drawing holes");
-			drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+			if (point.endXLocation !== null && point.endYLocation !== null && point.endZLocation !== null && point.diameter !== null) {
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+			}
 		});
 	} else {
 		console.log("Not enough points to draw holes - no end points");

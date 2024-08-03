@@ -6,10 +6,11 @@ import { camera, controls, scene, objectCenter } from "../../drawing/createScene
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { parsePointCloud } from "./filePointCloudLoader.js";
-import { Vector3 } from "three";
+import { Vector3, Color } from "three";
 import { BufferGeometry, PointsMaterial, Points, Float32BufferAttribute } from "three";
 import { BoxGeometry, MeshBasicMaterial, Mesh } from "three";
 import { createMeshFromPointCloud, createDelaunayMeshFromPointCloud } from "../../drawing/shapes/createMeshFromPoints.js";
+import { hexToRgb } from "../../drawing/helpers/colorToOther.js";
 
 export let cloudPoints = [];
 
@@ -43,7 +44,7 @@ export const handleFileUploadNoEvent = (data) => {
 
 let centroid = new Vector3(0, 0, 0);
 
-export const handleFileSubmit = (data, pointCloudOrder) => {
+export const handleFileSubmit = (data, pointCloudOrder, defaultColour, maxEdgeLength) => {
 	try {
 		const newPoints = parsePointCloud(data, pointCloudOrder);
 		cloudPoints.push(...newPoints);
@@ -68,10 +69,12 @@ export const handleFileSubmit = (data, pointCloudOrder) => {
 		const timeDateNow = Date.now();
 		const tempPointCloudName = "Cloud" + timeDateNow;
 
-		let colour = 0xffffff;
 		const pointGeometry = new BufferGeometry();
 		const vertices = [];
 		const colours = [];
+		const colour = hexToRgb(defaultColour);
+		const defaultAlphaValue = 1;
+		console.log("default colour: ", colour.r, ":", colour.g, ":", colour.b);
 		//let pointMaterial = new PointsMaterial({ size: 1, vertexColors: true });
 		let normalizeColor = (color) => (color > 1 ? color / 255 : color);
 		for (const point of cloudPoints) {
@@ -80,9 +83,9 @@ export const handleFileSubmit = (data, pointCloudOrder) => {
 				pointX: parseFloat(point.pointX - x),
 				pointY: parseFloat(point.pointY - y),
 				pointZ: parseFloat(point.pointZ - z),
-				pointR: isNaN(normalizeColor(parseFloat(point.pointR))) ? 1 : normalizeColor(parseFloat(point.pointR)),
-				pointG: isNaN(normalizeColor(parseFloat(point.pointG))) ? 1 : normalizeColor(parseFloat(point.pointG)),
-				pointB: isNaN(normalizeColor(parseFloat(point.pointB))) ? 1 : normalizeColor(parseFloat(point.pointB)),
+				pointR: isNaN(normalizeColor(parseFloat(point.pointR))) ? colour.r : normalizeColor(parseFloat(point.pointR)),
+				pointG: isNaN(normalizeColor(parseFloat(point.pointG))) ? colour.g : normalizeColor(parseFloat(point.pointG)),
+				pointB: isNaN(normalizeColor(parseFloat(point.pointB))) ? colour.b : normalizeColor(parseFloat(point.pointB)),
 				pointA: isNaN(parseFloat(point.pointA), 1)
 			};
 
@@ -96,18 +99,21 @@ export const handleFileSubmit = (data, pointCloudOrder) => {
 			}
 		}
 		console.log("vertices count: ", vertices.length / 3);
-		//console.log("vertices: ", vertices);
+		console.log("vertices: ", vertices);
 
 		if (document.getElementById("createMesh").checked) {
-			const cloudVertices = cloudPoints.map((point) => ({
-				x: parseFloat(point.pointX - x),
-				y: parseFloat(point.pointY - y),
-				z: parseFloat(point.pointZ - z)
-			}));
+			const cloudVertices = [];
+			for (let i = 0; i < vertices.length; i += 3) {
+				cloudVertices.push({
+					x: vertices[i],
+					y: vertices[i + 1],
+					z: vertices[i + 2]
+				});
+			}
 
 			//Max EdgeLength in meters
-			const maxEdgeLength = 100;
-			const pointCloudMesh = createDelaunayMeshFromPointCloud(cloudVertices, maxEdgeLength);
+			maxEdgeLength = maxEdgeLength || 15;
+			const pointCloudMesh = createDelaunayMeshFromPointCloud(cloudVertices, maxEdgeLength, defaultColour);
 			//const pointCloudMesh = createMeshFromPointCloud(cloudVertices);
 
 			scene.add(pointCloudMesh);
