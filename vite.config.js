@@ -13,7 +13,17 @@ export default defineConfig({
 	},
 	build: {
 		rollupOptions: {
-			input: "./index.html"
+			input: "./index.html",
+			output: {
+				entryFileNames: "assets/kirra3d.js",
+				chunkFileNames: "assets/[name].js",
+				assetFileNames: ({ name }) => {
+					if (name && name.endsWith(".css")) {
+						return "assets/kirra3d.css";
+					}
+					return "assets/[name].[ext]";
+				}
+			}
 		}
 	}
 });
