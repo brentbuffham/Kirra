@@ -213,7 +213,7 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 		// Check if the value occurs more than once in the selected columns object and if so, alert the user
 		let values = Object.values(selectedColumns);
 		let headerRows = selectedColumns.headerRows;
-		let duplicates = values.filter((item, index) => item !== headerRows && values.indexOf(item) !== index);
+		let duplicates = values.filter((item, index) => item !== headerRows && item !== "maxEdgeLength" && values.indexOf(item) !== index);
 		if (duplicates.length > 0) {
 			console.log("Duplicates: ", duplicates);
 			alert("Some columns are represented more than once.\nDisplay may not be as intended.\nPreferably a column is selected only once.\n");

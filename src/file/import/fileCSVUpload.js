@@ -65,7 +65,7 @@ export const handleFileSubmit = (data, columnOrder) => {
 		const timeDateNow = Date.now();
 		const tempBlastName = "tempBlast" + timeDateNow;
 
-		let colour = 0xffffff;
+		let pointcount = 0;
 		for (const point of points) {
 			const tempPoint = {
 				blastName: point.blastName,
@@ -81,44 +81,98 @@ export const handleFileSubmit = (data, columnOrder) => {
 				shapeType: point.shapeType || null,
 				holeColour: point.holeColour || null
 			};
-			if (!tempPoint.blastName) {
-				tempPoint.blastName = tempBlastName;
+
+			pointcount++;
+
+			const hasPointID = tempPoint.pointID !== null && tempPoint.pointID !== undefined;
+			const hasStart = tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null;
+			const hasEnd = tempPoint.endXLocation !== null && tempPoint.endYLocation !== null && tempPoint.endZLocation !== null;
+			const hasDiameter = tempPoint.diameter !== null && tempPoint.diameter !== undefined && tempPoint.diameter > 0;
+			const hasSubdrill = tempPoint.subdrill !== null && tempPoint.subdrill !== undefined;
+			const hasShapeType = tempPoint.shapeType !== null && tempPoint.shapeType !== undefined;
+			const hasHoleColour = tempPoint.holeColour !== null && tempPoint.holeColour !== undefined;
+
+			if (!hasPointID || !hasStart) {
+				alert("Point ID and Start XYZ location are required");
+				return; // Return to the modal if essential properties are missing
 			}
 
-			// Apply drawing conditions
-			// Draw dummy if endXLocation, endYLocation, endZLocation, subdrill, diameter, holeColour, shapeType are null
-			if (tempPoint.pointID && tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null && tempPoint.endXLocation === null && tempPoint.endYLocation === null && tempPoint.endZLocation === null && tempPoint.subdrill === null && tempPoint.diameter === null && tempPoint.holeColour === null && tempPoint.shapeType === null) {
+			if (tempPoint.blastName == null || tempPoint.blastName == undefined || tempPoint.blastName == "" || tempPoint.blastName == " ") {
+				tempPoint.blastName = tempBlastName;
+				point.blastName = tempBlastName; // Assign blastName to point object
+			}
+
+			if (hasPointID && hasStart && !hasEnd) {
+				// Check if end XYZ location is missing
+				console.log("Dummy:" + tempPoint.pointID + " All properties are present except end XYZ location");
+				tempPoint.diameter = null;
+				tempPoint.subdrill = null;
+				tempPoint.shapeType = "mesh-dummy";
+				tempPoint.holeColour = point.holeColour || 0xffffff;
 				drawDummys(scene, tempPoint.holeColour, tempPoint);
-				console.log("Drawing dummy...");
-			}
-			// Draw mesh-cube if diameter is null or 0, regardless of other properties
-			else if (tempPoint.pointID && tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null && tempPoint.endXLocation !== null && tempPoint.endYLocation !== null && tempPoint.endZLocation !== null && (tempPoint.diameter === null || tempPoint.diameter === 0)) {
+				point.diameter = null; // Assign diameter to point object
+				point.subdrill = null; // Assign subdrill to point object
+				point.holeColour = point.holeColour || 0xffffff; // Assign colour to point object
+				point.shapeType = "mesh-dummy"; // Assign shapeType to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && hasSubdrill && hasShapeType && hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present");
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && hasSubdrill && hasShapeType && !hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except holeColour");
+				tempPoint.holeColour = 0xffffff;
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.holeColour = 0xffffff; // Assign colour to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && hasSubdrill && !hasShapeType && hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except shapeType");
+				tempPoint.shapeType = "mesh-cylinder";
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.shapeType = "mesh-cylinder"; // Assign shapeType to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && !hasSubdrill && hasShapeType && hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except subdrill");
+				tempPoint.subdrill = 0;
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.subdrill = 0; // Assign subdrill to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && !hasSubdrill && !hasShapeType && !hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except shapeType and holeColour");
+				tempPoint.subdrill = 0;
+				tempPoint.holeColour = 0xffffff;
+				tempPoint.shapeType = "mesh-cylinder";
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.subdrill = 0; // Assign subdrill to point object
+				point.holeColour = 0xffffff; // Assign colour to point object
+				point.shapeType = "mesh-cylinder"; // Assign shapeType to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && hasSubdrill && !hasShapeType && !hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except shapeType and holeColour");
+				tempPoint.holeColour = 0xffffff;
+				tempPoint.shapeType = "mesh-cylinder";
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.holeColour = 0xffffff; // Assign colour to point object
+				point.shapeType = "mesh-cylinder"; // Assign shapeType to point object
+			} else if (hasPointID && hasStart && hasEnd && hasDiameter && !hasSubdrill && !hasShapeType && hasHoleColour) {
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except subdrill and shapeType");
+				tempPoint.subdrill = 0;
+				tempPoint.shapeType = "mesh-cylinder";
+				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
+				point.subdrill = 0; // Assign subdrill to point object
+				point.shapeType = "mesh-cylinder"; // Assign shapeType to point object
+			} else if (hasPointID && hasStart && hasEnd && !hasDiameter) {
+				// Check if diameter is missing
+				console.log("Hole:" + tempPoint.pointID + " All properties are present except diameter");
+				tempPoint.diameter = 0;
+				tempPoint.subdrill = point.subdrill || 0;
+				tempPoint.holeColour = point.holeColour || 0xffffff;
 				tempPoint.shapeType = "mesh-cube";
-				tempPoint.holeColour = tempPoint.holeColour || 0xffffff;
-				tempPoint.subdrill = tempPoint.subdrill || 0;
-				tempPoint.diameter = tempPoint.diameter || 0;
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-				console.log("Drawing mesh-cube...");
-			}
-			// Draw mesh-cylinder if subdrill, holeColour, shapeType are null
-			else if (tempPoint.pointID && tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null && tempPoint.endXLocation !== null && tempPoint.endYLocation !== null && tempPoint.endZLocation !== null && tempPoint.subdrill === null && tempPoint.diameter !== null && tempPoint.holeColour === null && tempPoint.shapeType === null) {
-				tempPoint.shapeType = "mesh-cylinder";
-				tempPoint.holeColour = tempPoint.holeColour || 0xffffff;
-				tempPoint.subdrill = tempPoint.subdrill || 0;
-				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, 0, tempPoint.shapeType);
-				console.log("Drawing mesh-cylinder...");
-			}
-			// Draw hole with colour if subdrill, shapeType are null
-			else if (tempPoint.pointID && tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null && tempPoint.endXLocation !== null && tempPoint.endYLocation !== null && tempPoint.endZLocation !== null && tempPoint.subdrill === null && tempPoint.diameter !== null && tempPoint.holeColour !== null && tempPoint.shapeType === null) {
-				tempPoint.shapeType = "mesh-cylinder";
-				tempPoint.subdrill = tempPoint.subdrill || 0;
-				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-				console.log("Drawing Hole with colour...");
-			}
-			// Draw hole with everything if subdrill, diameter, holeColour, shapeType are not null
-			else if (tempPoint.pointID && tempPoint.startXLocation !== null && tempPoint.startYLocation !== null && tempPoint.startZLocation !== null && tempPoint.endXLocation !== null && tempPoint.endYLocation !== null && tempPoint.endZLocation !== null && tempPoint.subdrill !== null && tempPoint.diameter !== null && tempPoint.holeColour !== null && tempPoint.shapeType !== null) {
-				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
-				console.log("Drawing Hole with everything...");
+				point.diameter = 0; // Assign diameter to point object
+				point.shapeType = "mesh-cube"; // Assign shapeType to point object
+				point.subdrill = point.subdrill || 0; // Assign subdrill to point object
+				point.holeColour = point.holeColour || 0xffffff; // Assign colour to point object
+			} else {
+				if (points.length == pointcount) {
+					// Check if it is the last point
+					alert("Error: Invalid properties - Check Set Order or File");
+					console.log("Error: Invalid properties");
+				}
 			}
 		}
 
