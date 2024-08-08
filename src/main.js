@@ -98,7 +98,12 @@ const { scene, camera, renderer } = canvas;
 
 preloadFont(); // Preload the font
 
-export const counter = { cloudPointFileCount: 0 };
+export const counter = {
+    cloudPointFileCount: 0,
+    csvFileCount: 0,
+    k3DFileCount: 0,
+    objFileCount: 0,
+};
 
 // Example: Adding event listeners to the first button
 bindListenerToImportK3DButton();

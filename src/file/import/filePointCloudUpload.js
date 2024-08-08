@@ -133,7 +133,7 @@ export const handleFileSubmit = (data, pointCloudOrder, defaultColour, maxEdgeLe
             const pointCloud = new Points(pointGeometry, pointMaterial);
             pointCloud.name = cloudPointName;
             pointCloud.userData = {
-                name: tempPointCloudName,
+                name: cloudPointName,
                 points: cloudPoints,
                 isTXTMesh: false,
                 creationTime: timeDateNow,

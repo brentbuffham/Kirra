@@ -1,6 +1,6 @@
 //Modify this to be specific for a k3D file format in future
 
-export function parseCSV(data) {
+export function parseCSV(data, k3DStoreName) {
     const lines = data.split("\n");
     let minX = Infinity;
     let minY = Infinity;
@@ -122,7 +122,7 @@ export function parseCSV(data) {
         }
     }
     //Add the Holes to the Local storage
-    localStorage.setItem("Holes", JSON.stringify(points));
+    localStorage.setItem(k3DStoreName, JSON.stringify(points));
 
     return points;
 }
