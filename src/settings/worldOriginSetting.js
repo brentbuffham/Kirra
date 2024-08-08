@@ -37,6 +37,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
                                 <label for="world-y" class="form-label">World Y Center</label>
                                 <input type="number" class="form-control" id="world-y" placeholder="Enter the world y center value" value="${params.worldYCenter}">
                             </div>
+							<!-- Hidden Z center input
                             <div class="mb-3">
                                 <label for="world-z" class="form-label">World Z Center</label>
                                 <input type="number" class="form-control" id="world-z" placeholder="Enter the world z center value" value="${params.worldZCenter}">
@@ -44,6 +45,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
                             <div class="mb-3">
                                 <label for="information">Z level data is not shifted, this only adjust the look-at-elevation.</label>
                             </div>
+							--> 
                             <div class="mb-3">
                                 <label for="camera-distance" class="form-label">Camera Distance</label>
                                 <input type="number" class="form-control" id="camera-distance" placeholder="Enter the camera distance value" value="${params.cameraDistance}">
@@ -69,13 +71,16 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 		modalElement.show();
 
 		document.getElementById("clear-world-origin-settings").addEventListener("click", function () {
+			//Warn user of display issues if cleared while there is existing data
+			alert("Warning: Clearing the world origin settings\nwill reset the display origin and may cause display issues!");
+
 			params.worldXCenter = 0;
 			params.worldYCenter = 0;
 			params.worldZCenter = 0;
 
 			document.getElementById("world-x").value = 0;
 			document.getElementById("world-y").value = 0;
-			document.getElementById("world-z").value = 0;
+			//document.getElementById("world-z").value = 0;
 
 			//alert("Values have been cleared successfully."); // Changed from confirm to alert for a non-blocking user notification
 			console.log("World Origin Settings Cleared: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter);
@@ -84,12 +89,12 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 		document.getElementById("apply-world-origin-settings").addEventListener("click", function () {
 			const x = document.getElementById("world-x").value;
 			const y = document.getElementById("world-y").value;
-			const z = document.getElementById("world-z").value;
+			//const z = document.getElementById("world-z").value;
 			const d = document.getElementById("camera-distance").value;
 
 			const parsedX = parseFloat(x);
 			const parsedY = parseFloat(y);
-			const parsedZ = parseFloat(z);
+			//const parsedZ = parseFloat(z);
 			const parsedD = parseFloat(d);
 
 			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
@@ -97,7 +102,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			} else {
 				params.worldXCenter = parsedX;
 				params.worldYCenter = parsedY;
-				params.worldZCenter = parsedZ;
+				//params.worldZCenter = parsedZ;
 				params.cameraDistance = parsedD;
 				//alert("Values have been set successfully."); // Changed from confirm to alert for a non-blocking user notification
 				console.log("World Origin Settings Applied: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter, " (camera distance)", params.cameraDistance);
@@ -107,12 +112,12 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 		document.getElementById("save-world-origin-settings").addEventListener("click", function () {
 			const x = document.getElementById("world-x").value;
 			const y = document.getElementById("world-y").value;
-			const z = document.getElementById("world-z").value;
+			//const z = document.getElementById("world-z").value;
 			const d = document.getElementById("camera-distance").value;
 
 			const parsedX = parseFloat(x);
 			const parsedY = parseFloat(y);
-			const parsedZ = parseFloat(z);
+			//const parsedZ = parseFloat(z);
 			const parsedD = parseFloat(d);
 
 			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
@@ -120,7 +125,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			} else {
 				params.worldXCenter = parsedX;
 				params.worldYCenter = parsedY;
-				params.worldZCenter = parsedZ;
+				//params.worldZCenter = parsedZ;
 				params.cameraDistance = parsedD;
 				//alert("Values have been set successfully."); // Changed from confirm to alert for a non-blocking user notification
 				console.log("World Origin Settings Saved: (x)", params.worldXCenter, " (y)", params.worldYCenter, " (z)", params.worldZCenter, " (camera distance)", params.cameraDistance);

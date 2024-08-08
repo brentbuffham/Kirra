@@ -4,7 +4,7 @@ import { parsePointCloud } from "../file/import/filePointCloudLoader.js";
 import { handleFileSubmit } from "../file/import/filePointCloudUpload.js"; // Import the handleFileSubmit function
 import { hexToRgb } from "../drawing/helpers/colorToOther.js";
 
-export const showCustomModal = (columns, previewContent, csvData) => {
+export const showCustomPTNModal = (columns, previewContent, csvData) => {
 	console.log("Showing custom modal...");
 	const modalHtml = `
         <div class="modal fade" id="csvModal" tabindex="-1" aria-labelledby="csvModalLabel" aria-hidden="true">

@@ -201,7 +201,7 @@ export function drawHoleText(scene, colour, tempPoint) {
 	if (params.holeLengthDisplay && toeXYZ) {
 		if (globalFont) {
 			const lengthText = collarXYZ.distanceTo(toeXYZ).toFixed(1);
-			const textObject = drawText(scene, "#00aaFF", globalFont, { x: toeXYZ.x - textLength / 2, y: toeXYZ.y - textSize, z: toeXYZ.z + 0.1 }, lengthText, "holeLengthText");
+			const textObject = drawText(scene, "#00aaFF", globalFont, { x: collarXYZ.x - textLength / 2, y: collarXYZ.y - textSize, z: toeXYZ.z + 0.1 }, lengthText, "holeLengthText");
 			//console.log("Inside drawHoleText(length): ", lengthText);
 		}
 	}

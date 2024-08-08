@@ -3,7 +3,7 @@ import { Modal } from "bootstrap";
 import { parseCSV } from "../file/import/fileCSVLoader.js";
 import { handleFileSubmit } from "../file/import/fileCSVUpload.js"; // Import the handleFileSubmit function
 
-export const showCustomModal = (columns, previewContent, csvData) => {
+export const showCustomCSVModal = (columns, previewContent, csvData) => {
 	console.log("Showing custom modal...");
 	const modalHtml = `
         <div class="modal fade" id="csvModal" tabindex="-1" aria-labelledby="csvModalLabel" aria-hidden="true">
@@ -109,7 +109,13 @@ export const showCustomModal = (columns, previewContent, csvData) => {
 		}
 		if (savedOrder.diameter_unit) {
 			document.querySelector(`input[name="diameter_unit"][value="${savedOrder.diameter_unit}"]`).checked = true;
+		} else {
+			// Set a default value if none is found in local storage
+			document.querySelector('input[name="diameter_unit"][value="mm"]').checked = true;
 		}
+	} else {
+		// Set default values if no saved order is found in local storage
+		document.querySelector('input[name="diameter_unit"][value="mm"]').checked = true;
 	}
 
 	// Clear the settings and clear the local store
