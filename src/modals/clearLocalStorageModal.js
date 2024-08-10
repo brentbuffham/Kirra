@@ -2,6 +2,7 @@
 //It should ask the user if they realy want to clear the local storage and if they do, it should clear it
 
 import { Modal } from "bootstrap";
+import { params } from "../drawing/createScene";
 
 export function clearLocalStorageModal() {
 	const modalHtml = `<!-- Modal -->
@@ -63,6 +64,11 @@ export function clearLocalStorageModal() {
 	// Clear the settings and clear the local store
 	document.getElementById("clear").addEventListener("click", function () {
 		localStorage.clear();
+		params.worldXCenter = 0;
+		params.worldYCenter = 0;
+		params.worldZCenter = 0;
+		localStorage.setItem("WorldOriginSettings", JSON.stringify(params));
+		//localStorage.setItem("pointCloudOrder", JSON.stringify([]));
 		alert("Local storage has been cleared.");
 
 		clearLocalStorageModal.hide();
