@@ -51,60 +51,14 @@ function createLighting() {
 function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
-	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
-	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, 0, 10000);
+	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.0, 10000); // don't use a negative near value it will break the camera
+	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
 	const cameraPosition = new Vector3(0, 0, params.cameraDistance);
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
 }
 
-// export function updateCameraType(sceneX, sceneY, sceneZ) {
-// 	const position = camera.position.clone();
-// 	const target = controls.target.clone();
-// 	const up = camera.up.clone();
-
-// 	const aspect = window.innerWidth / window.innerHeight;
-// 	cameraPerspective.aspect = aspect;
-// 	cameraPerspective.updateProjectionMatrix();
-// 	cameraOrthographic.aspect = aspect;
-// 	cameraOrthographic.updateProjectionMatrix();
-// 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
-// 	console.log("Camera updated:", camera);
-
-// 	controls.dispose();
-// 	controls = new ArcballControls(camera, renderer.domElement, scene);
-// 	viewHelper.controls = controls;
-// 	controls.rotateSpeed = 1.0;
-// 	controls.enableRotate = true;
-// 	controls.enableZoom = true;
-// 	controls.enablePan = true;
-// 	controls.zoomSpeed = 1;
-// 	controls.panSpeed = 1;
-// 	controls.cursorZoom = true;
-// 	controls.enableGrid = true;
-// 	controls.activateGizmos(false);
-// 	controls.setGizmosVisible(false);
-// 	controls.update();
-
-// 	camera.position.copy(position); //camera.position.copy(new Vector3(sceneX, sceneY, params.cameraDistance));
-// 	controls.target.copy(target); //controls.target.copy(new Vector3(sceneX, sceneY, sceneZ));
-// 	camera.up.copy(up); //camera.up.copy(up);
-// 	camera.lookAt(target);
-// 	camera.lookAt(new Vector3(sceneX, sceneY, sceneZ));
-
-// 	camera.userData = {
-// 		entityType: "camera",
-// 		isPerspective: params.usePerspectiveCam ? true : false,
-// 		isOrthographic: params.usePerspectiveCam ? false : true,
-// 		up: camera.up
-// 	};
-
-// 	console.log("Camera updated:", camera);
-// 	console.log("Controls updated:", controls);
-
-// 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
-// }
 export function updateCameraType(sceneX, sceneY, sceneZ) {
 	const position = camera.position.clone();
 	const target = controls.target.clone();
