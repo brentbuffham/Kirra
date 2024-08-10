@@ -97,7 +97,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			//const parsedZ = parseFloat(z);
 			const parsedD = parseFloat(d);
 
-			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
+			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedD)) {
 				alert("Invalid input. Please enter valid numbers.");
 			} else {
 				params.worldXCenter = parsedX;
@@ -120,7 +120,7 @@ export const bindListenerToWorldOriginSettingsButton = () => {
 			//const parsedZ = parseFloat(z);
 			const parsedD = parseFloat(d);
 
-			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedZ) || isNaN(parsedD)) {
+			if (isNaN(parsedX) || isNaN(parsedY) || isNaN(parsedD)) {
 				alert("Invalid input. Please enter valid numbers.");
 			} else {
 				params.worldXCenter = parsedX;

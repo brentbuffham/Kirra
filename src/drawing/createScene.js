@@ -51,7 +51,7 @@ function createLighting() {
 function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
-	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.0, 10000); // don't use a negative near value it will break the camera
+	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.001, 10000); // don't use a NEGATIVE or ZERO near value it will break the camera
 	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
 
 	const cameraPosition = new Vector3(0, 0, params.cameraDistance);
@@ -61,6 +61,7 @@ function setCamera(aspect) {
 
 export function updateCameraType(sceneX, sceneY, sceneZ) {
 	const position = camera.position.clone();
+	console.log("Position: ", position);
 	const target = controls.target.clone();
 	const up = camera.up.clone();
 
@@ -91,11 +92,11 @@ export function updateCameraType(sceneX, sceneY, sceneZ) {
 
 	// Maintain camera state
 	camera.position.copy(position);
-	controls.target.copy(target);
+	//controls.target.copy(target);
 	controls.target.copy(new Vector3(sceneX, sceneY, sceneZ));
 
 	camera.up.copy(up);
-	camera.lookAt(target);
+	//camera.lookAt(target);
 	camera.lookAt(new Vector3(sceneX, sceneY, sceneZ));
 	controls.update();
 	camera.updateProjectionMatrix();

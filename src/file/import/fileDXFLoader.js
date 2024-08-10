@@ -1,6 +1,6 @@
 import DXFParser from "dxf-parser";
 import * as THREE from "three";
-import { params, scene } from "../../drawing/createScene.js";
+import { params, scene, controls, camera, objectCenter } from "../../drawing/createScene.js";
 import { Font } from "three/examples/jsm/loaders/FontLoader.js";
 import { TTFLoader } from "three/examples/jsm/loaders/TTFLoader.js";
 import { globalFont } from "../../drawing/helpers/loadGlobalFont.js";
@@ -12,7 +12,6 @@ export function handleDXFNoEvent(file, canvas) {
 	if (!file) {
 		return;
 	}
-
 	const reader = new FileReader();
 
 	reader.onload = function (event) {
@@ -50,6 +49,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				const line = new THREE.Line(geometry, material);
 				console.log("DXF LINE:", line);
+				//allBounds.expandByObject(line);
 				group.add(line);
 			}
 			if (entity.type === "POLYLINE" || entity.type === "LWPOLYLINE") {
@@ -64,6 +64,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let geometry = new THREE.BufferGeometry().setFromPoints(points);
 				let line = new THREE.Line(geometry, material);
+				//allBounds.expandByObject(line);
 				console.log("DXF POLYLINE:", line);
 				group.add(line);
 			}
@@ -73,6 +74,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let circle = new THREE.Line(geometry, material);
 				circle.position.set(entity.center.x - offsetX, entity.center.y - offsetY, entity.center.z);
+				//allBounds.expandByObject(circle);
 				console.log("DXF CIRCLE:", circle);
 				group.add(circle);
 			}
@@ -94,6 +96,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let line = new THREE.Line(geometry, material);
+				//allBounds.expandByObject(line);
 				console.log("DXF SPLINE:", line);
 				group.add(line);
 			}
@@ -104,6 +107,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let line = new THREE.Line(geometry, material);
+				//allBounds.expandByObject(line);
 				console.log("DXF ELLIPSE:", line);
 				group.add(line);
 			}
@@ -123,6 +127,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let mesh = new THREE.Mesh(text, material);
 				mesh.position.set(entity.startPoint.x - offsetX, entity.startPoint.y - offsetY, entity.startPoint.z);
 				mesh.dxfType = entity.type;
+				//allBounds.expandByObject(mesh);
 				console.log("DXF TEXT:", mesh);
 				group.add(mesh);
 			}
@@ -142,6 +147,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let mesh = new THREE.Mesh(text, material);
 				mesh.position.set(entity.startPoint.x - offsetX, entity.startPoint.y - offsetY, entity.startPoint.z);
 				mesh.dxfType = entity.type;
+				//allBounds.expandByObject(mesh);
 				console.log("DXF MTEXT:", mesh);
 				group.add(mesh);
 			}
@@ -161,6 +167,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				//allBounds.expandByObject(point);
 				console.log("DXF POINT:", point);
 				group.add(point);
 			}
@@ -169,6 +176,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				//allBounds.expandByObject(point);
 				console.log("DXF INSERT:", point);
 				group.add(point);
 			}
@@ -177,6 +185,7 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				//allBounds.expandByObject(point);
 				console.log("DXF BLOCK:", point);
 				group.add(point);
 			}
@@ -185,53 +194,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
+				//allBounds.expandByObject(point);
 				console.log("DXF HATCH:", point);
 				group.add(point);
 			}
 		});
-
-		/**
-			// Reposition vertices to center the object at the world center
-			group.traverse(function (child) {
-				if (child.isMesh) {
-					const position = child.geometry.attributes.position;
-					//Text is offset before the mesh so there is no artifacting
-					if (child.type === "TEXT" || child.type === "MTEXT") {
-						for (let i = 0; i < position.count; i++) {
-							if (center.x === 0 && center.y === 0) {
-								position.setXYZ(i, position.getX(i) + offsetX, position.getY(i) + offsetY, position.getZ(i));
-							}
-							if (center.x !== 0 && center.y !== 0) {
-								position.setXYZ(i, position.getX(i), position.getY(i), position.getZ(i));
-							}
-						}
-					}
-					// Mark positions as needing update
-					position.needsUpdate = true;
-	
-					// Recompute bounding box and sphere
-					child.geometry.computeBoundingBox();
-					child.geometry.computeBoundingSphere();
-				}
-				if (child.isLine) {
-					const position = child.geometry.attributes.position;
-	
-					if (child.type !== "TEXT" || child.type !== "MTEXT") {
-						// Offset the positions
-						for (let i = 0; i < position.count; i++) {
-							position.setXYZ(i, position.getX(i) - offsetX, position.getY(i) - offsetY, position.getZ(i));
-						}
-					}
-	
-					// Mark positions as needing update
-					position.needsUpdate = true;
-	
-					// Recompute bounding box and sphere
-					child.geometry.computeBoundingBox();
-					child.geometry.computeBoundingSphere();
-				}
-			});
-		*/
 
 		// Force position to 0, 0, 0
 		group.position.set(0, 0, 0);
