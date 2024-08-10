@@ -22,6 +22,7 @@ import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js"
 import { bindListenerToImportDXFButton } from "./import/autocad/importDXFButton.js";
 import { bindListenerToImportPointCloudButton } from "./import/csv/importPointCloudButton.js";
 import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
+import { bindListenerToClearMemoryButton } from "./import/buttons/clearMemoryButton.js";
 import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
 
 import * as THREE from "three";
@@ -49,18 +50,21 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		<button id=import-holes title="File Import">
 			<img src="./assets/tabler-icons-2.36.0/png/load-holes-csv.png" alt="File Import Holes" />
 		</button>
-	  <button id=import-obj title="File OBJ Loader">
+	  	<button id=import-obj title="File OBJ Loader">
 			<img src="./assets/tabler-icons-2.36.0/png/load-obj.png" alt="File Import OBJ" />
 		</button>
 		<button id=import-dxf title="File Import DXF">
 			<img src="./assets/tabler-icons-2.36.0/png/load-dxf.png" alt="File Import DXF" />
-		 </button>
-		 <button id=import-pointcloud title="File Import Point Cloud CSV">
+		</button>
+		<button id=import-pointcloud title="File Import Point Cloud CSV">
 			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import Text Based Point Cloud" />
-		 </button>
-		 <button id=settings-world title="Settings World Origin">
+		</button>
+		<button id=settings-world title="Settings World Origin">
 			<img src="./assets/tabler-icons-2.36.0/png/world-cog.png" alt="World Origin Point" />
-		 </button>
+		</button>
+		<button id=clear-local-storage title="Clear Local Storage" >
+			<img src="./assets/tabler-icons-2.36.0/png/browser-x.png" alt="Clear Local Storage" />
+		</button>
 
 	</nav>
   <nav id= horizontal-nav>
@@ -86,6 +90,7 @@ document.querySelector("#app").innerHTML = /*html*/ `
 		<button id=camera-mode title="Camera Mode" >
 			<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Perspective Mode" />
 		</button>
+
 		<label id="info-label" style="color: red;">Info Label</label>
 	  <!-- Add more buttons as needed -->
 	</nav>
@@ -112,6 +117,7 @@ bindListenerToImportOBJButton(canvas);
 bindListenerToImportDXFButton(canvas);
 bindListenerToImportPointCloudButton();
 bindListenerToWorldOriginSettingsButton();
+bindListenerToClearMemoryButton();
 
 function getSceneBoundingBox(scene) {
 	//Get all the objects in the scene except the camera and lights

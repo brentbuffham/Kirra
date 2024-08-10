@@ -122,6 +122,11 @@ body {
     /* Additional styling for buttons */
 }
 
+/*mouse over highlight*/
+#vertical-nav button:hover {
+    background-color: #ff0000;
+}
+
 #vertical-nav button img {
     width: 20px;
     height: 20px;
@@ -174,6 +179,11 @@ body {
     /* Additional styling for buttons */
 }
 
+/*mouse over highlight*/
+#horizontal-nav button:hover {
+    background-color: #ff0000;
+}
+
 #horizontal-nav button img {
     width: 20px;
     height: 20px;
@@ -199,7 +209,6 @@ body {
     height: 60px;
     /* Set as needed */
 }
-
 
 #viewHelperContainer {
     position: absolute;
