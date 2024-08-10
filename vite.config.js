@@ -11,6 +11,11 @@ export default defineConfig({
 			"@": "/src"
 		}
 	},
+	dev: {
+		watch: {
+			usePolling: true
+		}
+	},
 	build: {
 		rollupOptions: {
 			input: "./index.html",

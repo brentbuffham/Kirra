@@ -3,7 +3,7 @@
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { TextureLoader, MeshBasicMaterial, MeshStandardMaterial, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
-import { params } from "../../drawing/createScene.js";
+import { objectCenter, params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 
 let materials;
@@ -194,7 +194,6 @@ function processLoadedObject(object, canvas, materials) {
 				vertices: child.geometry.attributes.position.count,
 				triangles: child.geometry.attributes.position.count / 3
 			};
-
 			canvas.scene.add(child);
 		}
 	});

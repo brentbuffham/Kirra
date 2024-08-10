@@ -184,9 +184,9 @@ export const handleFileSubmit = (data, columnOrder) => {
 			console.log("Objects in scene: ", scene.children);
 		}
 
-		camera.position.set(0, 0, parseFloat(params.cameraDistance));
 		centroid = getCentroid(csvPoints);
 		objectCenter.position.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
+		camera.position.set(objectCenter.position.x, objectCenter.position.y, parseFloat(params.cameraDistance));
 		controls.target.set(centroid.x - params.worldXCenter, centroid.y - params.worldYCenter, centroid.z);
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();

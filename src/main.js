@@ -9,10 +9,10 @@ window.bootstrap = bootstrap; // Attach Bootstrap to the window object
 import "./style.css";
 import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
 import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
-import { Vector3 } from "three";
+import { Vector3, Box3 } from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
-import { controls, createScene, params, updateCameraType } from "./drawing/createScene.js";
+import { controls, createScene, objectCenter, params, updateCameraType } from "./drawing/createScene.js";
 import { getCentroid } from "./drawing/helpers/getCentroid.js";
 import { drawDummys, drawHoles, drawHoleText } from "./drawing/entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
@@ -113,26 +113,85 @@ bindListenerToImportDXFButton(canvas);
 bindListenerToImportPointCloudButton();
 bindListenerToWorldOriginSettingsButton();
 
-// Reset the Camera
-document.querySelector("#reset").addEventListener("click", function () {
-	// Interaction with Three.js scene
-	//store the current camera position
-	const position = new Vector3(0, 0, 0 + parseFloat(params.cameraDistance));
-	const target = new Vector3(0, 0, params.worldZCenter);
+function getSceneBoundingBox(scene) {
+	//Get all the objects in the scene except the camera and lights
+	const objects = scene.children.filter((object) => object.userData.entityType !== "camera" && object.userData.entityType !== "light");
+	const sceneBoundingBox = new Box3();
+	objects.forEach((object) => {
+		sceneBoundingBox.expandByObject(object);
+		//console.log("Refresh View - Object: ", object);
+	});
+	return sceneBoundingBox;
+}
 
-	//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
+// Reset the Camera
+// document.querySelector("#reset").addEventListener("click", function () {
+// 	console.log("camera TypeBefore Reset: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
+// 	const boxCentre = getSceneBoundingBox(scene).getCenter(new Vector3());
+// 	camera.up.set(0, 1, 0);
+
+// 	//reset the camera rotation to 0 (Y+ is at the top of the canvas X+ to the Right and Z+ toward the camera)
+// 	if (controls instanceof TrackballControls) {
+// 		console.log("Trackball Controls");
+// 		camera.up.set(0, 1, 0);
+// 		controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+// 		camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+// 		camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+// 	}
+// 	if (controls instanceof ArcballControls) {
+// 		console.log("Arcball Controls");
+// 		if (camera instanceof THREE.OrthographicCamera) {
+// 			console.log("Orthographic Camera");
+// 			camera.up.set(0, 1, 0);
+// 			controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			controls.update();
+// 			camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+// 			camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			//camera.updateProjectionMatrix();
+// 		} else if (camera instanceof THREE.PerspectiveCamera) {
+// 			console.log("Perspective Camera");
+// 			camera.up.set(0, 1, 0);
+// 			controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			controls.update();
+// 			camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+// 			camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			//camera.updateProjectionMatrix();
+// 		}
+// 	}
+// 	if (params.debugComments) {
+// 		console.log("View Reset");
+// 	}
+// 	document.querySelector("#info-label").textContent = "View Reset";
+// });
+
+document.querySelector("#reset").addEventListener("click", function () {
+	console.log("Camera Type Before Reset: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
+	const boxCentre = getSceneBoundingBox(scene).getCenter(new THREE.Vector3());
+	console.log("Box Centre: ", boxCentre.x, boxCentre.y, boxCentre.z);
+	camera.up.set(0, 1, 0); // Y-axis pointing up on the screen
+
+	// Position the camera along the Z-axis, looking at the center of the scene
+	const cameraDistance = parseFloat(params.cameraDistance) * 0.5;
+	const cameraPosition = new THREE.Vector3(boxCentre.x, boxCentre.y, boxCentre.z + cameraDistance);
+
 	if (controls instanceof TrackballControls) {
-		controls.object.up.set(0, 1, 0);
+		console.log("Trackball Controls");
+		camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+		camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+		controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+		console.log("Target set to: ", boxCentre.x, boxCentre.y, boxCentre.z);
 	}
+
 	if (controls instanceof ArcballControls) {
-		camera.position.copy(position);
-		camera.lookAt(0, 0, params.worldZCenter);
-		camera.up.set(0, 1, 0);
-		controls.target.set(0, 0, params.worldZCenter);
-		//set the controls to the stored position and target
-		camera.position.copy(position);
-		controls.target.copy(target);
+		console.log("Arcball Controls");
+		camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+		camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+		controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+		console.log("Target set to: ", boxCentre.x, boxCentre.y, boxCentre.z);
+		//controls.update();
 	}
+
+	camera.updateProjectionMatrix();
 	if (params.debugComments) {
 		console.log("View Reset");
 	}
@@ -403,20 +462,66 @@ document.querySelector("#hole-diameter-on-off").addEventListener("click", () => 
 	}
 });
 
-//change Camera Type
+// //change Camera Type
+// document.querySelector("#camera-mode").addEventListener("click", () => {
+// 	params.usePerspectiveCam = !params.usePerspectiveCam;
+// 	let boxCentre = getSceneBoundingBox(scene).getCenter(new Vector3());
+// 	console.log("Camera Type Before Change: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
+// 	console.log("Camera Position Before Change: ", camera.position.x, camera.position.y, camera.position.z);
+// 	console.log("boxCentre before change: ", boxCentre.x, boxCentre.y, boxCentre.z);
+// 	if (params.usePerspectiveCam) {
+// 		//change the icon on the button
+// 		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-perspective.png" alt="Perspective Mode" />`;
+// 		if (!isNaN(boxCentre.x) && !isNaN(boxCentre.y) && !isNaN(boxCentre.z)) {
+// 			updateCameraType(getSceneBoundingBox(scene).x, getSceneBoundingBox(scene).y, getSceneBoundingBox(scene).z);
+// 			camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+// 			camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			console.log("Camera Look At Position(Persp): ", boxCentre.x, boxCentre.y, boxCentre.z);
+// 			controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+// 		} else {
+// 			console.error("Invalid boxCentre values: ", boxCentre);
+// 		}
+// 	} else {
+// 		document.querySelector("#info-label").textContent = "Camera Type Updated: Orthographic";
+// 		//change the icon on the button
+// 		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Orthographic Mode" />`;
+// 		if (!isNaN(boxCentre.x) && !isNaN(boxCentre.y) && !isNaN(boxCentre.z)) {
+// 			updateCameraType(getSceneBoundingBox(scene).x, getSceneBoundingBox(scene).y, getSceneBoundingBox(scene).z);
+// 			camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+// 			camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+// 			console.log("Camera Look At Position(Ortho): ", boxCentre.x, boxCentre.y, boxCentre.z);
+// 			controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+// 		} else {
+// 			console.error("Invalid boxCentre values: ", boxCentre);
+// 		}
+// 	}
+// 	camera.updateProjectionMatrix();
+// 	console.log("Camera Type After Change: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
+// 	console.log("Camera Position After Change: ", camera.position.x, camera.position.y, camera.position.z);
+// 	console.log("boxCentre after change: ", boxCentre.x, boxCentre.y, boxCentre.z);
+// });
 document.querySelector("#camera-mode").addEventListener("click", () => {
+	// Toggle between perspective and orthographic
 	params.usePerspectiveCam = !params.usePerspectiveCam;
-	if (params.usePerspectiveCam) {
-		document.querySelector("#info-label").textContent = "Camera Type Updated: Perspective";
-		//change the icon on the button
-		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-perspective.png" alt="Perspective Mode" />`;
-		updateCameraType();
-	} else {
-		document.querySelector("#info-label").textContent = "Camera Type Updated: Orthographic";
-		//change the icon on the button
-		document.querySelector("#camera-mode").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Orthographic Mode" />`;
-		updateCameraType();
-	}
+	console.log("Switching Camera Mode to: ", params.usePerspectiveCam ? "Perspective" : "Orthographic");
+
+	let boxCentre = getSceneBoundingBox(scene).getCenter(new Vector3());
+
+	// Update camera and controls based on the current mode
+	updateCameraType(boxCentre.x, boxCentre.y, boxCentre.z);
+
+	// Set camera position and look-at based on the new camera type
+	camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
+	camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
+	controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
+	camera.updateProjectionMatrix();
+
+	// Update the icon based on the camera type
+	document.querySelector("#camera-mode").innerHTML = params.usePerspectiveCam ? `<img src="./assets/tabler-icons-2.36.0/png/cube-perspective.png" alt="Perspective Mode" />` : `<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Orthographic Mode" />`;
+
+	console.log("Camera Type After Change: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
+	console.log("Camera Position After Change: ", camera.position.x, camera.position.y, camera.position.z);
+	console.log("boxCentre after change: ", boxCentre.x, boxCentre.y, boxCentre.z);
 });
 
 createLilGuiFileUpload(canvas);

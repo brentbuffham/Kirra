@@ -35,13 +35,15 @@ export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
 	const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
-	//const ambientLight = new AmbientLight(0xffffff, sceneConfig.lightIntensity);
+	ambientLight.userData = { entityType: "light", lightType: "ambient" };
 	scene.add(ambientLight);
 	scene.background = new THREE.Color(sceneConfig.sceneBackground);
 	const directionalLight1 = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
 	directionalLight1.position.set(sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
 	const directionalLight2 = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
 	directionalLight2.position.set(-2 * sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
+	directionalLight1.userData = { entityType: "light", lightType: "directional" };
+	directionalLight2.userData = { entityType: "light", lightType: "directional" };
 	scene.add(directionalLight1);
 	scene.add(directionalLight2);
 }
@@ -50,25 +52,75 @@ function setCamera(aspect) {
 	const { frustumSize } = sceneConfig;
 
 	cameraPerspective = new PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 10000); // don't use a negative near value it will break the camera
-	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, -10000, 10000);
+	cameraOrthographic = new OrthographicCamera((-frustumSize * aspect) / 2, (frustumSize * aspect) / 2, frustumSize / 2, -frustumSize / 2, 0, 10000);
 
 	const cameraPosition = new Vector3(0, 0, params.cameraDistance);
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 	return { cameraPerspective, cameraOrthographic };
 }
 
-export function updateCameraType() {
+// export function updateCameraType(sceneX, sceneY, sceneZ) {
+// 	const position = camera.position.clone();
+// 	const target = controls.target.clone();
+// 	const up = camera.up.clone();
+
+// 	const aspect = window.innerWidth / window.innerHeight;
+// 	cameraPerspective.aspect = aspect;
+// 	cameraPerspective.updateProjectionMatrix();
+// 	cameraOrthographic.aspect = aspect;
+// 	cameraOrthographic.updateProjectionMatrix();
+// 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
+// 	console.log("Camera updated:", camera);
+
+// 	controls.dispose();
+// 	controls = new ArcballControls(camera, renderer.domElement, scene);
+// 	viewHelper.controls = controls;
+// 	controls.rotateSpeed = 1.0;
+// 	controls.enableRotate = true;
+// 	controls.enableZoom = true;
+// 	controls.enablePan = true;
+// 	controls.zoomSpeed = 1;
+// 	controls.panSpeed = 1;
+// 	controls.cursorZoom = true;
+// 	controls.enableGrid = true;
+// 	controls.activateGizmos(false);
+// 	controls.setGizmosVisible(false);
+// 	controls.update();
+
+// 	camera.position.copy(position); //camera.position.copy(new Vector3(sceneX, sceneY, params.cameraDistance));
+// 	controls.target.copy(target); //controls.target.copy(new Vector3(sceneX, sceneY, sceneZ));
+// 	camera.up.copy(up); //camera.up.copy(up);
+// 	camera.lookAt(target);
+// 	camera.lookAt(new Vector3(sceneX, sceneY, sceneZ));
+
+// 	camera.userData = {
+// 		entityType: "camera",
+// 		isPerspective: params.usePerspectiveCam ? true : false,
+// 		isOrthographic: params.usePerspectiveCam ? false : true,
+// 		up: camera.up
+// 	};
+
+// 	console.log("Camera updated:", camera);
+// 	console.log("Controls updated:", controls);
+
+// 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
+// }
+export function updateCameraType(sceneX, sceneY, sceneZ) {
 	const position = camera.position.clone();
 	const target = controls.target.clone();
 	const up = camera.up.clone();
 
+	// Update camera aspect ratio
 	const aspect = window.innerWidth / window.innerHeight;
 	cameraPerspective.aspect = aspect;
 	cameraPerspective.updateProjectionMatrix();
 	cameraOrthographic.aspect = aspect;
 	cameraOrthographic.updateProjectionMatrix();
+
+	// Swap camera type
 	camera = params.usePerspectiveCam ? cameraPerspective : cameraOrthographic;
 
+	// Dispose and reinitialize controls
 	controls.dispose();
 	controls = new ArcballControls(camera, renderer.domElement, scene);
 	viewHelper.controls = controls;
@@ -82,15 +134,31 @@ export function updateCameraType() {
 	controls.enableGrid = true;
 	controls.activateGizmos(false);
 	controls.setGizmosVisible(false);
-	controls.update();
 
+	// Maintain camera state
 	camera.position.copy(position);
 	controls.target.copy(target);
+	controls.target.copy(new Vector3(sceneX, sceneY, sceneZ));
+
 	camera.up.copy(up);
 	camera.lookAt(target);
+	camera.lookAt(new Vector3(sceneX, sceneY, sceneZ));
+	controls.update();
+	camera.updateProjectionMatrix();
+
+	// Update camera userData
+	camera.userData = {
+		entityType: "camera",
+		isPerspective: params.usePerspectiveCam,
+		isOrthographic: !params.usePerspectiveCam,
+		up: camera.up,
+		cameraLookAt: new Vector3(sceneX, sceneY, sceneZ),
+		controlsTarget: new Vector3(sceneX, sceneY, sceneZ)
+	};
 
 	console.log("Camera updated:", camera);
 	console.log("Controls updated:", controls);
+	console.log("Camera User Data: ", camera.userData);
 
 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 }
