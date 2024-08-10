@@ -11,9 +11,14 @@ export default defineConfig({
 			"@": "/src"
 		}
 	},
-	dev: {
+	server: {
 		watch: {
-			usePolling: true
+			// These settings should be sufficient for most cases
+			usePolling: false, // Set to true if you're facing issues with file system watchers
+			interval: 100 // Polling interval (only used if usePolling is true)
+		},
+		hmr: {
+			overlay: true // Shows error overlay on the browser
 		}
 	},
 	build: {
