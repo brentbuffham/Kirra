@@ -233,3 +233,68 @@ body {
     pointer-events: auto;
     /* Ensure the canvas can capture pointer events */
 }
+
+#right-panel {
+    position: absolute;
+    top: 30px;
+    right: 20px;
+    width: 300px;
+    height: calc(100vh - 200px);
+    /* Full height minus padding */
+    background-color: rgba(100, 100, 100, 0.5);
+    /* Background color for the panel */
+    color: #fff;
+    padding: 5px;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    /* Light shadow for better visibility */
+    overflow-y: auto;
+    /* Enable scrolling if content overflows */
+    z-index: 100;
+    /* Ensure the panel is above the canvas */
+    border-radius: 8px;
+    /* Optional: Add some rounded corners */
+}
+
+#right-panel.hidden {
+    display: none;
+}
+
+#right-panel button#close-panel {
+    position: absolute;
+    top: 10px;
+    left: 5px;
+    background-color: transparent;
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 101;
+    /* Ensure the close button is on top */
+}
+
+.panel-toggle-btn {
+    position: absolute;
+    top: 40px;
+    right: 10px;
+    width: 35px;
+    height: 30px;
+    background-color: #ccc;
+    /* Set a flat background color */
+    border: none;
+    border-radius: 2px;
+    /* Optional: Add some rounded corners */
+    color: #000;
+    cursor: pointer;
+    z-index: 101;
+    /* Ensure the button is above the canvas */
+}
+
+.panel-toggle-btn img {
+    width: 100%;
+    height: 100%;
+}
+
+/* Ensure the toggle button is visible initially */
+#toggle-panel {
+    display: block;
+}

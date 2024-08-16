@@ -24,6 +24,7 @@ import { bindListenerToImportPointCloudButton } from "./import/csv/importPointCl
 import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
 import { bindListenerToClearMemoryButton } from "./import/buttons/clearMemoryButton.js";
 import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
+import { createMainView } from "./views/viewMain.js";
 
 import * as THREE from "three";
 
@@ -35,68 +36,7 @@ import * as THREE from "three";
 //   <div id="bottom">bottom</div>
 // `;
 
-document.querySelector("#app").innerHTML = /*html*/ `
-</div>
-<div id="scene-container">
-	<!-- Three.js Canvas -->
-	<div id="canvas"></div> <!-- Three.js Canvas -->
-
-	<nav id="vertical-nav">
-	<!-- Vertical Nav Buttons -->
-	<img src="./assets/svg/kirralogo.svg" class="white-svg" alt="Kirra Logo" />
-		<button id=open-holes title="File Open">
-			<img src="./assets/tabler-icons-2.36.0/png/load-holes-k3d.png" alt="File Open Holes" />
-		</button>
-		<button id=import-holes title="File Import">
-			<img src="./assets/tabler-icons-2.36.0/png/load-holes-csv.png" alt="File Import Holes" />
-		</button>
-	  	<button id=import-obj title="File OBJ Loader">
-			<img src="./assets/tabler-icons-2.36.0/png/load-obj.png" alt="File Import OBJ" />
-		</button>
-		<button id=import-dxf title="File Import DXF">
-			<img src="./assets/tabler-icons-2.36.0/png/load-dxf.png" alt="File Import DXF" />
-		</button>
-		<button id=import-pointcloud title="File Import Point Cloud CSV">
-			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import Text Based Point Cloud" />
-		</button>
-		<button id=settings-world title="Settings World Origin">
-			<img src="./assets/tabler-icons-2.36.0/png/world-cog.png" alt="World Origin Point" />
-		</button>
-		<button id=clear-local-storage title="Clear Local Storage" >
-			<img src="./assets/tabler-icons-2.36.0/png/browser-x.png" alt="Clear Local Storage" />
-		</button>
-
-	</nav>
-  <nav id= horizontal-nav>
-	<nav>
-		<button id="reset" title="Reset" >
-			<img src="./assets/tabler-icons-2.36.0/png/circle-letter-r.png" alt="Reset" />
-		</button>
-		<button id=swap-all-hole-visuals title="Swap Hole Visual" >
-			<img src="./assets/tabler-icons-2.36.0/png/replace.png" alt="Swap Hole Visual" />
-		</button>
-		<button id=obj-display title="OBJ Display" >
-			<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="OBJ Display" />
-		</button>
-		<button id=hole-name-on-off title="Name On Off" >
-			<img src="./assets/tabler-icons-2.36.0/png/holename.png" alt="Hole Name Display" />
-		</button>
-		<button id=hole-length-on-off title="Length On Off" >
-			<img src="./assets/tabler-icons-2.36.0/png/holelength.png" alt="Hole Length Display" />
-		</button>
-		<button id=hole-diameter-on-off title="Diameter On Off">
-			<img src="./assets/tabler-icons-2.36.0/png/holediam.png" alt="Hole Diameter Display" />
-		</button>
-		<button id=camera-mode title="Camera Mode" >
-			<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Perspective Mode" />
-		</button>
-
-		<label id="info-label" style="color: red;">Info Label</label>
-	  <!-- Add more buttons as needed -->
-	</nav>
-</div>
-<!--<div id="canvas"></div>-->
-  `;
+createMainView();
 
 const canvas = createScene(points);
 const { scene, camera, renderer } = canvas;
