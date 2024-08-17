@@ -54,12 +54,14 @@ export function populatePanelWithSceneObjects(scene, camera) {
 
 // Keep track of the previously selected object or group
 let previouslySelectedObject = null;
+let opacityStore = 0;
 
 function selectObjectInScene(object, nodeElement, camera) {
 	// Function to remove emissive from a mesh or group
 	function removeEmissive(object) {
 		if (object.isMesh && object.material) {
 			object.material.emissive.set(0x000000); // Remove highlight
+			object.material.opacity = opacityStore;
 		} else if (object.isGroup) {
 			// If it's a group, apply to all children
 			object.children.forEach((child) => removeEmissive(child));
@@ -69,6 +71,8 @@ function selectObjectInScene(object, nodeElement, camera) {
 	// Function to apply emissive to a mesh or group
 	function applyEmissive(object) {
 		if (object.isMesh && object.material) {
+			opacityStore = object.material.opacity;
+			object.material.opacity = 1;
 			object.material.emissive.set(0x00ff00); // Highlight the new object
 		} else if (object.isGroup) {
 			// If it's a group, apply to all children

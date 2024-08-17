@@ -30,7 +30,8 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	const collarXYZ = new Vector3(tempPoint.startXLocation, tempPoint.startYLocation, tempPoint.startZLocation);
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	// Calculate the interval vector only if subdrill is positive
-	const intervalXYZ = subdrill > 0 ? calculateIntervalVector(collarXYZ, toeXYZ, subdrill) : toeXYZ;
+	const intervalXYZ = subdrill > 0 ? calculateIntervalVector(collarXYZ, toeXYZ, subdrill) : subdrill === 0 ? calculateIntervalVector(collarXYZ, toeXYZ, 0.0001) : subdrill < 0 ? calculateIntervalVector(collarXYZ, toeXYZ, subdrill) : toeXYZ;
+	console.log("drawHoles/intervalXYZ: ", intervalXYZ);
 	//const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
 	const shapeType = tempPoint.shapeType; // || params.holeDisplay;
 	const holeScale = 3;
@@ -47,9 +48,9 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-cylinder": {
 			const materialType = "phong";
-			drawMeshCylinderHole(scene, colour, materialType, blastName, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, 32);
+			drawMeshCylinderHole(scene, colour, materialType, blastName, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, subdrill, 32);
 			if (logit && params.debugComments) {
-				console.log("BlastGroup: ", blastName, " AddingHole: ", name);
+				console.log("BlastGroup: ", blastName, " AddingHole: ", name, " withSubdrill: ", subdrill, " and Holelength: ", collarXYZ.distanceTo(toeXYZ));
 			}
 			break;
 		}

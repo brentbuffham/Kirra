@@ -16,6 +16,14 @@ export function createCylinder(color, materialType, startVector, endVector, diam
 			color: color,
 			flatShading: true
 		});
+	} else if (materialType === "phong-invisible") {
+		material = new MeshPhongMaterial({
+			color: color,
+			transparent: true,
+			opacity: 0.0
+		});
+	} else {
+		material = new MeshPhongMaterial({ color });
 	}
 
 	const height = startVector.distanceTo(endVector);
