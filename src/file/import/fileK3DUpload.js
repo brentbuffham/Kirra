@@ -6,6 +6,7 @@ import { drawDummys, drawHoles, drawHoleText } from "../../entities/drawHoles.js
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { counter } from "../../main.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
 export let points = [];
 const logit = false;
@@ -191,6 +192,8 @@ export function handleFileUploadNoEvent(file) {
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();
 		controls.update();
+		// After adding the object, refresh the panel
+		populatePanelWithSceneObjects(scene, camera);
 
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileUploadNoEvent/controls.target", controls.target);

@@ -31,6 +31,7 @@ import { bindListenerToResetCameraViewButton } from "./buttons/camera/resetCamer
 import { bindListenerToObjMaterialCycleButton } from "./buttons/mesh/objMaterialCycleButton.js";
 import { bindListenerToCameraTypeCycleButton } from "./buttons/camera/cameraTypeCycleButton.js";
 import { bindListenerToHoleNameDisplayButton, bindListenerToHoleLengthDisplayButton, bindListenerToHoleDiameterDisplayButton } from "./buttons/hole/holePropertiesButton.js";
+import { populatePanelWithSceneObjects } from "./views/treeView.js"; // Import the tree view logic
 
 createMainView();
 
@@ -38,6 +39,9 @@ const canvas = createScene(points);
 const { scene, camera, renderer } = canvas;
 
 preloadFont(); // Preload the font
+
+// Populate the panel with the scene objects after the scene is created
+populatePanelWithSceneObjects(scene, camera);
 
 export const counter = {
 	cloudPointFileCount: 0,
@@ -57,9 +61,9 @@ bindListenerToClearMemoryButton();
 bindListenerToResetCameraViewButton(camera, controls, scene, params);
 bindListenerToObjMaterialCycleButton(scene, params);
 bindListenerToCameraTypeCycleButton(scene, camera, controls, params);
-bindListenerToHoleNameDisplayButton(params);
-bindListenerToHoleLengthDisplayButton(params);
-bindListenerToHoleDiameterDisplayButton(params);
+bindListenerToHoleNameDisplayButton(params, camera, scene);
+bindListenerToHoleLengthDisplayButton(params, camera, scene);
+bindListenerToHoleDiameterDisplayButton(params, camera, scene);
 
 function getCurrentPoints() {
 	//Get all the holes from the localStorage.

@@ -8,6 +8,7 @@ import { bindingKeys } from "./sceneKeybinds.js";
 import { createViewHelper } from "./viewHelper.js";
 import { onWindowResize } from "./ResizeScene.js";
 import { sceneConfig } from "./sceneConfig.js";
+//import { WebGPURenderer } from "three/src/renderers/webgpu/WebGPURenderer.js";
 
 //load in local starge for the world origin settings
 const worldOriginSettings = JSON.parse(localStorage.getItem("WorldOriginSettings"));
@@ -162,6 +163,8 @@ export function createScene(points) {
 		powerPreference: "high-performance",
 		stencil: false
 	});
+	//renderer = new THREE.WebGPURenderer({ antialias: true });
+
 	renderer.setSize(canvasElement.offsetWidth, canvasElement.offsetHeight);
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.autoClear = false;

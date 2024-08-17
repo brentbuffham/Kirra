@@ -3,6 +3,11 @@
     /* Default Button Color */
     --dark-mode-color: #1a1a1a;
     /* Dark Mode: 10% Grey */
+    --hover-color: #ff6d6d;
+    --selected-color: #047500;
+    --panel-background: rgba(100, 100, 100, 0.7);
+    --button-background: #ccc;
+    --button-hover-background: #ff0000;
 }
 
 body {
@@ -15,7 +20,9 @@ body {
     overflow-x: hidden;
 }
 
-/*#app {
+/* Grid layout (if needed in future) */
+/*
+#app {
     display: grid;
     grid-template-columns: 1fr 7fr 1fr;
     grid-template-rows: 1fr 5fr 1fr;
@@ -38,7 +45,6 @@ body {
     grid-area: canvas;
 }
 
-
 #right-panel {
     grid-area: right-panel;
 }
@@ -47,11 +53,11 @@ body {
     grid-area: bottom;
 }
 */
+
 #canvas {
     block-size: calc(100vh - 30px);
     inline-size: 99vw;
 }
-
 
 #header {
     block-size: 40px;
@@ -85,19 +91,15 @@ body {
     pointer-events: auto;
     position: absolute;
     top: 10px;
-    /* Adjust as needed */
     left: 10px;
-    /* Adjust as needed */
     z-index: 100;
 }
 
 #vertical-nav {
     position: absolute;
     top: 10px;
-    /* Center vertically */
     left: 10px;
     margin: 2px;
-    /* Adjust as needed */
     transform: translateY(0%);
     z-index: 100;
     pointer-events: none;
@@ -111,54 +113,41 @@ body {
     margin-bottom: 3px;
     border-radius: 2px;
     border: none;
-    /* Remove border */
-    background-color: #ccc;
-    /* Set a flat background color */
+    background-color: var(--button-background);
     box-shadow: none;
-    /* Remove any shadow */
     outline: none;
-    /* Remove focus outline */
     padding: 0;
-    /* Additional styling for buttons */
+    transition: background-color 0.3s ease;
 }
 
-/*mouse over highlight*/
+/* Mouse over highlight */
 #vertical-nav button:hover {
-    background-color: #ff0000;
+    background-color: var(--button-hover-background);
 }
 
 #vertical-nav button img {
     width: 20px;
     height: 20px;
     pointer-events: auto;
-    /* Spacing between buttons */
-    /* Additional styling for buttons */
 }
 
 #nav-toggle {
     position: absolute;
     top: 10px;
-    /* Adjust as needed */
     left: 10px;
-    /* Adjust as needed */
-    /* Additional styling */
 }
 
 #vertical-nav.open {
     transform: translateX(0);
-    /* Move into view */
 }
 
 #horizontal-nav {
     position: absolute;
     bottom: 10px;
-    /* Center vertically */
     left: 10px;
-    /* Adjust as needed */
     transform: translateX(0%);
     z-index: 100;
     pointer-events: none;
-
 }
 
 #horizontal-nav button {
@@ -168,20 +157,16 @@ body {
     pointer-events: auto;
     border-radius: 2px;
     border: none;
-    /* Remove border */
-    background-color: #ccc;
-    /* Set a flat background color */
+    background-color: var(--button-background);
     box-shadow: none;
-    /* Remove any shadow */
     outline: none;
-    /* Remove focus outline */
     padding: 0;
-    /* Additional styling for buttons */
+    transition: background-color 0.3s ease;
 }
 
-/*mouse over highlight*/
+/* Mouse over highlight */
 #horizontal-nav button:hover {
-    background-color: #ff0000;
+    background-color: var(--button-hover-background);
 }
 
 #horizontal-nav button img {
@@ -189,25 +174,18 @@ body {
     height: 20px;
     padding-top: 2px;
     pointer-events: auto;
-    /* Spacing between buttons */
-    /* Additional styling for buttons */
 }
 
 #horizontal-nav.open {
     transform: translateX(0);
-    /* Move into view */
 }
 
 .white-svg {
-    /*background: url('./assets/svg/kirralogo.svg') no-repeat center center;*/
     filter: invert(100%);
     padding-left: 2px;
     stroke-width: 1px;
-    /* Inverts the color to white */
     width: 60px;
-    /* Set as needed */
     height: 60px;
-    /* Set as needed */
 }
 
 #viewHelperContainer {
@@ -218,20 +196,17 @@ body {
     height: 128px;
     border-radius: 50%;
     background-color: rgba(150, 150, 155, 0.3);
-    /* White background with 50% transparency */
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
     pointer-events: none;
-    /* Ensure the circle itself does not capture pointer events */
 }
 
 #viewHelperCanvas {
     width: 100%;
     height: 100%;
     pointer-events: auto;
-    /* Ensure the canvas can capture pointer events */
 }
 
 #right-panel {
@@ -240,19 +215,13 @@ body {
     right: 20px;
     width: 300px;
     height: calc(100vh - 200px);
-    /* Full height minus padding */
-    background-color: rgba(100, 100, 100, 0.5);
-    /* Background color for the panel */
+    background-color: var(--panel-background);
     color: #fff;
-    padding: 5px;
+    padding: 10px;
     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-    /* Light shadow for better visibility */
     overflow-y: auto;
-    /* Enable scrolling if content overflows */
     z-index: 100;
-    /* Ensure the panel is above the canvas */
     border-radius: 8px;
-    /* Optional: Add some rounded corners */
 }
 
 #right-panel.hidden {
@@ -269,7 +238,6 @@ body {
     font-size: 18px;
     cursor: pointer;
     z-index: 101;
-    /* Ensure the close button is on top */
 }
 
 .panel-toggle-btn {
@@ -278,15 +246,13 @@ body {
     right: 20px;
     width: 35px;
     height: 30px;
-    background-color: #ccc;
-    /* Set a flat background color */
+    background-color: var(--button-background);
     border: none;
     border-radius: 2px;
-    /* Optional: Add some rounded corners */
     color: #000;
     cursor: pointer;
     z-index: 101;
-    /* Ensure the button is above the canvas */
+    transition: background-color 0.3s ease;
 }
 
 .panel-toggle-btn img {
@@ -294,7 +260,39 @@ body {
     height: 100%;
 }
 
-/* Ensure the toggle button is visible initially */
 #toggle-panel {
     display: block;
+}
+
+/* Tree View Styles */
+.tree-view {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+.tree-view .tree-node {
+    cursor: pointer;
+    padding: 8px;
+    margin: 3px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.3s ease;
+}
+
+.tree-view .tree-node:hover {
+    background-color: var(--hover-color);
+}
+
+.tree-view .tree-node.selected {
+    background-color: var(--selected-color);
+}
+
+.tree-view .tree-children {
+    padding-left: 20px;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    margin-left: 10px;
 }

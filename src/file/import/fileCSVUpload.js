@@ -9,6 +9,7 @@ import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { parseCSV } from "./fileCSVLoader.js";
 import { Vector3 } from "three";
 import { counter } from "../../main.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
 export let csvPoints = [];
 
@@ -42,6 +43,12 @@ export const handleFileUploadNoEvent = (data) => {
 
 let centroid = new Vector3(0, 0, 0);
 
+/**
+ * Handles the submission of a file.
+ *
+ * @param {any} data - The data of the file.
+ * @param {object} columnOrder - The column order of the file.
+ */
 export const handleFileSubmit = (data, columnOrder) => {
 	try {
 		const tempBlastName = "csvBlastStore" + counter.csvFileCount;
@@ -103,6 +110,8 @@ export const handleFileSubmit = (data, columnOrder) => {
 			if (tempPoint.blastName == null || tempPoint.blastName == undefined || tempPoint.blastName == "" || tempPoint.blastName == " ") {
 				tempPoint.blastName = tempBlastName;
 				point.blastName = tempBlastName; // Assign blastName to point object
+			} else {
+				tempPoint.blastName = point.blastName;
 			}
 
 			if (hasPointID && hasStart && !hasEnd) {
@@ -191,6 +200,8 @@ export const handleFileSubmit = (data, columnOrder) => {
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();
 		controls.update();
+		// After adding the object, refresh the panel
+		populatePanelWithSceneObjects(scene, camera);
 
 		if (params.debugComments) {
 			console.log("fileUpload/handleFileSubmit/controls.target", controls.target);
@@ -198,5 +209,6 @@ export const handleFileSubmit = (data, columnOrder) => {
 		camera.updateMatrixWorld();
 	} catch (err) {
 		console.error("Error in handleFileSubmit: ", err);
+		alert("Error in handleFileSubmit: " + err);
 	}
 };

@@ -1,5 +1,5 @@
 //drawText.js
-import { Mesh, MeshBasicMaterial, Box3 } from "three";
+import { Mesh, MeshPhongMaterial, Box3 } from "three";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
 export function drawText(scene, color, font, vector, value, entityType) {
@@ -23,7 +23,7 @@ export function drawText(scene, color, font, vector, value, entityType) {
 	const textHeight = boundingBox.max.y - boundingBox.min.y;
 
 	// Create a material for the text
-	const material = new MeshBasicMaterial({ color });
+	const material = new MeshPhongMaterial({ color });
 
 	// Create a mesh using the text geometry and material
 	const textMesh = new Mesh(textGeometry, material);

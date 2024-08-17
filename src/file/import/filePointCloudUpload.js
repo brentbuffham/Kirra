@@ -12,6 +12,7 @@ import { BoxGeometry, MeshBasicMaterial, Mesh } from "three";
 import { createMeshFromPointCloud, createDelaunayMeshFromPointCloud } from "../../entities/shapes/createMeshFromPoints.js";
 import { hexToRgb } from "../../helpers/colorToOther.js";
 import { counter } from "../../main.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
 export let cloudPoints = [];
 
@@ -147,6 +148,7 @@ export const handleFileSubmit = (data, pointCloudOrder, defaultColour, maxEdgeLe
 		camera.lookAt(objectCenter.position);
 		camera.updateProjectionMatrix();
 		controls.update();
+		populatePanelWithSceneObjects(scene, camera);
 	} catch (err) {
 		console.error("Error in handleFileSubmit: ", err);
 	}

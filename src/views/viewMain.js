@@ -66,7 +66,10 @@ export function createMainView() {
      <!-- Right Panel (Initially hidden) -->
         <div id="right-panel" class="hidden">
             <button id="close-panel" title="Close Panel">&#x2715;</button>
-            <br><hr> Entity List <hr>
+            <br>
+			<div id="objectPanel" class="panel tree-view">
+				<!-- Dynamically generated content will go here -->
+			</div>
         </div>
 
         <!-- Toggle Button (Initially visible) -->

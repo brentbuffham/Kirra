@@ -1,6 +1,7 @@
 import { updateScene } from "../../main.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
-export function bindListenerToHoleNameDisplayButton(params) {
+export function bindListenerToHoleNameDisplayButton(params, camera, scene) {
 	//function to toggle the hole name display
 	document.querySelector("#hole-name-on-off").addEventListener("click", () => {
 		params.holeNameDisplay = !params.holeNameDisplay;
@@ -13,6 +14,7 @@ export function bindListenerToHoleNameDisplayButton(params) {
 			document.querySelector("#info-label").textContent = "Hole Name Display Off";
 			// Redraw the scene with hole name display off
 		}
+		populatePanelWithSceneObjects(scene, camera);
 	});
 }
 
@@ -28,6 +30,7 @@ export function bindListenerToHoleLengthDisplayButton(params) {
 			document.querySelector("#info-label").textContent = "Hole Length Display Off";
 			// Redraw the scene with hole length display off
 		}
+		populatePanelWithSceneObjects(scene, camera);
 	});
 }
 
@@ -43,5 +46,6 @@ export function bindListenerToHoleDiameterDisplayButton(params) {
 			document.querySelector("#info-label").textContent = "Hole Diameter Display Off";
 			// Redraw the scene with hole diameter display off
 		}
+		populatePanelWithSceneObjects(scene, camera);
 	});
 }

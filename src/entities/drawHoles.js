@@ -1,5 +1,5 @@
 //drawHoles.js
-import { Vector3 } from "three";
+import { Vector3, Group } from "three";
 import { drawMeshCircleHole } from "./meshEntities/drawMeshCircleHole";
 import { drawMeshCrossDummy } from "./meshEntities/drawMeshCrossDummy";
 import { drawMeshCrossHole } from "./meshEntities/drawMeshCrossHole";
@@ -26,6 +26,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	//colour = getRandomColor();
 	colour = colour || "white";
 	const name = tempPoint.pointID;
+	const blastName = tempPoint.blastName;
 	const collarXYZ = new Vector3(tempPoint.startXLocation, tempPoint.startYLocation, tempPoint.startZLocation);
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	// Calculate the interval vector only if subdrill is positive
@@ -46,9 +47,9 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 		}
 		case "mesh-cylinder": {
 			const materialType = "phong";
-			drawMeshCylinderHole(scene, colour, materialType, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, 32);
+			drawMeshCylinderHole(scene, colour, materialType, blastName, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, 32);
 			if (logit && params.debugComments) {
-				//console.log("drawHoles/mesh-cylinder HoleID: ", name, " : ", tempPoint);
+				console.log("BlastGroup: ", blastName, " AddingHole: ", name);
 			}
 			break;
 		}
