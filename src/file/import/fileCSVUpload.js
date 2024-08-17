@@ -107,7 +107,7 @@ export const handleFileSubmit = (data, columnOrder) => {
 
 			if (hasPointID && hasStart && !hasEnd) {
 				// Check if end XYZ location is missing
-				console.log("Dummy:" + tempPoint.pointID + " All properties are present except end XYZ location");
+				//console.log("Dummy:" + tempPoint.pointID + " All properties are present except end XYZ location");
 				tempPoint.diameter = null;
 				tempPoint.subdrill = null;
 				tempPoint.shapeType = "mesh-dummy";

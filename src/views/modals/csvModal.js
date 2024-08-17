@@ -27,7 +27,7 @@ export const showCustomCSVModal = (columns, previewContent, csvData) => {
                                 <div class="col-12">
                                     <div class="form-group">
                                         <label for="filePreviewTable">File Contents Preview (Set Order to refresh column view)</label>
-                                        <div id="filePreviewTable" style="max-height: 300px; overflow-y: auto;"></div>
+                                        <div id="filePreviewTable" style="max-height: 200px; overflow-y: auto;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -337,7 +337,11 @@ const updatePreview = (csvData) => {
 
 		// Generate table rows, correctly ignoring the specified number of rows.
 		const rows = csvData.slice(headerRows);
-		tableContent += rows
+		const maxRows = 10; // Maximum number of rows to display in
+		const displayedRows = rows.slice(0, maxRows); // Display only the first maxRows rows.
+		const hasMoreRows = rows.length > maxRows; // Check if there are more rows to display.
+
+		tableContent += displayedRows
 			.map((row) => {
 				return (
 					"<tr>" +
@@ -358,9 +362,16 @@ const updatePreview = (csvData) => {
 			})
 			.join("");
 
+		// Add a row with "..." if there are more rows
+		if (hasMoreRows) {
+			const columnCount = Object.keys(columnOrder).length;
+			const ellipsisRow = "<tr>" + "<td><i>more rows in file...</i></td>" + "</tr>";
+			tableContent += ellipsisRow;
+		}
+
 		tableContent += "</tbody></table>";
 
-		console.log("Table content generated: ", tableContent);
+		console.log("Table content generated"); //: ", tableContent);
 
 		// Set the table content to the div.
 		document.getElementById("filePreviewTable").innerHTML = tableContent;
