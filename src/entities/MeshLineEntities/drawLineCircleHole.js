@@ -1,5 +1,6 @@
 //drawCrossHole.js
 import { createLine } from "../../entities/shapes/createLine.js";
+import { createCircle } from "../../entities/shapes/createCircle.js";
 import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Group } from "three";
 import { createAnyShape } from "../../entities/shapes/createAnyShape.js";

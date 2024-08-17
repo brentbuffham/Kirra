@@ -30,6 +30,7 @@ import { bindListenerToClearMemoryButton } from "./buttons/memory/clearMemoryBut
 import { bindListenerToResetCameraViewButton } from "./buttons/camera/resetCameraButton.js";
 import { bindListenerToObjMaterialCycleButton } from "./buttons/mesh/objMaterialCycleButton.js";
 import { bindListenerToCameraTypeCycleButton } from "./buttons/camera/cameraTypeCycleButton.js";
+import { bindListenerToHoleNameDisplayButton, bindListenerToHoleLengthDisplayButton, bindListenerToHoleDiameterDisplayButton } from "./buttons/hole/holePropertiesButton.js";
 
 createMainView();
 
@@ -56,6 +57,9 @@ bindListenerToClearMemoryButton();
 bindListenerToResetCameraViewButton(camera, controls, scene, params);
 bindListenerToObjMaterialCycleButton(scene, params);
 bindListenerToCameraTypeCycleButton(scene, camera, controls, params);
+bindListenerToHoleNameDisplayButton(params);
+bindListenerToHoleLengthDisplayButton(params);
+bindListenerToHoleDiameterDisplayButton(params);
 
 function getCurrentPoints() {
 	//Get all the holes from the localStorage.
@@ -148,7 +152,7 @@ function updateHoleDisplay() {
 /**
  * Updates the scene by removing existing hole objects and rendering new ones based on the provided parameters.
  */
-function updateScene() {
+export function updateScene() {
 	const currentPoints = getCurrentPoints();
 	document.querySelector("#info-label").textContent = "Holes in Scene: " + currentPoints.length;
 	console.clear();
@@ -235,45 +239,5 @@ function updateScene() {
 
 // Attach event listener to the button
 document.querySelector("#swap-all-hole-visuals").addEventListener("click", updateHoleDisplay);
-
-//function to toggle the hole name display
-document.querySelector("#hole-name-on-off").addEventListener("click", () => {
-	params.holeNameDisplay = !params.holeNameDisplay;
-
-	updateScene();
-	if (params.holeNameDisplay) {
-		document.querySelector("#info-label").textContent = "Hole Name Display On";
-		// Redraw the scene with hole name display on
-	} else {
-		document.querySelector("#info-label").textContent = "Hole Name Display Off";
-		// Redraw the scene with hole name display off
-	}
-});
-
-//function to toggle the hole Length display
-document.querySelector("#hole-length-on-off").addEventListener("click", () => {
-	params.holeLengthDisplay = !params.holeLengthDisplay;
-	updateScene();
-	if (params.holeLengthDisplay) {
-		document.querySelector("#info-label").textContent = "Hole Length Display On";
-		// Redraw the scene with hole length display on
-	} else {
-		document.querySelector("#info-label").textContent = "Hole Length Display Off";
-		// Redraw the scene with hole length display off
-	}
-});
-
-//function to toggle the hole Diameter display
-document.querySelector("#hole-diameter-on-off").addEventListener("click", () => {
-	params.holeDiameterDisplay = !params.holeDiameterDisplay;
-	updateScene();
-	if (params.holeDiameterDisplay) {
-		document.querySelector("#info-label").textContent = "Hole Diameter Display On";
-		// Redraw the scene with hole diameter display on
-	} else {
-		document.querySelector("#info-label").textContent = "Hole Diameter Display Off";
-		// Redraw the scene with hole diameter display off
-	}
-});
 
 createLilGuiFileUpload(canvas);
