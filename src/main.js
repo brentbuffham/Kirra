@@ -8,33 +8,28 @@ window.bootstrap = bootstrap; // Attach Bootstrap to the window object
 // Import the necessary functions from the other files
 import "./style.css";
 import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
-import { preloadFont } from "./drawing/helpers/loadGlobalFont.js";
+import { preloadFont } from "./helpers/loadGlobalFont.js";
 import { Vector3, Box3 } from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
 import { controls, createScene, objectCenter, params, updateCameraType } from "./drawing/createScene.js";
-import { getCentroid } from "./drawing/helpers/getCentroid.js";
-import { drawDummys, drawHoles, drawHoleText } from "./drawing/entities/drawHoles.js";
+import { getCentroid } from "./helpers/getCentroid.js";
+import { drawDummys, drawHoles, drawHoleText } from "./entities/drawHoles.js";
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
-import { bindListenerToImportK3DButton } from "./import/csv/openHolesButton.js";
-import { bindListenerToImportCSVButton } from "./import/csv/importHolesButton.js";
-import { bindListenerToImportOBJButton } from "./import/mesh/importOBJButton.js";
-import { bindListenerToImportDXFButton } from "./import/autocad/importDXFButton.js";
-import { bindListenerToImportPointCloudButton } from "./import/csv/importPointCloudButton.js";
-import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
-import { bindListenerToClearMemoryButton } from "./import/buttons/clearMemoryButton.js";
-import { resetCameraView, calculateBoundingBox } from "./drawing/helpers/resetCameraView.js";
+import { resetCameraView, calculateBoundingBox } from "./helpers/resetCameraView.js";
 import { createMainView } from "./views/viewMain.js";
-
+import { getSceneBoundingBox } from "./helpers/resetCameraView.js";
 import * as THREE from "three";
-
-// document.querySelector("#app").innerHTML = `
-//   <div id="header">header</div>
-//   <div id="left-panel">left panel</div>
-//   <div id="canvas">canvas</div>
-//   <div id="right-panel">right panel</div>
-//   <div id="bottom">bottom</div>
-// `;
+import { bindListenerToImportK3DButton } from "./buttons/csv/openHolesButton.js";
+import { bindListenerToImportCSVButton } from "./buttons/csv/importHolesButton.js";
+import { bindListenerToImportOBJButton } from "./buttons/mesh/importOBJButton.js";
+import { bindListenerToImportDXFButton } from "./buttons/autocad/importDXFButton.js";
+import { bindListenerToImportPointCloudButton } from "./buttons/csv/importPointCloudButton.js";
+import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
+import { bindListenerToClearMemoryButton } from "./buttons/memory/clearMemoryButton.js";
+import { bindListenerToResetCameraViewButton } from "./buttons/camera/resetCameraButton.js";
+import { bindListenerToObjMaterialCycleButton } from "./buttons/mesh/objMaterialCycleButton.js";
+import { bindListenerToCameraTypeCycleButton } from "./buttons/camera/cameraTypeCycleButton.js";
 
 createMainView();
 
@@ -50,7 +45,7 @@ export const counter = {
 	objFileCount: 0
 };
 
-// Example: Adding event listeners to the first button
+//Button Binding
 bindListenerToImportK3DButton();
 bindListenerToImportCSVButton();
 bindListenerToImportOBJButton(canvas);
@@ -58,51 +53,9 @@ bindListenerToImportDXFButton(canvas);
 bindListenerToImportPointCloudButton();
 bindListenerToWorldOriginSettingsButton();
 bindListenerToClearMemoryButton();
-
-function getSceneBoundingBox(scene) {
-	//Get all the objects in the scene except the camera and lights
-	const objects = scene.children.filter((object) => object.userData.entityType !== "camera" && object.userData.entityType !== "light");
-	const sceneBoundingBox = new Box3();
-	objects.forEach((object) => {
-		sceneBoundingBox.expandByObject(object);
-		//console.log("Refresh View - Object: ", object);
-	});
-	return sceneBoundingBox;
-}
-
-document.querySelector("#reset").addEventListener("click", function () {
-	console.log("Camera Type Before Reset: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
-	const boxCentre = getSceneBoundingBox(scene).getCenter(new THREE.Vector3());
-	console.log("Box Centre: ", boxCentre.x, boxCentre.y, boxCentre.z);
-	camera.up.set(0, 1, 0); // Y-axis pointing up on the screen
-
-	// Position the camera along the Z-axis, looking at the center of the scene
-	const cameraDistance = parseFloat(params.cameraDistance) * 0.5;
-	const cameraPosition = new THREE.Vector3(boxCentre.x, boxCentre.y, boxCentre.z + cameraDistance);
-
-	if (controls instanceof TrackballControls) {
-		console.log("Trackball Controls");
-		camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-		camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
-		controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
-		console.log("Target set to: ", boxCentre.x, boxCentre.y, boxCentre.z);
-	}
-
-	if (controls instanceof ArcballControls) {
-		console.log("Arcball Controls");
-		camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-		camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
-		controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
-		console.log("Target set to: ", boxCentre.x, boxCentre.y, boxCentre.z);
-		//controls.update();
-	}
-
-	camera.updateProjectionMatrix();
-	if (params.debugComments) {
-		console.log("View Reset");
-	}
-	document.querySelector("#info-label").textContent = "View Reset";
-});
+bindListenerToResetCameraViewButton(camera, controls, scene, params);
+bindListenerToObjMaterialCycleButton(scene, params);
+bindListenerToCameraTypeCycleButton(scene, camera, controls, params);
 
 function getCurrentPoints() {
 	//Get all the holes from the localStorage.
@@ -191,51 +144,6 @@ function updateHoleDisplay() {
 		console.error("Renderer is not initialized.");
 	}
 }
-
-//function to turn params.wireframeOn on and off
-document.querySelector("#obj-display").addEventListener("click", () => {
-	params.wireframeSolidTransparentTexture = params.wireframeSolidTransparentTexture === "Texture" ? "Solid" : params.wireframeSolidTransparentTexture === "Solid" ? "Transparent" : params.wireframeSolidTransparentTexture === "Transparent" ? "Wireframe" : params.wireframeSolidTransparentTexture === "Wireframe" ? "Invisible" : "Texture";
-
-	scene.traverse(function (child) {
-		if (child.userData.isOBJMesh || child.userData.isTXTMesh) {
-			// Check if it is the OBJ mesh
-			if (params.wireframeSolidTransparentTexture === "Texture") {
-				document.querySelector("#info-label").textContent = "Texture On";
-				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-material.png" alt="Texture Display" />`;
-				child.material = child.userData.originalMaterial || child.material;
-				scene.traverse(function (object) {
-					if (object instanceof THREE.DirectionalLight) {
-						object.intensity = 0.6;
-					}
-				});
-			} else if (params.wireframeSolidTransparentTexture === "Solid") {
-				document.querySelector("#info-label").textContent = "Solid On";
-				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-filled.png" alt="Solid Display" />`;
-				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: false, side: THREE.DoubleSide });
-				scene.traverse(function (object) {
-					if (object instanceof THREE.DirectionalLight) {
-						object.intensity = 0.6;
-					}
-				});
-			} else if (params.wireframeSolidTransparentTexture === "Transparent") {
-				document.querySelector("#info-label").textContent = "Transparent On";
-				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-transparent.png" alt="Transparent Display" />`;
-				child.material = new THREE.MeshPhongMaterial({ color: child.material.color, flatShading: true, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
-			} else if (params.wireframeSolidTransparentTexture === "Wireframe") {
-				document.querySelector("#info-label").textContent = "Wireframe On";
-				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/cube-wireframe.png" alt="Wireframe Display" />`;
-				child.material = new THREE.MeshBasicMaterial({ color: child.material.color, wireframe: true });
-			} else if (params.wireframeSolidTransparentTexture === "Invisible") {
-				document.querySelector("#info-label").textContent = "Invisible On";
-				document.querySelector("#obj-display").innerHTML = `<img src="./assets/tabler-icons-2.36.0/png/hexagon-letter-x.png" alt="Invisible Display" />`;
-				child.material = new THREE.MeshBasicMaterial({ color: child.material.color, visible: false });
-			}
-			child.material.needsUpdate = true;
-		}
-	});
-	//Update the holes as they are meshes as well
-	//updateScene();
-});
 
 /**
  * Updates the scene by removing existing hole objects and rendering new ones based on the provided parameters.
@@ -366,30 +274,6 @@ document.querySelector("#hole-diameter-on-off").addEventListener("click", () => 
 		document.querySelector("#info-label").textContent = "Hole Diameter Display Off";
 		// Redraw the scene with hole diameter display off
 	}
-});
-
-document.querySelector("#camera-mode").addEventListener("click", () => {
-	// Toggle between perspective and orthographic
-	params.usePerspectiveCam = !params.usePerspectiveCam;
-	console.log("Switching Camera Mode to: ", params.usePerspectiveCam ? "Perspective" : "Orthographic");
-
-	let boxCentre = getSceneBoundingBox(scene).getCenter(new Vector3());
-
-	// Update camera and controls based on the current mode
-	updateCameraType(boxCentre.x, boxCentre.y, boxCentre.z);
-
-	// Set camera position and look-at based on the new camera type
-	camera.position.set(boxCentre.x, boxCentre.y, boxCentre.z + parseFloat(params.cameraDistance) * 0.5);
-	camera.lookAt(boxCentre.x, boxCentre.y, boxCentre.z);
-	controls.target.set(boxCentre.x, boxCentre.y, boxCentre.z);
-	camera.updateProjectionMatrix();
-
-	// Update the icon based on the camera type
-	document.querySelector("#camera-mode").innerHTML = params.usePerspectiveCam ? `<img src="./assets/tabler-icons-2.36.0/png/cube-perspective.png" alt="Perspective Mode" />` : `<img src="./assets/tabler-icons-2.36.0/png/cube.png" alt="Orthographic Mode" />`;
-
-	console.log("Camera Type After Change: ", camera.isPerspectiveCamera ? "Perspective" : "Orthographic");
-	console.log("Camera Position After Change: ", camera.position.x, camera.position.y, camera.position.z);
-	console.log("boxCentre after change: ", boxCentre.x, boxCentre.y, boxCentre.z);
 });
 
 createLilGuiFileUpload(canvas);

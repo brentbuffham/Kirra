@@ -65,7 +65,7 @@ export function createMainView() {
 
      <!-- Right Panel (Initially hidden) -->
         <div id="right-panel" class="hidden">
-            <button id="close-panel" title="Close Panel">X</button>
+            <button id="close-panel" title="Close Panel">&#x2715;</button>
             <br><hr> Entity List <hr>
         </div>
 

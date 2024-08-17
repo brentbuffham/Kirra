@@ -1,9 +1,9 @@
 // fileCSVUpload.js
-import { showCustomCSVModal } from "../../modals/csvModal.js";
+import { showCustomCSVModal } from "../../views/modals/csvModal.js";
 import Papa from "papaparse";
-import { getCentroid } from "../../drawing/helpers/getCentroid.js";
+import { getCentroid } from "../../helpers/getCentroid.js";
 import { camera, controls, scene, objectCenter } from "../../drawing/createScene.js";
-import { drawDummys, drawHoles, drawHoleText } from "../../drawing/entities/drawHoles.js";
+import { drawDummys, drawHoles, drawHoleText } from "../../entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { parseCSV } from "./fileCSVLoader.js";

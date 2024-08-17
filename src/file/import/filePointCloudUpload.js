@@ -1,7 +1,7 @@
 // filePointCloudUpload.js
-import { showCustomPTNModal } from "../../modals/pointCloudModal.js";
+import { showCustomPTNModal } from "../../views/modals/pointCloudModal.js";
 import Papa from "papaparse";
-import { getCentroid, getPointCloudCentroid } from "../../drawing/helpers/getCentroid.js";
+import { getCentroid, getPointCloudCentroid } from "../../helpers/getCentroid.js";
 import { camera, controls, scene, objectCenter } from "../../drawing/createScene.js";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
@@ -9,8 +9,8 @@ import { parsePointCloud } from "./filePointCloudLoader.js";
 import { Vector3, Color } from "three";
 import { BufferGeometry, PointsMaterial, Points, Float32BufferAttribute } from "three";
 import { BoxGeometry, MeshBasicMaterial, Mesh } from "three";
-import { createMeshFromPointCloud, createDelaunayMeshFromPointCloud } from "../../drawing/shapes/createMeshFromPoints.js";
-import { hexToRgb } from "../../drawing/helpers/colorToOther.js";
+import { createMeshFromPointCloud, createDelaunayMeshFromPointCloud } from "../../entities/shapes/createMeshFromPoints.js";
+import { hexToRgb } from "../../helpers/colorToOther.js";
 import { counter } from "../../main.js";
 
 export let cloudPoints = [];

@@ -1,8 +1,8 @@
 //fileUpload.js
 import { parseCSV } from "./fileK3DLoader.js";
-import { getCentroid } from "../../drawing/helpers/getCentroid.js";
+import { getCentroid } from "../../helpers/getCentroid.js";
 import { camera, controls, scene, objectCenter } from "../../drawing/createScene.js";
-import { drawDummys, drawHoles, drawHoleText } from "../../drawing/entities/drawHoles.js";
+import { drawDummys, drawHoles, drawHoleText } from "../../entities/drawHoles.js";
 import { params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { counter } from "../../main.js";

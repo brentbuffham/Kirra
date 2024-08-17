@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { params, scene, controls, camera, objectCenter } from "../../drawing/createScene.js";
 import { Font } from "three/examples/jsm/loaders/FontLoader.js";
 import { TTFLoader } from "three/examples/jsm/loaders/TTFLoader.js";
-import { globalFont } from "../../drawing/helpers/loadGlobalFont.js";
+import { globalFont } from "../../helpers/loadGlobalFont.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { sceneConfig } from "../../drawing/sceneConfig.js";
