@@ -7,7 +7,7 @@ import * as bootstrap from "bootstrap"; // Import Bootstrap as a namespace
 window.bootstrap = bootstrap; // Attach Bootstrap to the window object
 // Import the necessary functions from the other files
 import "./style.css";
-import { createLilGuiFileUpload, handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
+import { handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
 import { preloadFont } from "./helpers/loadGlobalFont.js";
 import { Vector3, Box3 } from "three";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
@@ -243,5 +243,3 @@ export function updateScene() {
 
 // Attach event listener to the button
 document.querySelector("#swap-all-hole-visuals").addEventListener("click", updateHoleDisplay);
-
-createLilGuiFileUpload(canvas);

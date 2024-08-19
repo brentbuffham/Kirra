@@ -107,15 +107,6 @@ export function handleFileUpload(event, canvas) {
 	reader.readAsText(file);
 }
 
-//Only use for the lilGUI
-export function createLilGuiFileUpload(canvas) {
-	const fileInput = document.createElement("input");
-	fileInput.type = "file";
-	fileInput.style.display = "none";
-	fileInput.addEventListener("change", (e) => handleFileUpload(e.target.files[0], canvas));
-	document.body.appendChild(fileInput);
-}
-
 export function handleFileUploadNoEvent(file) {
 	if (!file) {
 		return;

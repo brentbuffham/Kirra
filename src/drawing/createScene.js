@@ -1,6 +1,7 @@
 // createScene.js
 import * as THREE from "three";
-import { AmbientLight, ArrowHelper, DirectionalLight, Object3D, OrthographicCamera, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from "three";
+import { AmbientLight, DirectionalLight, Object3D, OrthographicCamera, PerspectiveCamera, Scene, Vector3, Group } from "three";
+import { WebGLRenderer } from "three";
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { debugGui, gui } from "./debugGui.js";
 import { setArcBallControls } from "./setArcBallControls.js";
@@ -8,6 +9,7 @@ import { bindingKeys } from "./sceneKeybinds.js";
 import { createViewHelper } from "./viewHelper.js";
 import { onWindowResize } from "./ResizeScene.js";
 import { sceneConfig } from "./sceneConfig.js";
+import { createTransparentArrowHelper } from "./arrowHelper.js";
 //import { WebGPURenderer } from "three/src/renderers/webgpu/WebGPURenderer.js";
 
 //load in local starge for the world origin settings
@@ -35,18 +37,32 @@ export let transformControls;
 export let cameraPerspective, cameraOrthographic;
 
 function createLighting() {
-	const ambientLight = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
-	ambientLight.userData = { entityType: "light", lightType: "ambient" };
-	scene.add(ambientLight);
+	// Set the scene background color
 	scene.background = new THREE.Color(sceneConfig.sceneBackground);
+	// Create a group for lighting
+	const lightingGroup = new Group();
+	lightingGroup.name = "Lighting";
+	// Create lights
+	const ambientLight1 = new AmbientLight(0xffffff, sceneConfig.ambientIntensity);
 	const directionalLight1 = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
-	directionalLight1.position.set(sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
 	const directionalLight2 = new DirectionalLight(0xffffff, sceneConfig.lightIntensity);
+	// Position the lights
+	directionalLight1.position.set(sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
 	directionalLight2.position.set(-2 * sceneConfig.directionalLightPosition.x, sceneConfig.directionalLightPosition.y, sceneConfig.directionalLightPosition.z);
+	// Name the lights
+	ambientLight1.name = "Ambient 1";
+	directionalLight1.name = "Directional 1";
+	directionalLight2.name = "Directional 2";
+	// UserData
+	ambientLight1.userData = { entityType: "light", lightType: "ambient" };
 	directionalLight1.userData = { entityType: "light", lightType: "directional" };
 	directionalLight2.userData = { entityType: "light", lightType: "directional" };
-	scene.add(directionalLight1);
-	scene.add(directionalLight2);
+	// Add lights to the lighting group
+	lightingGroup.add(ambientLight1);
+	lightingGroup.add(directionalLight1);
+	lightingGroup.add(directionalLight2);
+	// Add the lighting group to the scene
+	scene.add(lightingGroup);
 }
 
 function setCamera(aspect) {
@@ -119,7 +135,7 @@ export function updateCameraType(sceneX, sceneY, sceneZ) {
 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 }
 
-export let objectCenter = new Object3D();
+export let objectCenter = new Group();
 export function createScene(points) {
 	console.log("createScene(points)", points);
 	scene = new Scene();
@@ -131,27 +147,18 @@ export function createScene(points) {
 	if (points === null || points.length === 0) {
 		objectCenter.position.set(0, 0, 0);
 	}
-	// Create an ArrowHelper with 50% opacity
-	function createTransparentArrowHelper(dir, origin, length, hex, headLength, headWidth) {
-		const arrowHelper = new THREE.ArrowHelper(dir, origin, length, hex, headLength, headWidth);
-
-		// Set the opacity to 50% for both the shaft and the head of the arrow
-		arrowHelper.line.material.transparent = true;
-		arrowHelper.line.material.opacity = 0.5;
-
-		arrowHelper.cone.material.transparent = true;
-		arrowHelper.cone.material.opacity = 0.5;
-
-		return arrowHelper;
-	}
-
-	//const objectCenter = new THREE.Object3D();
-
 	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
+	//name the X axis arrow as "X Arrow"
+	objectCenter.children[0].name = "+X Arrow";
 	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
+	//name the Y axis arrow as "Y Arrow"
+	objectCenter.children[1].name = "+Y Arrow";
 	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+	//name the Z axis arrow as "Z Arrow"
+	objectCenter.children[2].name = "+Z Arrow";
 
-	objectCenter.name = "objectCenter";
+	objectCenter.name = "Object Center";
+	objectCenter.material = new THREE.MeshBasicMaterial({ color: 0x000000, visible: true, transparent: true, opacity: 0.5 });
 	scene.add(objectCenter);
 
 	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);

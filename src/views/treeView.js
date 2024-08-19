@@ -54,38 +54,45 @@ export function populatePanelWithSceneObjects(scene, camera) {
 
 // Keep track of the previously selected object or group
 let previouslySelectedObject = null;
-let opacityStore = 0;
+let opacityStore = [];
+let emissionStore = [];
 
 function selectObjectInScene(object, nodeElement, camera) {
-	// Function to remove emissive from a mesh or group
-	function removeEmissive(object) {
+	// Function to restore emissive and opacity for a mesh or group
+	function restoreMaterialState(object) {
 		if (object.isMesh && object.material) {
-			object.material.emissive.set(0x000000); // Remove highlight
-			object.material.opacity = opacityStore;
-		} else if (object.isGroup) {
-			// If it's a group, apply to all children
-			object.children.forEach((child) => removeEmissive(child));
+			// Restore the original emissive and opacity values
+			const storedEmissive = emissionStore.pop();
+			object.material.emissive.setHex(storedEmissive !== null ? storedEmissive : 0x000000);
+			object.material.opacity = opacityStore.pop();
+		} else if (object.isGroup || object.isObject3D) {
+			// Recursively restore material state for all children
+			object.children.forEach((child) => restoreMaterialState(child));
 		}
 	}
 
-	// Function to apply emissive to a mesh or group
-	function applyEmissive(object) {
+	// Function to apply emissive and set opacity to 1 for a mesh or group
+	function applyMaterialState(object) {
 		if (object.isMesh && object.material) {
-			opacityStore = object.material.opacity;
+			// Store the original emissive and opacity values
+			emissionStore.push(object.material.emissive.getHex());
+			opacityStore.push(object.material.opacity);
+
+			// Apply the new emissive color and set opacity to 1
+			object.material.emissive.setHex(0x00ff00); // Highlight color
 			object.material.opacity = 1;
-			object.material.emissive.set(0x00ff00); // Highlight the new object
-		} else if (object.isGroup) {
-			// If it's a group, apply to all children
-			object.children.forEach((child) => applyEmissive(child));
+		} else if (object.isGroup || object.isObject3D) {
+			// Recursively apply material state for all children
+			object.children.forEach((child) => applyMaterialState(child));
 		}
 	}
 
-	// Deselect previous selection
+	// Deselect the previous object if there was one
 	if (previouslySelectedObject) {
-		removeEmissive(previouslySelectedObject);
+		restoreMaterialState(previouslySelectedObject);
 	}
 
-	// Update the selected DOM node
+	// Clear previous DOM selection
 	const previousSelectedNode = document.querySelector(".tree-node.selected");
 	if (previousSelectedNode) {
 		previousSelectedNode.classList.remove("selected");
@@ -94,14 +101,15 @@ function selectObjectInScene(object, nodeElement, camera) {
 	// Select the new DOM node
 	nodeElement.classList.add("selected");
 
-	// Highlight the new object or group
-	applyEmissive(object);
+	// Apply the material changes to the selected object
+	applyMaterialState(object);
 
 	// Update the previously selected object reference
 	previouslySelectedObject = object;
 
-	// Optionally focus the camera on the selected object or group's position
-	// if (object.position) {
-	// 	camera.lookAt(object.position);
-	// }
+	console.log("Stored Emissive:", emissionStore);
+	console.log("Stored Opacity:", opacityStore);
+
+	// Optionally, focus the camera on the selected object
+	// camera.lookAt(object.position);  // Adjust as needed
 }
