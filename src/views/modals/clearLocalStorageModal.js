@@ -3,6 +3,7 @@
 
 import { Modal } from "bootstrap";
 import { params } from "../../drawing/createScene";
+import { deleteData, clearData } from "../../file/indexDB/dbReadWrite";
 
 export function clearLocalStorageModal() {
 	const modalHtml = `<!-- Modal -->
@@ -19,6 +20,7 @@ export function clearLocalStorageModal() {
           <div class="modal-footer">
             <button type="button" id="cancel" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
             <button type="button" id="clear" class="btn btn-danger">Clear Memory</button>
+            <button type="button" id="clearDB" class="btn btn-danger">Clear Database</button>
           </div>
         </div>
       </div>
@@ -72,5 +74,26 @@ export function clearLocalStorageModal() {
 		alert("Local storage has been cleared.");
 
 		clearLocalStorageModal.hide();
+	});
+
+	// Clear the indexDB
+	const stores = {
+		pointCloud: "CSV_PointCloudStore",
+		k3dBlast: "K3D_BlastStore",
+		csvBlast: "CSV_BlastStore",
+		objMesh: "OBJ_MeshStore"
+	};
+
+	document.getElementById("clearDB").addEventListener("click", async function () {
+		try {
+			for (const store in stores) {
+				await clearData("Kirra3D_Database", stores[store]);
+			}
+			alert("Database has been cleared.");
+		} catch (error) {
+			console.error("Failed to clear database:", error);
+		} finally {
+			clearLocalStorageModal.hide();
+		}
 	});
 }

@@ -5,6 +5,8 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { TextureLoader, MeshBasicMaterial, MeshStandardMaterial, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
 import { objectCenter, params } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
+import { readData, openDatabase, deleteData, writeData } from "../indexDB/dbReadWrite.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
 let materials;
 let object;
@@ -153,6 +155,19 @@ function processLoadedObject(object, canvas, materials) {
 	// Backup material for objects without MTL file
 	const phong_material = new MeshPhongMaterial({ color: 0xaaaaaa, side: DoubleSide, flatShading: true });
 
+	/* CANT STORE NON SERIALISED OBJECTS IN INDEXDB
+	const objectStoreName = "OBJ_MeshStore";
+	//write the object to the indexDB using the dbReadWrite.js
+	(async () => {
+		try {
+			const db = await openDatabase();
+			await writeData(db, objectStoreName, object);
+		} catch (error) {
+			console.error("Failed to write data to the database:", error);
+		}
+	})();
+	*/
+
 	object.traverse(function (child) {
 		if (child.isMesh) {
 			const position = child.geometry.attributes.position;
@@ -194,7 +209,9 @@ function processLoadedObject(object, canvas, materials) {
 				vertices: child.geometry.attributes.position.count,
 				triangles: child.geometry.attributes.position.count / 3
 			};
+
 			canvas.scene.add(child);
+			populatePanelWithSceneObjects(canvas.scene, canvas.camera);
 		}
 	});
 }

@@ -1,3 +1,6 @@
+import { v4 as uuidv4 } from "uuid";
+import { openDatabase, writeData, readData } from "../indexDB/dbReadWrite.js";
+
 export const parseCSV = (data, columnOrder, csvFileName) => {
 	if (!data) {
 		console.error("Data is null or undefined");
@@ -12,6 +15,7 @@ export const parseCSV = (data, columnOrder, csvFileName) => {
 	data.slice(headerRows).forEach((row, index) => {
 		const point = {};
 
+		const uuid = uuidv4();
 		// Map columns based on user-defined column order
 		const blastName = row[Object.keys(row)[columnOrder.blastName - 1]] || `tempBlast_${datetimeNow}`;
 		//console.log("blastName: ", blastName);
@@ -45,6 +49,7 @@ export const parseCSV = (data, columnOrder, csvFileName) => {
 		if (!isNaN(startXLocation) && !isNaN(startYLocation) && !isNaN(startZLocation) && !isNaN(endXLocation) && !isNaN(endYLocation) && !isNaN(endZLocation)) {
 			// check if they are valid numbers
 			points.push({
+				uuid,
 				blastName,
 				pointID,
 				startXLocation,
@@ -63,8 +68,26 @@ export const parseCSV = (data, columnOrder, csvFileName) => {
 		}
 	});
 
+	const csvBlastStore = "CSV_BlastStore";
+	// Write the points to the database
+	(async () => {
+		try {
+			const db = await openDatabase();
+			console.log("Database opened successfully. Attempting to write data...");
+
+			await writeData(db, csvBlastStore, points);
+			console.log("Data written successfully to " + csvBlastStore);
+
+			// Attempt to read back the data
+			const readBackData = await readData(db, csvBlastStore);
+			console.log("Data read back from the database:", readBackData);
+		} catch (error) {
+			console.error("Failed to write or read data from the database:", error);
+		}
+	})();
+
 	// Save the points to localStorage
-	localStorage.setItem(csvFileName, JSON.stringify(points));
+	//localStorage.setItem(csvFileName, JSON.stringify(points));
 
 	return points;
 };

@@ -120,7 +120,8 @@ export function handleFileUploadNoEvent(file) {
 			return;
 		}
 
-		const k3DStoreName = "k3DBlastStore" + counter.k3DFileCount;
+		const k3DStoreName = "K3D_BlastStore";
+		//const k3DStoreName = "k3DBlastStore" + counter.k3DFileCount;
 
 		//so the points array reference is not lost
 		points.length = 0;
@@ -147,6 +148,7 @@ export function handleFileUploadNoEvent(file) {
 					//console.log("fileK3DUpload " + point.pointID + " X: " + point.startXLocation + " Y: " + point.startYLocation + " Z: " + point.startZLocation + " Diameter: " + point.diameter + " Subdrill: " + point.subdrill + " ShapeType: " + point.shapeType);
 				}
 				const tempPoint = {
+					uuid: point.uuid,
 					blastName: point.blastName,
 					pointID: point.pointID,
 					startXLocation: point.startXLocation - x,

@@ -32,6 +32,7 @@ import { bindListenerToObjMaterialCycleButton } from "./buttons/mesh/objMaterial
 import { bindListenerToCameraTypeCycleButton } from "./buttons/camera/cameraTypeCycleButton.js";
 import { bindListenerToHoleNameDisplayButton, bindListenerToHoleLengthDisplayButton, bindListenerToHoleDiameterDisplayButton } from "./buttons/hole/holePropertiesButton.js";
 import { populatePanelWithSceneObjects } from "./views/treeView.js"; // Import the tree view logic
+import { openDatabase, writeData, readData } from "./file/indexDB/dbReadWrite.js";
 
 createMainView();
 
@@ -64,6 +65,40 @@ bindListenerToCameraTypeCycleButton(scene, camera, controls, params);
 bindListenerToHoleNameDisplayButton(params, camera, scene);
 bindListenerToHoleLengthDisplayButton(params, camera, scene);
 bindListenerToHoleDiameterDisplayButton(params, camera, scene);
+
+document.addEventListener("DOMContentLoaded", async () => {
+	try {
+		// Initialize the database
+		const db = await openDatabase();
+		console.log("Kirra3D database initialized");
+
+		// Example: Writing and reading from different stores
+		// const pointCloudData = {
+		// 	name: "SamplePointCloud",
+		// 	points: [
+		// 		/* your point data here */
+		// 	]
+		// };
+		// await writeData(db, "CSV_PointCloudStore", pointCloudData);
+
+		// const blastData = {
+		// 	name: "SampleBlastData",
+		// 	details: {
+		// 		/* blast details here */
+		// 	}
+		// };
+		// await writeData(db, "K3D_BlastStore", blastData);
+
+		// Read and log data from each store
+		// const storedPointClouds = await readData(db, "CSV_PointCloudStore");
+		// console.log("Stored Point Clouds:", storedPointClouds);
+
+		// const storedBlasts = await readData(db, "K3D_BlastStore");
+		// console.log("Stored Blasts:", storedBlasts);
+	} catch (error) {
+		console.error("Error initializing Kirra3D IndexedDB:", error);
+	}
+});
 
 function getCurrentPoints() {
 	//Get all the holes from the localStorage.

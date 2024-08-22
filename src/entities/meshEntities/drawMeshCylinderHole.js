@@ -3,7 +3,7 @@ import { Group } from "three";
 import { drawHoleText } from "../drawHoles";
 import { params } from "../../drawing/createScene";
 
-export function drawMeshCylinderHole(scene, color, materialType, blastName, name, collarXYZ, intervalXYZ, toeXYZ, diameter, subdrill, radialSegments) {
+export function drawMeshCylinderHole(scene, color, materialType, uuid, blastName, name, collarXYZ, intervalXYZ, toeXYZ, diameter, subdrill, radialSegments) {
 	diameter = diameter || 500;
 	materialType = materialType || "phong";
 
@@ -31,6 +31,7 @@ export function drawMeshCylinderHole(scene, color, materialType, blastName, name
 
 	// Set hole's user data
 	hole.userData = {
+		uuid: uuid,
 		blastName: blastName,
 		entityType: "hole",
 		pointID: name,

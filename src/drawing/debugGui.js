@@ -6,7 +6,7 @@ import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { setArcBallControls } from "./setArcBallControls.js";
 import { updateCameraType } from "./createScene.js";
-export const gui = new GUI();
+//export const gui = new GUI();
 const controllersMap = {};
 
 export function debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera) {

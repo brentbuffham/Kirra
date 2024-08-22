@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { AmbientLight, DirectionalLight, Object3D, OrthographicCamera, PerspectiveCamera, Scene, Vector3, Group } from "three";
 import { WebGLRenderer } from "three";
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
-import { debugGui, gui } from "./debugGui.js";
+//import { debugGui, gui } from "./debugGui.js";
 import { setArcBallControls } from "./setArcBallControls.js";
 import { bindingKeys } from "./sceneKeybinds.js";
 import { createViewHelper } from "./viewHelper.js";
@@ -196,24 +196,24 @@ export function createScene(points) {
 
 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 
-	debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
+	//debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
 
-	if (points !== null && points.length > 0) {
-		const holeFolder = gui.addFolder("Hole Text Display Options");
-		holeFolder.close();
-		holeFolder
-			.add(params, "holeNameDisplay")
-			.name("Hole Name")
-			.onChange(function () {});
-		holeFolder
-			.add(params, "holeLengthDisplay")
-			.name("Hole Length")
-			.onChange(function () {});
-		holeFolder
-			.add(params, "holeDiameterDisplay")
-			.name("Hole Diameter")
-			.onChange(function () {});
-	}
+	// if (points !== null && points.length > 0) {
+	// 	const holeFolder = gui.addFolder("Hole Text Display Options");
+	// 	holeFolder.close();
+	// 	holeFolder
+	// 		.add(params, "holeNameDisplay")
+	// 		.name("Hole Name")
+	// 		.onChange(function () {});
+	// 	holeFolder
+	// 		.add(params, "holeLengthDisplay")
+	// 		.name("Hole Length")
+	// 		.onChange(function () {});
+	// 	holeFolder
+	// 		.add(params, "holeDiameterDisplay")
+	// 		.name("Hole Diameter")
+	// 		.onChange(function () {});
+	// }
 
 	animate();
 

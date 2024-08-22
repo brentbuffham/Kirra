@@ -1,5 +1,5 @@
 import { params } from "../drawing/createScene.js";
-import { gui } from "../drawing/debugGui.js";
+//import { gui } from "../drawing/debugGui.js";
 import { controllersMap } from "../drawing/debugGui.js";
 
 function updateGuiControllers() {
