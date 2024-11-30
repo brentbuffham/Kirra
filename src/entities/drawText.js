@@ -1,8 +1,8 @@
 //drawText.js
-import { Mesh, MeshPhongMaterial, Box3 } from "three";
+import { Mesh, MeshPhongMaterial, Box3, Group } from "three";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
-export function drawText(scene, color, font, vector, value, entityType) {
+export function drawText(scene, color, font, vector, uuid, blastName, value, entityType) {
 	value = value || "None";
 
 	const textGeometry = new TextGeometry(value, {
@@ -32,6 +32,8 @@ export function drawText(scene, color, font, vector, value, entityType) {
 	textMesh.position.set(parseFloat(vector.x), parseFloat(vector.y), parseFloat(vector.z));
 	textMesh.name = value + "- text";
 	textMesh.userData = {
+		uuid: uuid,
+		blastName: blastName,
 		entityType: entityType,
 		vector: vector,
 		value: value,
@@ -40,9 +42,19 @@ export function drawText(scene, color, font, vector, value, entityType) {
 		font: font,
 		colour: color
 	};
-	// Add the text mesh to the scene
-	scene.add(textMesh);
 
+	// Check if a blast group with the given blastName already exists
+	let textGroup = scene.children.find((child) => child.isGroup && child.name === blastName + " {text}");
+
+	if (!textGroup) {
+		// If the blast group doesn't exist, create a new one
+		textGroup = new Group();
+		textGroup.name = blastName + " {text}";
+		scene.add(textGroup);
+	}
+
+	// Add the hole to the blast group
+	textGroup.add(textMesh);
 	// Return the width and height of the text
 	//return { textWidth, textHeight };
 }

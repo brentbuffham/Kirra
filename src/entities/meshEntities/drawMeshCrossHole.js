@@ -4,9 +4,10 @@ import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Vector3 } from "three";
 import { Group } from "three";
 
-export function drawMeshCrossHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, thickness, radialSegments) {
+export function drawMeshCrossHole(scene, color, materialType, uuid, blastName, name, collarXYZ, intervalXYZ, toeXYZ, diameter, subdrill, radialSegments) {
 	const diameterMM = diameter / 1000;
 	const radius = diameterMM / 2;
+	const thickness = 100;
 
 	const points = {
 		topLeft: new Vector3(collarXYZ.x - radius, collarXYZ.y + radius, collarXYZ.z),
@@ -24,16 +25,30 @@ export function drawMeshCrossHole(scene, color, materialType, name, collarXYZ, i
 	hole.add(createCylinder(color, materialType, intervalXYZ, toeXYZ, thickness, radialSegments));
 	hole.name = name;
 	hole.userData = {
+		uuid: uuid,
+		blastName: blastName,
 		entityType: "hole",
 		pointID: name,
 		collarXYZ: collarXYZ,
 		intervalXYZ: intervalXYZ,
 		toeXYZ: toeXYZ,
 		diameter: diameter,
-		subdrill: intervalXYZ.distanceTo(toeXYZ),
-		benchLength: collarXYZ.distanceTo(intervalXYZ),
+		holeLength: collarXYZ.distanceTo(toeXYZ).toFixed(3),
+		subdrill: intervalXYZ.distanceTo(toeXYZ).toFixed(3),
+		benchLength: collarXYZ.distanceTo(intervalXYZ).toFixed(3),
 		holeType: "unknown",
 		displayType: "mesh-cross"
 	};
-	scene.add(hole);
+	// Check if a blast group with the given blastName already exists
+	let blastGroup = scene.children.find((child) => child.isGroup && child.name === blastName);
+
+	if (!blastGroup) {
+		// If the blast group doesn't exist, create a new one
+		blastGroup = new Group();
+		blastGroup.name = blastName;
+		scene.add(blastGroup);
+	}
+
+	// Add the hole to the blast group
+	blastGroup.add(hole);
 }

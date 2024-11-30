@@ -1,6 +1,6 @@
 //createLine.js
 import { BufferGeometry, Vector3, Vector2, Mesh, Color } from "three";
-import { MeshLineMaterial, MeshLine } from "../../helpers/MeshLineModified.js";
+import { MeshLineMaterial, MeshLine } from "../../helpers/meshLineModified.js";
 
 export function createLine(start, end, color, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
 	const material = new MeshLineMaterial({

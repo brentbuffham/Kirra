@@ -4,7 +4,7 @@ import { getRandomColor } from "../../helpers/getRandomColor.js";
 import { Group } from "three";
 import { createAnyShape } from "../../entities/shapes/createAnyShape.js";
 
-export function drawLineCrossHole(scene, color, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
+export function drawLineCrossHole(scene, color, uuid, blastName, name, collarXYZ, intervalXYZ, toeXYZ, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation) {
 	diameter = diameter || 500;
 	const diameterMM = diameter / 1000;
 	const radius = diameterMM / 2;
@@ -38,5 +38,16 @@ export function drawLineCrossHole(scene, color, name, collarXYZ, intervalXYZ, to
 		holeType: "unknown",
 		displayType: "line-cross"
 	};
-	scene.add(hole);
+	// Check if a blast group with the given blastName already exists
+	let blastGroup = scene.children.find((child) => child.isGroup && child.name === blastName);
+
+	if (!blastGroup) {
+		// If the blast group doesn't exist, create a new one
+		blastGroup = new Group();
+		blastGroup.name = blastName;
+		scene.add(blastGroup);
+	}
+
+	// Add the hole to the blast group
+	blastGroup.add(hole);
 }

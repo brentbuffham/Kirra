@@ -1,9 +1,10 @@
 import { createCylinder } from "../shapes/createCylinder";
 import { getRandomColor } from "../../helpers/getRandomColor";
 import { Group } from "three";
+import { params } from "../../drawing/createScene";
 
-//Use this to draw holes that don't have diameter provided
-export function drawMeshCubeHole(scene, color, materialType, name, collarXYZ, intervalXYZ, toeXYZ, diameter, radialSegments) {
+//Use this to draw holes that don't have diameter provided drawMeshCubeHole(scene, colour, materialType, uuid, blastName, name, collarXYZ, intervalXYZ, toeXYZ, drawDiam, subdrill, 4);
+export function drawMeshCubeHole(scene, color, materialType, uuid, blastName, name, collarXYZ, intervalXYZ, toeXYZ, diameter, subdrill, radialSegments) {
 	materialType = materialType || "basic";
 	const hole = new Group();
 	hole.add(createCylinder(color, materialType, collarXYZ, intervalXYZ, 500, radialSegments));
@@ -18,22 +19,33 @@ export function drawMeshCubeHole(scene, color, materialType, name, collarXYZ, in
 		hole.children[1].material.wireframe = true;
 	}
 
-	hole.name = name + "-hole";
+	hole.name = name;
 	hole.userData = {
+		uuid: uuid,
+		blastName: blastName,
 		entityType: "hole",
-		pointID: `${name}`,
+		pointID: name,
 		collarXYZ: collarXYZ,
 		intervalXYZ: intervalXYZ,
 		toeXYZ: toeXYZ,
 		diameter: diameter,
-		subdrill: intervalXYZ.distanceTo(toeXYZ),
-		benchLength: collarXYZ.distanceTo(intervalXYZ),
+		holeLength: collarXYZ.distanceTo(toeXYZ).toFixed(3),
+		subdrill: intervalXYZ.distanceTo(toeXYZ).toFixed(3),
+		benchLength: collarXYZ.distanceTo(intervalXYZ).toFixed(3),
 		holeType: "unknown",
 		displayType: "mesh-cube"
 	};
 
-	scene.add(hole);
-	if (params.debugComments) {
-		console.log("drawCubeHole > UUID: " + hole.uuid + " Name: " + hole.name + " X: " + collarXYZ.x + " Y: " + collarXYZ.y + " Z: " + collarXYZ.z);
+	// Check if a blast group with the given blastName already exists
+	let blastGroup = scene.children.find((child) => child.isGroup && child.name === blastName);
+
+	if (!blastGroup) {
+		// If the blast group doesn't exist, create a new one
+		blastGroup = new Group();
+		blastGroup.name = blastName;
+		scene.add(blastGroup);
 	}
+
+	// Add the hole to the blast group
+	blastGroup.add(hole);
 }

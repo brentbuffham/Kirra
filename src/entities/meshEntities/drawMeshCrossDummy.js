@@ -3,7 +3,7 @@ import { Vector3 } from "three";
 import { createCylinder } from "../shapes/createCylinder";
 import { Group } from "three";
 
-export function drawMeshCrossDummy(scene, color, materialType, name, vector, thickness, radialSegments) {
+export function drawMeshCrossDummy(scene, colour, materialType, uuid, blastName, vector, thickness, radialSegments) {
 	const size = 0.5;
 
 	const points = {
@@ -18,10 +18,23 @@ export function drawMeshCrossDummy(scene, color, materialType, name, vector, thi
 
 	dummy.name = name;
 	dummy.userData = {
-		entityType: "dummy",
+		uuid: uuid,
+		blastName: blastName,
+		entityType: "hole",
 		pointID: name,
 		collarXYZ: vector,
 		displayType: "mesh-dummy"
 	};
-	scene.add(dummy);
+	// Check if a blast group with the given blastName already exists
+	let blastGroup = scene.children.find((child) => child.isGroup && child.name === blastName);
+
+	if (!blastGroup) {
+		// If the blast group doesn't exist, create a new one
+		blastGroup = new Group();
+		blastGroup.name = blastName;
+		scene.add(blastGroup);
+	}
+
+	// Add the hole to the blast group
+	blastGroup.add(hole);
 }

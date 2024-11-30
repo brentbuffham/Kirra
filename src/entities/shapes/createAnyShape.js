@@ -1,5 +1,5 @@
 import { BufferGeometry, Mesh, CircleGeometry, MeshBasicMaterial, DoubleSide, Float32BufferAttribute, Color, Vector2, Vector3, Matrix4 } from "three";
-import { MeshLineMaterial, MeshLine } from "../../helpers/MeshLineModified.js";
+import { MeshLineMaterial, MeshLine } from "../../helpers/meshLineModified.js";
 
 export function createAnyShape(color, vector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, segments, isFilled) {
 	const holeDiameterM = diameter / 1000;

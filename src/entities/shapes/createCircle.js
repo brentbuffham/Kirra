@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, Color, Vector2, CircleGeometry, MeshBasicMaterial, DoubleSide, Mesh } from "three";
-import { MeshLine, MeshLineMaterial } from "../../helpers/MeshLineModified.js";
+import { MeshLine, MeshLineMaterial } from "../../helpers/meshLineModified.js";
 
 export function createCircle(color, vector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isFilled) {
 	const holeDiameterM = diameter / 1000;

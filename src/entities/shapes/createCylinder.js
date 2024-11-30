@@ -6,6 +6,9 @@ import { params } from "../../drawing/createScene";
 const logit = false;
 
 export function createCylinder(color, materialType, startVector, endVector, diameter, radialSegments) {
+	if (!(startVector instanceof Vector3) || !(endVector instanceof Vector3)) {
+		console.warn("startVector must be an instance of Vector3: ", startVector, " and endVector must be an instance of Vector3: ", endVector);
+	}
 	diameter = diameter || 500;
 	diameter = diameter / 1000;
 	let material;

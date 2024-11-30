@@ -1,5 +1,5 @@
 import { BufferGeometry, Mesh, CircleGeometry, MeshBasicMaterial, DoubleSide, Float32BufferAttribute, Color, Vector2, Vector3, Matrix4 } from "three";
-import { MeshLineMaterial, MeshLine } from "../helpers/MeshLineModified.js";
+import { MeshLineMaterial, MeshLine } from "../../helpers/meshLineModified.js";
 
 export function createSquare(color, vector, diameter, lineWidth, dashArray, dashOffset, dashRatio, opacity, sizeAttenuation, isSquare, isFilled) {
 	const holeDiameterM = diameter / 1000;
@@ -44,7 +44,7 @@ export function createSquare(color, vector, diameter, lineWidth, dashArray, dash
 		const positions = [];
 
 		for (let i = 0; i <= segments; i++) {
-			const theta = i / segments * Math.PI * 2;
+			const theta = (i / segments) * Math.PI * 2;
 			const x = radius * Math.cos(theta);
 			const y = radius * Math.sin(theta);
 			if (isSquare) {
