@@ -7,6 +7,7 @@ import { globalFont } from "../../helpers/loadGlobalFont.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { sceneConfig } from "../../drawing/sceneConfig.js";
+import { populatePanelWithSceneObjects } from "../../views/treeView.js";
 
 export function handleDXFNoEvent(file, canvas) {
 	if (!file) {
@@ -200,13 +201,13 @@ export function handleDXFNoEvent(file, canvas) {
 			}
 		});
 
-		// Force position to 0, 0, 0
-		group.position.set(0, 0, 0);
-		group.scale.set(1, 1, 1);
 		group.name = file.name;
 
 		// Add the group to the scene
 		scene.add(group);
+
+		// Update the tree view with the new group and its children
+		populatePanelWithSceneObjects(scene, camera);
 
 		console.log("Object position after load:", group.position);
 		console.log("Object rotation after load:", group.rotation);
