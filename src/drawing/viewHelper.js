@@ -1,5 +1,5 @@
 import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
-import { camera, controls, renderer } from "./createScene.js";
+import { camera, controls, renderer, objectCenter } from "./createScene.js";
 import { Vector3, BufferGeometry, Line, LineBasicMaterial } from "three";
 
 export const createViewHelper = () => {
@@ -7,6 +7,9 @@ export const createViewHelper = () => {
 	const viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
 	viewHelper.controls.center = controls.target;
+
+	// Set the controls target to objectCenter
+	controls.target.copy(objectCenter.position);
 
 	// Modify the negative axis colors
 	applyNegativeAxisColorWithAlpha(viewHelper);
@@ -28,7 +31,14 @@ export const createViewHelper = () => {
 
 	document.body.appendChild(div);
 
-	div.addEventListener("pointerup", (event) => viewHelper.handleClick(event));
+	div.addEventListener("pointerup", (event) => {
+		viewHelper.handleClick(event);
+		// Ensure the controls target is updated to objectCenter after clicking the view helper
+		controls.target.copy(objectCenter.position);
+		camera.lookAt(controls.target);
+		camera.updateProjectionMatrix();
+		controls.update();
+	});
 
 	return viewHelper;
 };
