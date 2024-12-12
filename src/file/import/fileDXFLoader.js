@@ -25,14 +25,31 @@ export function handleDXFNoEvent(file, canvas) {
 
 		const defaultMaterial = new THREE.LineBasicMaterial({ color: 0xffbb00 });
 
-		const group = new THREE.Group();
+		// Create a parent group for the DXF file
+		const dxfGroup = new THREE.Group();
+		dxfGroup.name = file.name;
+
+		// Group entities by type
+		const entityGroups = {};
 
 		// Use the world center parameters as offsets
 		const offset = new THREE.Vector3(params.worldXCenter, params.worldYCenter, params.worldZCenter);
 
 		dxf.entities.forEach((entity) => {
+			const entityType = entity.type.toLowerCase();
+
+			// Use entity-specific names if available
+			const entityName = entity.name || `${entityType} - ${entity.layer || "default"}`;
+
+			// Create a group for each entity type if it doesn't exist
+			if (!entityGroups[entityType]) {
+				entityGroups[entityType] = new THREE.Group();
+				entityGroups[entityType].name = `${entityType}s`; // Pluralize type name
+				dxfGroup.add(entityGroups[entityType]);
+			}
+
 			// Compute the bounding box of the object
-			const boundingBox = new THREE.Box3().setFromObject(group);
+			const boundingBox = new THREE.Box3().setFromObject(dxfGroup);
 			const center = boundingBox.getCenter(new THREE.Vector3());
 
 			const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
@@ -49,9 +66,12 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				const line = new THREE.Line(geometry, material);
-				console.log("DXF LINE:", line);
+				//console.log("DXF LINE:", line);
 				//allBounds.expandByObject(line);
-				group.add(line);
+				if (line) {
+					line.name = entityName;
+					entityGroups[entityType].add(line);
+				}
 			}
 			if (entity.type === "POLYLINE" || entity.type === "LWPOLYLINE") {
 				let points = entity.vertices.map((vertex) => {
@@ -66,8 +86,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let geometry = new THREE.BufferGeometry().setFromPoints(points);
 				let line = new THREE.Line(geometry, material);
 				//allBounds.expandByObject(line);
-				console.log("DXF POLYLINE:", line);
-				group.add(line);
+				//console.log("DXF POLYLINE:", line);
+				if (line) {
+					line.name = entityName;
+					entityGroups[entityType].add(line);
+				}
 			}
 			if (entity.type === "CIRCLE") {
 				let geometry = new THREE.CircleGeometry(entity.radius, 32);
@@ -76,8 +99,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let circle = new THREE.Line(geometry, material);
 				circle.position.set(entity.center.x - offsetX, entity.center.y - offsetY, entity.center.z);
 				//allBounds.expandByObject(circle);
-				console.log("DXF CIRCLE:", circle);
-				group.add(circle);
+				//console.log("DXF CIRCLE:", circle);
+				if (circle) {
+					circle.name = entityName;
+					entityGroups[entityType].add(circle);
+				}
 			}
 			if (entity.type === "ARC") {
 				let geometry = new THREE.CircleGeometry(entity.radius, 32, entity.startAngle, entity.endAngle);
@@ -85,8 +111,12 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let arc = new THREE.Line(geometry, material);
 				arc.position.set(entity.center.x - offsetX, entity.center.y - offsetY, entity.center.z);
-				console.log("DXF ARC:", arc);
-				group.add(arc);
+				//console.log("DXF ARC:", arc);
+				//allBounds.expandByObject(arc);
+				if (arc) {
+					arc.name = entityName;
+					entityGroups[entityType].add(arc);
+				}
 			}
 			if (entity.type === "SPLINE") {
 				let points = entity.controlPoints.map((vertex) => {
@@ -96,10 +126,13 @@ export function handleDXFNoEvent(file, canvas) {
 				let geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(50));
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
-				let line = new THREE.Line(geometry, material);
+				let spline = new THREE.Line(geometry, material);
 				//allBounds.expandByObject(line);
-				console.log("DXF SPLINE:", line);
-				group.add(line);
+				//console.log("DXF SPLINE:", line);
+				if (spline) {
+					spline.name = entityName;
+					entityGroups[entityType].add(spline);
+				}
 			}
 			if (entity.type === "ELLIPSE") {
 				let ellipse = new THREE.EllipseCurve(entity.x - offsetX, entity.y - offsetY, entity.xRadius, entity.yRadius, entity.startAngle, entity.endAngle, entity.clockwise, entity.rotation);
@@ -107,12 +140,19 @@ export function handleDXFNoEvent(file, canvas) {
 				let geometry = new THREE.BufferGeometry().setFromPoints(points);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
-				let line = new THREE.Line(geometry, material);
+				let lineEllipse = new THREE.Line(geometry, material);
 				//allBounds.expandByObject(line);
-				console.log("DXF ELLIPSE:", line);
-				group.add(line);
+				// console.log("DXF ELLIPSE:", line);
+				if (lineEllipse) {
+					lineEllipse.name = entityName;
+					entityGroups[entityType].add(lineEllipse);
+				}
 			}
 			if (entity.type === "TEXT") {
+				if (!entity.startPoint) {
+					console.warn("TEXT entity does not have a startPoint property. Skipping.");
+					return;
+				}
 				let text = new TextGeometry(entity.text, {
 					font: globalFont,
 					size: entity.textHeight,
@@ -129,10 +169,17 @@ export function handleDXFNoEvent(file, canvas) {
 				mesh.position.set(entity.startPoint.x - offsetX, entity.startPoint.y - offsetY, entity.startPoint.z);
 				mesh.dxfType = entity.type;
 				//allBounds.expandByObject(mesh);
-				console.log("DXF TEXT:", mesh);
-				group.add(mesh);
+				//console.log("DXF TEXT:", mesh);
+				if (mesh) {
+					mesh.name = entityName;
+					entityGroups[entityType].add(mesh);
+				}
 			}
 			if (entity.type === "MTEXT") {
+				if (!entity.startPoint) {
+					console.warn("MTEXT entity does not have a startPoint property. Skipping.");
+					return;
+				}
 				let text = new TextGeometry(entity.text, {
 					font: globalFont,
 					size: entity.height,
@@ -149,8 +196,11 @@ export function handleDXFNoEvent(file, canvas) {
 				mesh.position.set(entity.startPoint.x - offsetX, entity.startPoint.y - offsetY, entity.startPoint.z);
 				mesh.dxfType = entity.type;
 				//allBounds.expandByObject(mesh);
-				console.log("DXF MTEXT:", mesh);
-				group.add(mesh);
+				//console.log("DXF MTEXT:", mesh);
+				if (mesh) {
+					mesh.name = entityName;
+					entityGroups[entityType].add(mesh);
+				}
 			}
 			if (entity.type === "DIMENSION") {
 				let points = entity.points.map((vertex) => {
@@ -169,8 +219,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
 				//allBounds.expandByObject(point);
-				console.log("DXF POINT:", point);
-				group.add(point);
+				// console.log("DXF POINT:", point);
+				if (point) {
+					point.name = entityName;
+					entityGroups[entityType].add(point);
+				}
 			}
 			if (entity.type === "INSERT") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
@@ -178,8 +231,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
 				//allBounds.expandByObject(point);
-				console.log("DXF INSERT:", point);
-				group.add(point);
+				//console.log("DXF INSERT:", point);
+				if (point) {
+					point.name = entityName;
+					entityGroups[entityType].add(point);
+				}
 			}
 			if (entity.type === "BLOCK") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
@@ -187,8 +243,11 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
 				//allBounds.expandByObject(point);
-				console.log("DXF BLOCK:", point);
-				group.add(point);
+				//console.log("DXF BLOCK:", point);
+				if (point) {
+					point.name = entityName;
+					entityGroups[entityType].add(point);
+				}
 			}
 			if (entity.type === "HATCH") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
@@ -196,27 +255,30 @@ export function handleDXFNoEvent(file, canvas) {
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let point = new THREE.Points(geometry, material);
 				//allBounds.expandByObject(point);
-				console.log("DXF HATCH:", point);
-				group.add(point);
+				//console.log("DXF HATCH:", point);
+				if (point) {
+					point.name = entityName;
+					entityGroups[entityType].add(point);
+				}
 			}
 		});
 
-		group.name = file.name;
+		dxfGroup.name = file.name;
 
 		// Add the group to the scene
-		scene.add(group);
+		scene.add(dxfGroup);
 
 		// Update the tree view with the new group and its children
 		populatePanelWithSceneObjects(scene, camera);
 
-		console.log("Object position after load:", group.position);
-		console.log("Object rotation after load:", group.rotation);
-		console.log("Object scale after load:", group.scale);
+		console.log("Object position after load:", dxfGroup.position);
+		console.log("Object rotation after load:", dxfGroup.rotation);
+		console.log("Object scale after load:", dxfGroup.scale);
 
 		if (params.debugComments) {
-			console.log("Loaded DXF position:", group.position);
-			console.log("Loaded DXF rotation:", group.rotation);
-			console.log("Loaded DXF scale:", group.scale);
+			console.log("Loaded DXF position:", dxfGroup.position);
+			console.log("Loaded DXF rotation:", dxfGroup.rotation);
+			console.log("Loaded DXF scale:", dxfGroup.scale);
 		}
 	};
 

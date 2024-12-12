@@ -27,6 +27,12 @@ export function createMainView() {
 		<button id=import-pointcloud title="File Import Point Cloud CSV">
 			<img src="./assets/tabler-icons-2.36.0/png/load-csv.png" alt="File Import Text Based Point Cloud" />
 		</button>
+		<button id=translate-object-centre title="Translate Object Centre">
+			<img src="dist/assets/tabler-icons-2.36.0/png/routeX2.png" alt="Translate Object Centre" />
+		</button>
+		<button id=rotate-around-obj-center title="Rotate Around Object Centre">
+			<img src="dist/assets/tabler-icons-2.36.0/png/rotate-dot.png" alt="Rotate Arround Object Centre" />
+		</button>
 		<button id=settings-world title="Settings World Origin">
 			<img src="./assets/tabler-icons-2.36.0/png/world-cog.png" alt="World Origin Point" />
 		</button>

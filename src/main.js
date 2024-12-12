@@ -25,6 +25,8 @@ import { bindListenerToImportCSVButton } from "./buttons/csv/importHolesButton.j
 import { bindListenerToImportOBJButton } from "./buttons/mesh/importOBJButton.js";
 import { bindListenerToImportDXFButton } from "./buttons/autocad/importDXFButton.js";
 import { bindListenerToImportPointCloudButton } from "./buttons/csv/importPointCloudButton.js";
+import { bindListenerToTranslateObjectCentreButton } from "./buttons/view/translateObjectCenter.js";
+import { bindListenerToRotateAroundObjCenterButton } from "./buttons/view/rotateAroundObjCenter.js";
 import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
 import { bindListenerToClearMemoryButton } from "./buttons/memory/clearMemoryButton.js";
 import { bindListenerToResetCameraViewButton } from "./buttons/camera/resetCameraButton.js";
@@ -57,6 +59,8 @@ bindListenerToImportCSVButton();
 bindListenerToImportOBJButton(canvas);
 bindListenerToImportDXFButton(canvas);
 bindListenerToImportPointCloudButton();
+bindListenerToTranslateObjectCentreButton(canvas);
+bindListenerToRotateAroundObjCenterButton(canvas);
 bindListenerToWorldOriginSettingsButton();
 bindListenerToClearMemoryButton();
 bindListenerToResetCameraViewButton(camera, controls, scene, params);

@@ -125,6 +125,11 @@ body {
     background-color: var(--button-hover-background);
 }
 
+/* Highlighted state for buttons within #horizontal-nav */
+#vertical-nav button.highlighted {
+    background-color: var(--button-hover-background);
+}
+
 #vertical-nav button img {
     width: 20px;
     height: 20px;
@@ -164,16 +169,21 @@ body {
     transition: background-color 0.3s ease;
 }
 
-/* Mouse over highlight */
-#horizontal-nav button:hover {
-    background-color: var(--button-hover-background);
-}
-
 #horizontal-nav button img {
     width: 20px;
     height: 20px;
     padding-top: 2px;
     pointer-events: auto;
+}
+
+/* Mouse over highlight */
+#horizontal-nav button:hover {
+    background-color: var(--button-hover-background);
+}
+
+/* Highlighted state for buttons within #horizontal-nav */
+#horizontal-nav button.highlighted {
+    background-color: var(--button-hover-background);
 }
 
 #horizontal-nav.open {
@@ -239,6 +249,7 @@ body {
     cursor: pointer;
     z-index: 101;
 }
+
 
 .panel-toggle-btn {
     position: absolute;

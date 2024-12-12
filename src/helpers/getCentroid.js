@@ -23,6 +23,74 @@ export function getCentroid(points) {
 	return centroid;
 }
 
+export function getDXFCentroid(entities) {
+	// differnatiate thedifferent types of entities
+	let points = [];
+	let lines = [];
+	let polylines = [];
+	let lwpolylines = [];
+	let circles = [];
+	let ellipses = [];
+	let arcs = [];
+	let splines = [];
+	let meshes = [];
+	let text = [];
+	let mtext = [];
+	let dimensions = [];
+	let blocks = [];
+	let insert = [];
+	let hatch = [];
+
+	entities.forEach((entity) => {
+		switch (entity.type) {
+			case "POINT":
+				points.push(entity);
+				break;
+			case "LINE":
+				lines.push(entity);
+				break;
+			case "POLYLINE":
+				polylines.push(entity);
+				break;
+			case "LWPOLYLINE":
+				lwpolylines.push(entity);
+				break;
+			case "CIRCLE":
+				circles.push(entity);
+				break;
+			case "ELLIPSE":
+				ellipses.push(entity);
+				break;
+			case "ARC":
+				arcs.push(entity);
+				break;
+			case "SPLINE":
+				splines.push(entity);
+				break;
+			case "MESH":
+				meshes.push(entity);
+				break;
+			case "TEXT":
+				text.push(entity);
+				break;
+			case "MTEXT":
+				mtext.push(entity);
+				break;
+			case "DIMENSION":
+				dimensions.push(entity);
+				break;
+			case "INSERT":
+				insert.push(entity);
+				break;
+			case "HATCH":
+				hatch.push(entity);
+				break;
+			default:
+				break;
+		}
+	});
+}
+
 export function getOBJCentroid(object) {
 	// Check if the object is a Mesh and has geometry
 	if (object instanceof Mesh && object.geometry) {

@@ -132,7 +132,8 @@ const stores = {
 	pointCloud: "CSV_PointCloudStore",
 	k3dBlast: "K3D_BlastStore",
 	csvBlast: "CSV_BlastStore",
-	objMesh: "OBJ_MeshStore"
+	objMesh: "OBJ_MeshStore",
+	dxfEntities: "DXF_EntityStore"
 };
 
 // Function to find the store containing the object by its UUID

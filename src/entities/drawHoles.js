@@ -19,7 +19,7 @@ import { getRandomColor } from "../helpers/getRandomColor";
 
 import { globalFont } from "../helpers/loadGlobalFont"; //getCentroid.js
 
-const logit = true;
+const logit = false;
 
 //Draw points that consist of id, sx, sy, sz, ex, ey, ez, diameter, subdrill
 export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
@@ -32,7 +32,7 @@ export function drawHoles(scene, colour, tempPoint, diameter, subdrill, shape) {
 	const toeXYZ = new Vector3(tempPoint.endXLocation, tempPoint.endYLocation, tempPoint.endZLocation);
 	// Calculate the interval vector only if subdrill is positive
 	const intervalXYZ = subdrill > 0 ? calculateIntervalVector(collarXYZ, toeXYZ, subdrill) : subdrill === 0 ? calculateIntervalVector(collarXYZ, toeXYZ, 0.0001) : subdrill < 0 ? calculateIntervalVector(collarXYZ, toeXYZ, subdrill) : toeXYZ;
-	console.log("drawHoles/intervalXYZ: ", intervalXYZ);
+	//console.log("drawHoles/intervalXYZ: ", intervalXYZ);
 	//const intervalXYZ = calculateIntervalVector(collarXYZ, toeXYZ, subdrill);
 	const shapeType = tempPoint.shapeType; // || params.holeDisplay;
 	const holeScale = 3;
