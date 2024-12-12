@@ -20,9 +20,9 @@ export const deactivateRotateAroundObjCenter = () => {
 		controls.update();
 		document.getElementById("rotate-around-obj-center").classList.remove("highlighted");
 		gizmoActive = false;
-		if (params.debugComments) {
-			console.log("Gizmo deactivated");
-		}
+		// if (params.debugComments) {
+		// 	console.log("Gizmo deactivated");
+		// }
 	}
 };
 
@@ -30,9 +30,9 @@ export const bindListenerToRotateAroundObjCenterButton = (canvas) => {
 	const button = document.getElementById("rotate-around-obj-center");
 
 	button.addEventListener("click", function () {
-		if (params.debugComments) {
-			console.log("Rotate Around Object Center button clicked");
-		}
+		// if (params.debugComments) {
+		// 	console.log("Rotate Around Object Center button clicked");
+		// }
 
 		// Deactivate transform controls if active
 		deactivateTransformControls();
@@ -55,9 +55,9 @@ export const bindListenerToRotateAroundObjCenterButton = (canvas) => {
 			controls.update();
 			button.classList.add("highlighted");
 			gizmoActive = true;
-			if (params.debugComments) {
-				console.log("Gizmo activated");
-			}
+			// if (params.debugComments) {
+			// 	console.log("Gizmo activated");
+			// }
 		}
 	});
 };

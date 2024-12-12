@@ -15,9 +15,16 @@ export const deactivateTransformControls = () => {
 		objectCenter.visible = true;
 		controls.enableRotate = true;
 		document.getElementById("translate-object-centre").classList.remove("highlighted");
-		if (params.debugComments) {
-			console.log("TransformControls deactivated");
-		}
+
+		// Reposition the camera to keep objectCenter in view
+		controls.target.set(objectCenter.position.x, objectCenter.position.y, objectCenter.position.z);
+		camera.lookAt(controls.target);
+		camera.updateProjectionMatrix();
+		controls.update();
+
+		// if (params.debugComments) {
+		// 	console.log("TransformControls deactivated");
+		// }
 	}
 };
 
@@ -25,9 +32,9 @@ export const bindListenerToTranslateObjectCentreButton = (canvas) => {
 	const button = document.getElementById("translate-object-centre");
 
 	button.addEventListener("click", function () {
-		if (params.debugComments) {
-			console.log("Translate Object Centre button clicked");
-		}
+		// if (params.debugComments) {
+		// 	console.log("Translate Object Centre button clicked");
+		// }
 
 		// Deactivate gizmo if active
 		deactivateRotateAroundObjCenter();
@@ -46,10 +53,25 @@ export const bindListenerToTranslateObjectCentreButton = (canvas) => {
 			localTransformControls.addEventListener("dragging-changed", function (event) {
 				controls.enabled = !event.value;
 			});
+			// localTransformControls.addEventListener("objectChange", function () {
+			// 	// Pan camera to keep objectCenter in view
+			// 	const deltaX = objectCenter.position.x - controls.target.x;
+			// 	const deltaY = objectCenter.position.y - controls.target.y;
+			// 	const deltaZ = objectCenter.position.z - controls.target.z;
+
+			// 	camera.position.x += deltaX;
+			// 	camera.position.y += deltaY;
+			// 	camera.position.z += deltaZ;
+
+			// 	controls.target.set(objectCenter.position.x, objectCenter.position.y, objectCenter.position.z);
+			// 	// camera.lookAt(controls.target);
+			// 	camera.updateProjectionMatrix();
+			// 	controls.update();
+			// });
 			button.classList.add("highlighted");
-			if (params.debugComments) {
-				console.log("TransformControls created and attached");
-			}
+			// if (params.debugComments) {
+			// 	console.log("TransformControls created and attached");
+			// }
 		}
 	});
 };
