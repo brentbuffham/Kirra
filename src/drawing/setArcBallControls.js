@@ -1,17 +1,8 @@
-import { camera, renderer, scene } from "./createScene.js";
+import { camera, renderer, scene, objectCenter } from "./createScene.js"; // Import objectCenter
 import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 export function setArcBallControls(controls, viewHelper) {
-	// if (controls) {
-	// 	controls.dispose(); // Dispose of the current controls
-	// }
-	// controls = new ArcballControls(camera, renderer.domElement, scene);
-
-	// if (viewHelper) {
-	// 	viewHelper.dispose(); // Dispose of the current view helper
-	// }
-	// viewHelper = new ViewHelper(camera, renderer.domElement);
 	viewHelper.controls = controls;
 	controls.rotateSpeed = 1.0;
 	controls.enableRotate = true;
@@ -24,7 +15,12 @@ export function setArcBallControls(controls, viewHelper) {
 	controls.activateGizmos(false);
 	controls.setGizmosVisible(false);
 	camera.updateProjectionMatrix();
-	controls.update();
+
+	// Ensure controls.target is set to objectCenter
+	if (objectCenter) {
+		controls.target.copy(objectCenter.position);
+		controls.update();
+	}
 
 	return { controls, viewHelper };
 }

@@ -95,6 +95,7 @@ export function updateCameraType(sceneX, sceneY, sceneZ) {
 	// Dispose and reinitialize controls
 	controls.dispose();
 	controls = new ArcballControls(camera, renderer.domElement, scene);
+
 	viewHelper.controls = controls;
 	controls.rotateSpeed = 1.0;
 	controls.enableRotate = true;
@@ -196,43 +197,27 @@ export function createScene(points) {
 
 	bindingKeys(camera, objectCenter, controls, viewHelper, transformControls);
 
-	//debugGui(cameraPerspective, cameraOrthographic, controls, viewHelper, camera);
-
-	// if (points !== null && points.length > 0) {
-	// 	const holeFolder = gui.addFolder("Hole Text Display Options");
-	// 	holeFolder.close();
-	// 	holeFolder
-	// 		.add(params, "holeNameDisplay")
-	// 		.name("Hole Name")
-	// 		.onChange(function () {});
-	// 	holeFolder
-	// 		.add(params, "holeLengthDisplay")
-	// 		.name("Hole Length")
-	// 		.onChange(function () {});
-	// 	holeFolder
-	// 		.add(params, "holeDiameterDisplay")
-	// 		.name("Hole Diameter")
-	// 		.onChange(function () {});
-	// }
-
-	animate();
-
 	function animate() {
 		requestAnimationFrame(animate);
 		renderer.clear();
 		const delta = clock.getDelta();
 
+		// Ensure controls.target is synchronized with objectCenter
+		controls.target.copy(objectCenter.position);
+
+		// Update viewHelper if animating
 		if (viewHelper.animating) viewHelper.update(delta);
 
+		// Render the scene
 		renderer.render(scene, camera);
+
+		// Render the viewHelper
 		viewHelper.render(renderer);
 	}
 
-	if (params.debugComments) {
-		console.log("Initialized canvas:", { scene, camera, renderer });
-	}
-
+	animate();
 	return { scene, camera, renderer };
+	// return { scene, camera, controls, renderer, viewHelper, objectCenter };
 }
 
 onWindowResize();

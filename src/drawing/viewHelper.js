@@ -32,12 +32,28 @@ export const createViewHelper = () => {
 	document.body.appendChild(div);
 
 	div.addEventListener("pointerup", (event) => {
+		console.log("BEFORE");
+		console.log("viewHelper click event", event);
+		console.log("camera position", camera.position);
+		console.log("controls target", controls.target);
+		console.log("objectCenter position", objectCenter.position);
+
 		viewHelper.handleClick(event);
+
 		// Ensure the controls target is updated to objectCenter after clicking the view helper
 		controls.target.copy(objectCenter.position);
+		// Synchronize the camera with the updated controls target
 		camera.lookAt(controls.target);
 		camera.updateProjectionMatrix();
 		controls.update();
+
+		console.log("AFTER");
+		console.log("viewHelper click event", event);
+		console.log("camera position", camera.position);
+		console.log("controls target", controls.target);
+		console.log("objectCenter position", objectCenter.position);
+
+		viewHelper.update();
 	});
 
 	return viewHelper;
@@ -51,9 +67,9 @@ function applyNegativeAxisColorWithAlpha(viewHelper) {
 	negY.material = posY.material.clone();
 	negZ.material = posZ.material.clone();
 
-	negX.material.opacity = 0.3;
-	negY.material.opacity = 0.3;
-	negZ.material.opacity = 0.3;
+	negX.material.opacity = 0.5;
+	negY.material.opacity = 0.5;
+	negZ.material.opacity = 0.5;
 
 	negX.material.transparent = true;
 	negY.material.transparent = true;
