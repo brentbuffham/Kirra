@@ -7,44 +7,76 @@ import * as bootstrap from "bootstrap"; // Import Bootstrap as a namespace
 window.bootstrap = bootstrap; // Attach Bootstrap to the window object
 // Import the necessary functions from the other files
 import "./style.css";
+
 import { handleFileUploadNoEvent, points } from "./file/import/fileK3DUpload.js";
+
 import { preloadFont } from "./helpers/loadGlobalFont.js";
+
 import { Vector3, Box3 } from "three";
+
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
+
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls.js";
+
 import { controls, createScene, objectCenter, params, updateCameraType } from "./drawing/createScene.js";
+
 import { getCentroid } from "./helpers/getCentroid.js";
+
 import { drawDummys, drawHoles, drawHoleText } from "./entities/drawHoles.js";
+
 import { handleOBJNoEvent } from "./file/import/fileOBJLoader.js";
+
 import { resetCameraView, calculateBoundingBox } from "./helpers/resetCameraView.js";
+
 import { createMainView } from "./views/viewMain.js";
+
 import { getSceneBoundingBox } from "./helpers/resetCameraView.js";
 import * as THREE from "three";
+
 import { bindListenerToImportK3DButton } from "./buttons/csv/openHolesButton.js";
+
 import { bindListenerToImportCSVButton } from "./buttons/csv/importHolesButton.js";
+
 import { bindListenerToImportOBJButton } from "./buttons/mesh/importOBJButton.js";
+
 import { bindListenerToImportDXFButton } from "./buttons/autocad/importDXFButton.js";
+
 import { bindListenerToImportPointCloudButton } from "./buttons/csv/importPointCloudButton.js";
+
 import { bindListenerToTranslateObjectCentreButton } from "./buttons/view/translateObjectCenter.js";
+
 import { bindListenerToRotateAroundObjCenterButton } from "./buttons/view/rotateAroundObjCenter.js";
+
 import { bindListenerToWorldOriginSettingsButton } from "./settings/worldOriginSetting.js";
+
 import { bindListenerToClearMemoryButton } from "./buttons/memory/clearMemoryButton.js";
+
 import { bindListenerToResetCameraViewButton } from "./buttons/camera/resetCameraButton.js";
+
 import { bindListenerToObjMaterialCycleButton } from "./buttons/mesh/objMaterialCycleButton.js";
+
 import { bindListenerToCameraTypeCycleButton } from "./buttons/camera/cameraTypeCycleButton.js";
+
 import { bindListenerToHoleNameDisplayButton, bindListenerToHoleLengthDisplayButton, bindListenerToHoleDiameterDisplayButton } from "./buttons/hole/holePropertiesButton.js";
+
 import { populatePanelWithSceneObjects } from "./views/treeView.js"; // Import the tree view logic
+
 import { openDatabase, writeData, readData } from "./file/indexDB/dbReadWrite.js";
+
+import { initInfoView } from "./views/infoView.js";
 
 createMainView();
 
 const canvas = createScene(points);
+
 const { scene, camera, renderer } = canvas;
 
 preloadFont(); // Preload the font
 
 // Populate the panel with the scene objects after the scene is created
 populatePanelWithSceneObjects(scene, camera);
+// Add info panel information
+initInfoView(renderer, camera, scene, params);
 
 export const counter = {
 	cloudPointFileCount: 0,
@@ -109,12 +141,14 @@ function getCurrentPoints() {
 	// the holes are stored in k3DStore0, k3DStore1, k3DStore2, ... etc. and in csvBlast0, csvBlast1, csvBlast2, ... etc.
 	//Join them together in one array called currentPoints
 	const currentPoints = [];
+
 	for (let i = 0; i < localStorage.length; i++) {
 		if (localStorage.key(i).includes("k3DBlastStore") || localStorage.key(i).includes("csvBlastStore")) {
 			const tempPoints = JSON.parse(localStorage.getItem(localStorage.key(i)));
 			currentPoints.push(...tempPoints);
 		}
 	}
+
 	return currentPoints;
 }
 
@@ -132,6 +166,7 @@ function updateHoleDisplay() {
 
 	const holeObjectsArray = [];
 	let dummyholescount = 0;
+
 	scene.traverse(function (object) {
 		if (object.userData.entityType === "hole" && object.userData.entityType !== "dummy") {
 			holeObjectsArray.push(object);
@@ -143,6 +178,7 @@ function updateHoleDisplay() {
 	}
 
 	let x, y, z;
+
 	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
 		(x = 0), (y = 0), (z = 0);
 	} else {
@@ -150,8 +186,10 @@ function updateHoleDisplay() {
 		y = params.worldYCenter || 0;
 		z = 0; //No offset for Z
 	}
+
 	if (currentPoints.length > 0) {
 		const colour = 0xffffff;
+
 		currentPoints.forEach((point) => {
 			const tempPoint = {
 				pointID: point.pointID,
@@ -166,6 +204,7 @@ function updateHoleDisplay() {
 				shapeType: point.endXLocation != null || point.endYLocation != null || point.endZLocation != null ? params.holeDisplay : "mesh-dummy",
 				holeColour: point.holeColour
 			};
+
 			if (tempPoint.diameter > 0) {
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, params.holeDisplay);
 				console.log("diameter is greater then 0");
@@ -210,12 +249,15 @@ export function updateScene() {
 		if (object.userData.entityType === "hole") {
 			holeObjectsArray.push(object);
 		}
+
 		if (object.userData.entityType === "holeNameText") {
 			holeNameTextArray.push(object);
 		}
+
 		if (object.userData.entityType === "holeLengthText") {
 			holeLengthTextArray.push(object);
 		}
+
 		if (object.userData.entityType === "holeDiameterText") {
 			holeDiameterTextArray.push(object);
 		}
@@ -225,17 +267,21 @@ export function updateScene() {
 	for (const hole of holeObjectsArray) {
 		scene.remove(hole);
 	}
+
 	for (const holeNameText of holeNameTextArray) {
 		scene.remove(holeNameText);
 	}
+
 	for (const holeLengthText of holeLengthTextArray) {
 		scene.remove(holeLengthText);
 	}
+
 	for (const holeDiameterText of holeDiameterTextArray) {
 		scene.remove(holeDiameterText);
 	}
 
 	let x, y, z;
+
 	if (params.worldXCenter === 0 && params.worldYCenter === 0 && params.worldZCenter === 0) {
 		(x = 0), (y = 0), (z = 0);
 	} else {
@@ -246,6 +292,7 @@ export function updateScene() {
 
 	if (currentPoints.length > 0) {
 		const colour = 0xffffff;
+
 		currentPoints.forEach((point) => {
 			const tempPoint = {
 				pointID: point.pointID,
@@ -262,6 +309,7 @@ export function updateScene() {
 			};
 
 			console.log("Inside updateScene drawing holes");
+
 			if (point.endXLocation !== null && point.endYLocation !== null && point.endZLocation !== null && point.diameter !== null) {
 				drawHoles(scene, tempPoint.holeColour, tempPoint, tempPoint.diameter, tempPoint.subdrill, tempPoint.shapeType);
 			}
@@ -277,6 +325,7 @@ export function updateScene() {
 	} else {
 		console.error("Renderer is not initialized.");
 	}
+
 	console.log("Objects in scene AFTER updateScene():\n", scene.children);
 }
 
