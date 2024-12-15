@@ -1,5 +1,7 @@
 import { BoxHelper } from "three";
 import { deleteData, readData, openDatabase } from "../file/indexDB/dbReadWrite.js";
+import { createMeshFromPointCloud, createDelaunayMeshFromPointCloud, createConstrainedDelaunayMesh, extractEdgesFromPolylines, createMeshFromVertices } from "../entities/shapes/createMeshFromPoints.js";
+import * as THREE from "three";
 
 // Keep track of the selected objects
 let selectedObjects = new Set();
@@ -247,6 +249,131 @@ function showContextMenu(event, object, scene, camera) {
 		}
 	});
 	contextMenu.appendChild(lookAtOption);
+
+	// Add "Triangulate" option to the context menu
+	const triangulateOption = document.createElement("div");
+	triangulateOption.textContent = "Triangulate";
+	triangulateOption.style.cursor = "pointer";
+
+	triangulateOption.addEventListener("click", () => {
+		// THIS IS FOR THE CONSTAINT DELAUNAY TRIANGULATION
+		// if (contextMenu && !isRemovingContextMenu) {
+		// 	isRemovingContextMenu = true;
+
+		// 	// Convert selectedObjects Set to an array
+		// 	const selectedArray = Array.from(selectedObjects);
+
+		// 	// Extract vertices and edges from selected objects
+		// 	const points = [];
+		// 	const polylines = [];
+
+		// 	selectedArray.forEach((object) => {
+		// 		object.traverse((child) => {
+		// 			if (child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
+		// 				const positionAttribute = child.geometry.attributes.position;
+
+		// 				// Extract vertices
+		// 				const childPoints = [];
+		// 				for (let i = 0; i < positionAttribute.count; i++) {
+		// 					const vertex = new THREE.Vector3();
+		// 					vertex.fromBufferAttribute(positionAttribute, i);
+		// 					points.push(vertex);
+		// 					childPoints.push(vertex);
+		// 				}
+
+		// 				// If the object is a polyline, add to polylines array
+		// 				if (child.type === "Line" || child.type === "LineSegments") {
+		// 					polylines.push(childPoints);
+		// 				}
+		// 			} else {
+		// 				console.warn(`Object "${child.name || "Unnamed"}" has no valid geometry.`);
+		// 			}
+		// 		});
+		// 	});
+
+		// 	// Create a map from point to index
+		// 	const pointIndexMap = new Map();
+		// 	points.forEach((point, index) => {
+		// 		pointIndexMap.set(point.toArray().toString(), index);
+		// 	});
+
+		// 	// Extract edges from polylines
+		// 	const edges = extractEdgesFromPolylines(polylines, pointIndexMap);
+
+		// 	// Validate if we have enough points
+		// 	if (points.length > 2) {
+		// 		// Perform constrained Delaunay triangulation
+		// 		const triangulatedMesh = createConstrainedDelaunayMesh(points, edges, 0xffaa00);
+		// 		if (triangulatedMesh) {
+		// 			triangulatedMesh.name = `${object.name || object.type}-MESH`;
+		// 			triangulatedMesh.userData = { uuid: THREE.MathUtils.generateUUID() };
+		// 			triangulatedMesh.userData.isGeneratedMesh = true;
+		// 			scene.add(triangulatedMesh);
+		// 			console.log("Triangulated Mesh added to scene.");
+		// 			populatePanelWithSceneObjects(scene, camera);
+		// 		} else {
+		// 			console.warn("No triangulated mesh generated.");
+		// 		}
+		// 	} else {
+		// 		console.warn("Not enough valid points found for triangulation.");
+		// 	}
+
+		// 	contextMenu.remove();
+		// 	contextMenu = null;
+		// 	isRemovingContextMenu = false;
+		// }
+
+		// THIS IS FOR THE DELAUNAY TRIANGULATION USING OBJECTS VERTICIES AS POINTS
+		if (contextMenu && !isRemovingContextMenu) {
+			isRemovingContextMenu = true;
+
+			// Convert selectedObjects Set to an array
+			const selectedArray = Array.from(selectedObjects);
+
+			// Extract vertices from selected objects
+			const points = [];
+
+			selectedArray.forEach((object) => {
+				object.traverse((child) => {
+					if (child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
+						const positionAttribute = child.geometry.attributes.position;
+
+						// Extract vertices
+						for (let i = 0; i < positionAttribute.count; i++) {
+							const vertex = new THREE.Vector3();
+							vertex.fromBufferAttribute(positionAttribute, i);
+							points.push(vertex);
+						}
+					} else {
+						console.warn("Object " + (child.name || "Unnamed") + " has no valid geometry.");
+					}
+				});
+			});
+
+			// Validate if we have enough points
+			if (points.length > 2) {
+				// Perform Delaunay triangulation
+				const triangulatedMesh = createDelaunayMeshFromPointCloud(points, 1000, 0xffaa00);
+				if (triangulatedMesh) {
+					triangulatedMesh.name = `${object.name || object.type}-MESH`;
+					triangulatedMesh.userData = { uuid: THREE.MathUtils.generateUUID() };
+					triangulatedMesh.userData.isGeneratedMesh = true;
+					scene.add(triangulatedMesh);
+					console.log("Triangulated Mesh added to scene.");
+					populatePanelWithSceneObjects(scene, camera);
+				} else {
+					console.warn("No triangulated mesh generated.");
+				}
+			} else {
+				console.warn("Not enough valid points found for triangulation.");
+			}
+
+			contextMenu.remove();
+			contextMenu = null;
+			isRemovingContextMenu = false;
+		}
+	});
+	contextMenu.appendChild(triangulateOption);
 
 	document.body.appendChild(contextMenu);
 

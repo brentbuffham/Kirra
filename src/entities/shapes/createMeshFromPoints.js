@@ -1,5 +1,22 @@
 import { BufferGeometry, Float32BufferAttribute, MeshBasicMaterial, MeshPhongMaterial, Mesh, Vector3, DoubleSide, LineSegments, LineBasicMaterial, EdgesGeometry } from "three";
 import Delaunator from "delaunator";
+import cdt2d from "cdt2d";
+
+/**
+ * Filters unique points from an array of Vector3 points based on a threshold distance.
+ * @param {Array} points - Array of THREE.Vector3 points.
+ * @param {Number} threshold - Minimum distance to consider points as unique.
+ * @returns {Array} uniquePoints - Array of filtered unique points.
+ */
+function filterUniquePoints(points, threshold = 0.001) {
+	const uniquePoints = [];
+	points.forEach((p) => {
+		if (!uniquePoints.some((q) => p.distanceTo(q) < threshold)) {
+			uniquePoints.push(p);
+		}
+	});
+	return uniquePoints;
+}
 
 /**
  * Perform Delaunay triangulation on a set of points and filter triangles based on maximum edge length.
@@ -8,12 +25,14 @@ import Delaunator from "delaunator";
  * @returns {Array} resultTriangles - Array of triangles with vertices [x, y, z].
  */
 function delaunayTriangles(points, maxEdgeLength) {
+	let uniquePoints = filterUniquePoints(points);
+
 	try {
 		let resultTriangles = [];
 		const getX = (point) => parseFloat(point.x);
 		const getY = (point) => parseFloat(point.y);
 
-		const delaunay = Delaunator.from(points, getX, getY);
+		const delaunay = Delaunator.from(uniquePoints, getX, getY);
 
 		function distanceSquared(p1, p2) {
 			const dx = p1[0] - p2[0];
@@ -34,9 +53,9 @@ function delaunayTriangles(points, maxEdgeLength) {
 			const p2Index = delaunay.triangles[i + 1];
 			const p3Index = delaunay.triangles[i + 2];
 
-			const p1 = points[p1Index];
-			const p2 = points[p2Index];
-			const p3 = points[p3Index];
+			const p1 = uniquePoints[p1Index];
+			const p2 = uniquePoints[p2Index];
+			const p3 = uniquePoints[p3Index];
 
 			const edge1Squared = distanceSquared([getX(p1), getY(p1)], [getX(p2), getY(p2)]);
 			const edge2Squared = distanceSquared([getX(p2), getY(p2)], [getX(p3), getY(p3)]);
@@ -305,5 +324,171 @@ export function createMeshFromPointCloud(pointVertices) {
 
 	console.log("pointCloudMesh", mesh.userData);
 
+	return mesh;
+}
+/**
+ * Create a constrained Delaunay mesh from point cloud.
+ * @param {Array} points - Array of THREE.Vector3 points.
+ * @param {Array} edges - Array of edges (each edge is a pair of point indices).
+ * @param {Number} defaultColour - Color of the mesh material.
+ * @returns {Mesh} - The created mesh.
+ */
+export function createConstrainedDelaunayMesh(points, edges, defaultColour) {
+	// Step 1: Map points to 2D coordinates and store Z values
+	const coords = [];
+	const zValues = [];
+	points.forEach((p) => {
+		coords.push([p.x, p.y]);
+		zValues.push(p.z); // Preserve Z-coordinate
+	});
+
+	// Step 2: Perform constrained Delaunay triangulation
+	const triangles = cdt2d(coords, edges);
+
+	if (triangles.length === 0) {
+		console.warn("No valid triangles were created during constrained triangulation.");
+		return null;
+	}
+
+	// Step 3: Build vertices and indices for 3D mesh
+	const vertices = [];
+	const indices = [];
+	const vertexMap = new Map(); // Prevent duplicate vertices
+
+	triangles.forEach(([a, b, c]) => {
+		[a, b, c].forEach((idx) => {
+			const key = `${coords[idx][0]},${coords[idx][1]},${zValues[idx]}`;
+			if (!vertexMap.has(key)) {
+				vertexMap.set(key, vertices.length / 3);
+				vertices.push(coords[idx][0], coords[idx][1], zValues[idx]);
+			}
+			indices.push(vertexMap.get(key));
+		});
+	});
+
+	// Step 4: Create geometry and mesh with flat shading
+	const geometry = new BufferGeometry();
+	geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+	geometry.setIndex(indices);
+
+	geometry.computeVertexNormals(); // Generate normals for lighting
+	geometry.deleteAttribute("normal"); // Remove smoothed normals for flat shading
+
+	const material = new MeshPhongMaterial({
+		color: defaultColour,
+		side: DoubleSide,
+		flatShading: true // Ensure flat shading
+	});
+
+	const mesh = new Mesh(geometry, material);
+
+	console.log("Constrained Delaunay Mesh Generated with Flat Shading:", mesh);
+	return mesh;
+}
+
+/**
+ * Extract edges from polylines.
+ * @param {Array} polylines - Array of polylines (each polyline is an array of points).
+ * @param {Map} pointIndexMap - Map of point strings to their indices in the points array.
+ * @returns {Array} edges - Array of edges (each edge is a pair of point indices).
+ */
+export function extractEdgesFromPolylines(polylines, pointIndexMap) {
+	const edges = [];
+	for (const polyline of polylines) {
+		for (let i = 0; i < polyline.length - 1; i++) {
+			const a = pointIndexMap.get(polyline[i].toArray().toString());
+			const b = pointIndexMap.get(polyline[i + 1].toArray().toString());
+			if (a !== undefined && b !== undefined) {
+				edges.push([a, b]);
+			}
+		}
+	}
+	return edges;
+}
+
+/**
+ * Group points by their Z value to ensure contour-like layers.
+ * @param {Array} points - Array of THREE.Vector3 points.
+ * @param {Number} threshold - Z threshold to group points.
+ * @returns {Map} - Map of Z-values to point arrays.
+ */
+function groupPointsByZ(points, threshold = 0.01) {
+	const grouped = new Map();
+
+	points.forEach((point) => {
+		// Find closest Z-group
+		let zKey = Array.from(grouped.keys()).find((z) => Math.abs(z - point.z) < threshold);
+		if (zKey === undefined) {
+			zKey = point.z;
+			grouped.set(zKey, []);
+		}
+		grouped.get(zKey).push(point);
+	});
+
+	return grouped;
+}
+
+/**
+ * Perform Delaunay triangulation on a set of points.
+ * @param {Array} points - Array of THREE.Vector3 points.
+ * @returns {Array} triangles - Triangulated faces.
+ */
+function delaunayTrianglesV2(points) {
+	const coords = points.flatMap((p) => [p.x, p.y]);
+	const delaunay = Delaunator.from(coords);
+
+	const triangles = [];
+	for (let i = 0; i < delaunay.triangles.length; i += 3) {
+		const a = points[delaunay.triangles[i]];
+		const b = points[delaunay.triangles[i + 1]];
+		const c = points[delaunay.triangles[i + 2]];
+		triangles.push([a, b, c]);
+	}
+
+	return triangles;
+}
+
+/**
+ * Create a triangulated mesh from grouped point clouds.
+ * @param {Array} pointVertices - Array of THREE.Vector3 points.
+ * @param {Number} defaultColour - Color of the mesh material.
+ * @returns {Mesh} - The triangulated mesh.
+ */
+export function createMeshFromVertices(pointVertices, defaultColour = 0xffaa00) {
+	// Step 1: Group points by Z value (layered contours)
+	const groupedPoints = groupPointsByZ(pointVertices);
+	const vertices = [];
+	const indices = [];
+	let vertexIndex = 0;
+
+	// Step 2: Triangulate each layer and merge
+	groupedPoints.forEach((points, z) => {
+		if (points.length < 3) return; // Skip invalid layers
+
+		// Perform Delaunay triangulation for this layer
+		const triangles = delaunayTrianglesV2(points);
+
+		// Add vertices and indices
+		const vertexMap = new Map();
+		points.forEach((p, i) => {
+			vertices.push(p.x, p.y, p.z);
+			vertexMap.set(i, vertexIndex++);
+		});
+
+		triangles.forEach(([a, b, c]) => {
+			indices.push(vertexMap.get(points.indexOf(a)), vertexMap.get(points.indexOf(b)), vertexMap.get(points.indexOf(c)));
+		});
+	});
+
+	// Step 3: Create geometry and mesh
+	const geometry = new BufferGeometry();
+	geometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+	geometry.setIndex(indices);
+	geometry.computeVertexNormals();
+
+	const material = new MeshPhongMaterial({ color: defaultColour, side: DoubleSide, flatShading: true });
+	const mesh = new Mesh(geometry, material);
+
+	console.log("Triangulated Mesh:", mesh);
 	return mesh;
 }

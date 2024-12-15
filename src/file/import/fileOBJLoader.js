@@ -3,10 +3,11 @@
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { TextureLoader, MeshBasicMaterial, MeshStandardMaterial, MeshPhongMaterial, DoubleSide, Vector3, Box3, SRGBColorSpace } from "three";
-import { objectCenter, params } from "../../drawing/createScene.js";
+import { params, scene, controls, camera, objectCenter } from "../../drawing/createScene.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { readData, openDatabase, deleteData, writeData } from "../indexDB/dbReadWrite.js";
 import { populatePanelWithSceneObjects } from "../../views/treeView.js";
+import * as THREE from "three";
 
 let materials;
 let object;
@@ -138,7 +139,11 @@ function processLoadedObject(object, canvas, materials) {
 	console.log("13) Bounding Box:", boundingBox);
 	const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
 	const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
-
+	// Update the objectCenter vector
+	objectCenter.position.x = center.x - offsetX; // Offset as the objects are in UTM and real world coordinates
+	objectCenter.position.y = center.y - offsetY; // Offset as the objects are in UTM and real world coordinates
+	objectCenter.position.z = center.z;
+	console.log("Updated Object Center:", objectCenter);
 	// Set the world center
 	if (params.worldXCenter === 0 || params.worldYCenter === 0) {
 		console.log("14) World Center:", offsetX, offsetY);
