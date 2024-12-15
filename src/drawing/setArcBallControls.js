@@ -3,7 +3,7 @@ import { ArcballControls } from "three/addons/controls/ArcballControls.js";
 import { ViewHelper } from "three/addons/helpers/ViewHelper.js";
 
 export function setArcBallControls(controls, viewHelper) {
-	viewHelper.controls = controls;
+	//viewHelper.controls = controls;
 	controls.rotateSpeed = 1.0;
 	controls.enableRotate = true;
 	controls.enableZoom = true;

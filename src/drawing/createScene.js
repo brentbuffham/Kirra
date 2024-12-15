@@ -137,6 +137,20 @@ export function updateCameraType(sceneX, sceneY, sceneZ) {
 }
 
 export let objectCenter = new Group();
+
+objectCenter.addEventListener("move", () => {
+	console.log("Object Center Moved:", objectCenter.position);
+
+	// Update controls target to match the new objectCenter position
+	controls.target.copy(objectCenter.position);
+
+	// Ensure the camera looks at the updated target
+	camera.lookAt(controls.target);
+	controls.update();
+
+	console.log("Updated controls target to:", controls.target);
+});
+
 export function createScene(points) {
 	console.log("createScene(points)", points);
 	scene = new Scene();
@@ -148,19 +162,28 @@ export function createScene(points) {
 	if (points === null || points.length === 0) {
 		objectCenter.position.set(0, 0, 0);
 	}
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 10, 0xff0000, 5, 2));
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 15, 0xff0000, 7, 2));
 	//name the X axis arrow as "X Arrow"
 	objectCenter.children[0].name = "+X Arrow";
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 10, 0x00ff00, 5, 2));
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 15, 0x00ff00, 7, 2));
 	//name the Y axis arrow as "Y Arrow"
 	objectCenter.children[1].name = "+Y Arrow";
-	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 10, 0x0000ff, 5, 2));
+	objectCenter.add(createTransparentArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 15, 0x0000ff, 7, 2));
 	//name the Z axis arrow as "Z Arrow"
 	objectCenter.children[2].name = "+Z Arrow";
 
 	objectCenter.name = "Object Center";
 	objectCenter.material = new THREE.MeshBasicMaterial({ color: 0x000000, visible: true, transparent: true, opacity: 0.5 });
 	scene.add(objectCenter);
+
+	// let viewportCenter = new Object3D();
+	// viewportCenter.position.set(0, 0, 0);
+	// viewportCenter.add(createTransparentArrowHelper(new Vector3(1, 0, 0), new Vector3(0, 0, 0), 200, 0xff0000, 10, 5));
+	// viewportCenter.add(createTransparentArrowHelper(new Vector3(0, 1, 0), new Vector3(0, 0, 0), 200, 0x00ff00, 10, 5));
+	// viewportCenter.add(createTransparentArrowHelper(new Vector3(0, 0, 1), new Vector3(0, 0, 0), 200, 0x0000ff, 10, 5));
+	// viewportCenter.name = "Viewport Center";
+	// viewportCenter.material = new THREE.MeshBasicMaterial({ color: 0x555, visible: true, transparent: true, opacity: 1 });
+	// scene.add(viewportCenter);
 
 	let { cameraOrthographic, cameraPerspective } = setCamera(aspect);
 

@@ -8,6 +8,7 @@ import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { updateGuiControllers } from "../../settings/worldOriginSetting.js";
 import { sceneConfig } from "../../drawing/sceneConfig.js";
 import { populatePanelWithSceneObjects } from "../../views/treeView.js";
+import { getDXFCentroid } from "../../helpers/getCentroid.js";
 
 export function handleDXFNoEvent(file, canvas) {
 	if (!file) {
@@ -28,6 +29,9 @@ export function handleDXFNoEvent(file, canvas) {
 		// Create a parent group for the DXF file
 		const dxfGroup = new THREE.Group();
 		dxfGroup.name = file.name;
+
+		let dxfGroupCenter;
+		//get the centroid of the dxf group
 
 		// Group entities by type
 		const entityGroups = {};
@@ -52,6 +56,12 @@ export function handleDXFNoEvent(file, canvas) {
 			const boundingBox = new THREE.Box3().setFromObject(dxfGroup);
 			const center = boundingBox.getCenter(new THREE.Vector3());
 
+			// Update the objectCenter vector
+			objectCenter.position.x = center.x;
+			objectCenter.position.y = center.y;
+			objectCenter.position.z = center.z;
+			console.log("Updated Object Center:", objectCenter);
+
 			const offsetX = params.worldXCenter !== 0 ? params.worldXCenter : center.x;
 			const offsetY = params.worldYCenter !== 0 ? params.worldYCenter : center.y;
 
@@ -61,7 +71,7 @@ export function handleDXFNoEvent(file, canvas) {
 				updateGuiControllers();
 			}
 
-			if (entity.type === "LINE") {
+			if (entityType === "line") {
 				const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.vertices[0].x - offsetX, entity.vertices[0].y - offsetY, entity.vertices[0].z), new THREE.Vector3(entity.vertices[1].x - offsetX, entity.vertices[1].y - offsetY, entity.vertices[1].z)]);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -73,7 +83,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(line);
 				}
 			}
-			if (entity.type === "POLYLINE" || entity.type === "LWPOLYLINE") {
+			if (entityType === "polyline" || entity.type === "lwpolyline") {
 				let points = entity.vertices.map((vertex) => {
 					return new THREE.Vector3(vertex.x - offsetX, vertex.y - offsetY, vertex.z);
 				});
@@ -92,7 +102,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(line);
 				}
 			}
-			if (entity.type === "CIRCLE") {
+			if (entityType === "circle") {
 				let geometry = new THREE.CircleGeometry(entity.radius, 32);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -105,7 +115,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(circle);
 				}
 			}
-			if (entity.type === "ARC") {
+			if (entityType === "arc") {
 				let geometry = new THREE.CircleGeometry(entity.radius, 32, entity.startAngle, entity.endAngle);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -118,7 +128,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(arc);
 				}
 			}
-			if (entity.type === "SPLINE") {
+			if (entityType === "spline") {
 				let points = entity.controlPoints.map((vertex) => {
 					return new THREE.Vector3(vertex.x - offsetX, vertex.y - offsetY, vertex.z);
 				});
@@ -134,7 +144,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(spline);
 				}
 			}
-			if (entity.type === "ELLIPSE") {
+			if (entityType === "ellipse") {
 				let ellipse = new THREE.EllipseCurve(entity.x - offsetX, entity.y - offsetY, entity.xRadius, entity.yRadius, entity.startAngle, entity.endAngle, entity.clockwise, entity.rotation);
 				let points = ellipse.getPoints(50);
 				let geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -148,7 +158,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(lineEllipse);
 				}
 			}
-			if (entity.type === "TEXT") {
+			if (entityType === "text") {
 				if (!entity.startPoint) {
 					console.warn("TEXT entity does not have a startPoint property. Skipping.");
 					return;
@@ -175,11 +185,12 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(mesh);
 				}
 			}
-			if (entity.type === "MTEXT") {
-				if (!entity.startPoint) {
-					console.warn("MTEXT entity does not have a startPoint property. Skipping.");
-					return;
-				}
+			if (entityType === "mtext" || entityType === "acdbmtext") {
+				const startPoint = {
+					x: entity.position.x,
+					y: entity.position.y,
+					z: entity.position.z
+				};
 				let text = new TextGeometry(entity.text, {
 					font: globalFont,
 					size: entity.height,
@@ -193,16 +204,14 @@ export function handleDXFNoEvent(file, canvas) {
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
 				let mesh = new THREE.Mesh(text, material);
-				mesh.position.set(entity.startPoint.x - offsetX, entity.startPoint.y - offsetY, entity.startPoint.z);
+				mesh.position.set(startPoint.x - offsetX, startPoint.y - offsetY, startPoint.z);
 				mesh.dxfType = entity.type;
-				//allBounds.expandByObject(mesh);
-				//console.log("DXF MTEXT:", mesh);
 				if (mesh) {
 					mesh.name = entityName;
 					entityGroups[entityType].add(mesh);
 				}
 			}
-			if (entity.type === "DIMENSION") {
+			if (entityType === "dimension") {
 				let points = entity.points.map((vertex) => {
 					return new THREE.Vector3(vertex.x - offsetX, vertex.y - offsetY, vertex.z);
 				});
@@ -213,7 +222,7 @@ export function handleDXFNoEvent(file, canvas) {
 				console.log("DXF DIMENSION:", line);
 				group.add(line);
 			}
-			if (entity.type === "POINT") {
+			if (entity.type === "point") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -225,7 +234,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(point);
 				}
 			}
-			if (entity.type === "INSERT") {
+			if (entityType === "insert") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -237,7 +246,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(point);
 				}
 			}
-			if (entity.type === "BLOCK") {
+			if (entityType === "block") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
@@ -249,7 +258,7 @@ export function handleDXFNoEvent(file, canvas) {
 					entityGroups[entityType].add(point);
 				}
 			}
-			if (entity.type === "HATCH") {
+			if (entity.type === "hatch") {
 				let geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(entity.position.x - offsetX, entity.position.y - offsetY, entity.position.z)]);
 				let color = entity.color ? entity.color : 0xffffff;
 				let material = new THREE.MeshBasicMaterial({ color: color });
