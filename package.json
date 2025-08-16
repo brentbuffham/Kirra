@@ -20,7 +20,7 @@
     "cdt2d": "^1.0.0",
     "dat.gui": "^0.7.9",
     "delaunator": "^5.0.1",
-    "dxf-json": "^0.0.41",
+    "dxf-json": "^0.1.2",
     "dxf-parser": "^1.1.2",
     "earcut": "^3.0.0",
     "jquery": "^3.7.1",
