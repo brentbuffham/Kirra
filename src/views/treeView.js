@@ -6,6 +6,7 @@ import { createBVHMeshFromPointCloud } from "../entities/triangulations/createBV
 import * as THREE from "three";
 import { createMeshUsingEarcut } from "../entities/triangulations/createEarcutMesh.js";
 import { objectToPoints, extractGeometryData } from "../entities/triangulations/objectToPoints.js";
+import { createConstrainautorMesh, createHybridConstrainautorMesh, extractConstraintEdges } from "../entities/triangulations/createConstrainautorMesh.js";
 
 // Keep track of the selected objects
 let selectedObjects = new Set();
@@ -328,6 +329,7 @@ function showContextMenu(event, object, scene, camera) {
             isRemovingContextMenu = false;
         }
     });
+
     contextMenu.appendChild(triangulateConstrained);
 
     // Add "Tri BVH Mesh" option to the context menu
@@ -366,6 +368,84 @@ function showContextMenu(event, object, scene, camera) {
         }
     });
     contextMenu.appendChild(triangulateBVH);
+
+    // Add "Constrainautor Mesh" option to the context menu
+    const constrainautorMeshOption = document.createElement("div");
+    constrainautorMeshOption.textContent = "Create Constrainautor Mesh";
+    constrainautorMeshOption.style.cursor = "pointer";
+
+    constrainautorMeshOption.addEventListener("click", () => {
+        if (contextMenu && !isRemovingContextMenu) {
+            isRemovingContextMenu = true;
+            // Convert selectedObjects Set to an array
+            const selectedArray = Array.from(selectedObjects);
+            // Extract vertices from selected objects
+            const points = objectToPoints(selectedArray);
+            // Validate if we have enough points
+            if (points.length > 2) {
+                // Extract any edge constraints from selected objects
+                const constraintEdges = extractConstraintEdges(selectedArray, points);
+
+                // Create constrainautor mesh
+                const constrainautorMesh = createConstrainautorMesh(points, constraintEdges, 0x88ff88);
+                if (constrainautorMesh) {
+                    constrainautorMesh.name = `${object.name || object.type}-Constrainautor`;
+                    constrainautorMesh.userData = { uuid: THREE.MathUtils.generateUUID() };
+                    constrainautorMesh.userData.isGeneratedMesh = true;
+                    scene.add(constrainautorMesh);
+                    console.log("Constrainautor Mesh added to scene.");
+                    populatePanelWithSceneObjects(scene, camera);
+                } else {
+                    console.warn("No constrainautor mesh generated.");
+                }
+            } else {
+                console.warn("Not enough valid points found for constrainautor mesh generation.");
+            }
+            contextMenu.remove();
+            contextMenu = null;
+            isRemovingContextMenu = false;
+        }
+    });
+    contextMenu.appendChild(constrainautorMeshOption);
+
+    // Add "Hybrid Constrainautor Mesh" option to the context menu
+    const hybridConstrainautorMeshOption = document.createElement("div");
+    hybridConstrainautorMeshOption.textContent = "Create Hybrid Constrainautor Mesh";
+    hybridConstrainautorMeshOption.style.cursor = "pointer";
+
+    hybridConstrainautorMeshOption.addEventListener("click", () => {
+        if (contextMenu && !isRemovingContextMenu) {
+            isRemovingContextMenu = true;
+            // Convert selectedObjects Set to an array
+            const selectedArray = Array.from(selectedObjects);
+            // Extract vertices from selected objects
+            const points = objectToPoints(selectedArray);
+            // Validate if we have enough points
+            if (points.length > 2) {
+                // Extract any edge constraints from selected objects
+                const constraintEdges = extractConstraintEdges(selectedArray, points);
+
+                // Create hybrid constrainautor mesh
+                const hybridConstrainautorMesh = createHybridConstrainautorMesh(points, constraintEdges, 0xff88ff);
+                if (hybridConstrainautorMesh) {
+                    hybridConstrainautorMesh.name = `${object.name || object.type}-HybridConstrainautor`;
+                    hybridConstrainautorMesh.userData = { uuid: THREE.MathUtils.generateUUID() };
+                    hybridConstrainautorMesh.userData.isGeneratedMesh = true;
+                    scene.add(hybridConstrainautorMesh);
+                    console.log("Hybrid Constrainautor Mesh added to scene.");
+                    populatePanelWithSceneObjects(scene, camera);
+                } else {
+                    console.warn("No hybrid constrainautor mesh generated.");
+                }
+            } else {
+                console.warn("Not enough valid points found for hybrid constrainautor mesh generation.");
+            }
+            contextMenu.remove();
+            contextMenu = null;
+            isRemovingContextMenu = false;
+        }
+    });
+    contextMenu.appendChild(hybridConstrainautorMeshOption);
 
     document.body.appendChild(contextMenu);
 
