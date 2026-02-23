@@ -1175,32 +1175,75 @@ export function applyMerge(splits, config) {
 	console.log("SurfaceBooleanHelper: final weld → " + worldPoints.length +
 		" points, " + triangles.length + " triangles");
 
-	// ── Step 6b: Post-weld iterative capping (stitch mode only) ──
+	// ── Step 6b: Post-weld sequential capping (stitch mode only) ──
 	if (closeMode === "stitch") {
 		var postSoup = weldedToSoup(triangles);
-		var maxCapPasses = 3;
-		for (var capPass = 0; capPass < maxCapPasses; capPass++) {
-			var capResult = capBoundaryLoops(postSoup);
-			if (capResult.length === 0) break;
 
-			for (var ci = 0; ci < capResult.length; ci++) {
-				postSoup.push(capResult[ci]);
-			}
-			console.log("SurfaceBooleanHelper: post-weld cap pass " + (capPass + 1) +
-				" added " + capResult.length + " tris");
-
-			// Re-weld to integrate cap vertices
-			var reWelded = weldVertices(postSoup, snapTol);
-			postSoup = weldedToSoup(reWelded.triangles);
-		}
+		// Use sequential capping: cap one loop at a time with non-manifold
+		// cleanup before each pass (Fix 2 + Fix 3)
+		postSoup = capBoundaryLoopsSequential(postSoup, snapTol, 3);
 
 		// Update final output with capped result
 		var cappedWeld = weldVertices(postSoup, snapTol);
 		worldPoints = cappedWeld.points;
 		triangles = cappedWeld.triangles;
 
-		console.log("SurfaceBooleanHelper: after post-weld capping → " +
+		console.log("SurfaceBooleanHelper: after sequential capping → " +
 			worldPoints.length + " points, " + triangles.length + " triangles");
+	}
+
+	// ── Step 6c: Post-cap cleanup (stitch mode only) ──
+	if (closeMode === "stitch") {
+		var postCapSoup = weldedToSoup(triangles);
+		var postCapChanged = false;
+
+		// Check for non-manifold edges introduced by capping
+		var postCapStats = countOpenEdges(postCapSoup);
+		if (postCapStats.overShared > 0) {
+			console.log("SurfaceBooleanHelper: post-cap cleanup — " + postCapStats.overShared + " non-manifold edges, cleaning crossings");
+			postCapSoup = cleanCrossingTriangles(postCapSoup);
+			postCapChanged = true;
+		}
+
+		// Remove overlapping triangles (catches stitch+cap duplicates)
+		if (config.removeOverlapping) {
+			var postCapOverlapTol = config.overlapTolerance || 0.5;
+			var preOverlapCount = postCapSoup.length;
+			postCapSoup = removeOverlappingTriangles(postCapSoup, postCapOverlapTol);
+			if (postCapSoup.length < preOverlapCount) postCapChanged = true;
+		}
+
+		// Remove degenerates if enabled
+		if (removeDegenerate || removeSlivers) {
+			var effectiveSliver3 = removeSlivers ? sliverRatio : 0;
+			var preDegenCount = postCapSoup.length;
+			postCapSoup = removeDegenerateTriangles(postCapSoup, minArea, effectiveSliver3);
+			if (postCapSoup.length < preDegenCount) postCapChanged = true;
+		}
+
+		// Re-weld if anything was cleaned
+		if (postCapChanged) {
+			var postCapWeld = weldVertices(postCapSoup, snapTol);
+			worldPoints = postCapWeld.points;
+			triangles = postCapWeld.triangles;
+			console.log("SurfaceBooleanHelper: post-cap cleanup → " +
+				worldPoints.length + " points, " + triangles.length + " triangles");
+		}
+	}
+
+	// ── Step 6d: Safety net — forceCloseIndexedMesh if still open ──
+	if (closeMode === "stitch") {
+		var safetyCheckSoup = weldedToSoup(triangles);
+		var safetyStats = countOpenEdges(safetyCheckSoup);
+		if (safetyStats.openEdges > 0) {
+			console.log("SurfaceBooleanHelper: safety net — " + safetyStats.openEdges +
+				" open edges remain, running forceCloseIndexedMesh");
+			var forceClosed = forceCloseIndexedMesh(worldPoints, triangles);
+			worldPoints = forceClosed.points;
+			triangles = forceClosed.triangles;
+			console.log("SurfaceBooleanHelper: after forceClose → " +
+				worldPoints.length + " points, " + triangles.length + " triangles");
+		}
 	}
 
 	// ── Step 7: Log boundary stats ──
@@ -1511,6 +1554,91 @@ function capBoundaryLoops(tris) {
 }
 
 /**
+ * Sequential boundary capping: cap one loop at a time, re-weld + clean
+ * non-manifold after each loop. This avoids the double-cap problem where
+ * capping all loops at once can create overlapping triangles.
+ *
+ * @param {Array} soup - Triangle soup [{v0, v1, v2}, ...]
+ * @param {number} snapTol - Weld tolerance
+ * @param {number} maxPasses - Max number of cap passes (default 3)
+ * @returns {Array} Updated triangle soup with cap triangles integrated
+ */
+function capBoundaryLoopsSequential(soup, snapTol, maxPasses) {
+	if (!maxPasses) maxPasses = 3;
+	var MAX_CAP_LOOP_VERTS = 500;
+
+	for (var capPass = 0; capPass < maxPasses; capPass++) {
+		// Check for non-manifold edges before extracting loops
+		var preStats = countOpenEdges(soup);
+		if (preStats.overShared > 0) {
+			console.log("SurfaceBooleanHelper: capSequential pass " + (capPass + 1) +
+				" — cleaning " + preStats.overShared + " non-manifold edges before cap");
+			soup = cleanCrossingTriangles(soup);
+			// Re-weld after cleaning
+			var cleaned = weldVertices(soup, snapTol);
+			soup = weldedToSoup(cleaned.triangles);
+		}
+
+		var loopResult = extractBoundaryLoops(soup);
+		if (loopResult.loops.length === 0) {
+			console.log("SurfaceBooleanHelper: capSequential — no boundary loops at pass " + (capPass + 1) + ", mesh is closed");
+			break;
+		}
+
+		console.log("SurfaceBooleanHelper: capSequential pass " + (capPass + 1) + " — " +
+			loopResult.loops.length + " loop(s), sizes: " +
+			loopResult.loops.map(function (l) { return l.length; }).join(", "));
+
+		var totalCapTris = 0;
+
+		// Cap one loop at a time
+		for (var li = 0; li < loopResult.loops.length; li++) {
+			var loop = loopResult.loops[li];
+			if (loop.length < 3) continue;
+			if (loop.length > MAX_CAP_LOOP_VERTS) {
+				console.warn("SurfaceBooleanHelper: capSequential — skipped loop[" + li +
+					"]: " + loop.length + " verts exceeds limit (" + MAX_CAP_LOOP_VERTS + ")");
+				continue;
+			}
+
+			var capTris = triangulateLoop(loop);
+			if (capTris.length === 0) continue;
+
+			// Add cap triangles to soup
+			for (var ct = 0; ct < capTris.length; ct++) {
+				soup.push(capTris[ct]);
+			}
+			totalCapTris += capTris.length;
+
+			console.log("SurfaceBooleanHelper: capSequential — capped loop[" + li +
+				"]: " + loop.length + " verts → " + capTris.length + " cap tris");
+
+			// Re-weld after each loop cap to integrate vertices
+			var reWelded = weldVertices(soup, snapTol);
+			soup = weldedToSoup(reWelded.triangles);
+
+			// Clean non-manifold if introduced by this cap
+			var postStats = countOpenEdges(soup);
+			if (postStats.overShared > 0) {
+				soup = cleanCrossingTriangles(soup);
+				var reCleaned = weldVertices(soup, snapTol);
+				soup = weldedToSoup(reCleaned.triangles);
+			}
+		}
+
+		if (totalCapTris === 0) {
+			console.log("SurfaceBooleanHelper: capSequential — no cappable loops at pass " + (capPass + 1));
+			break;
+		}
+
+		console.log("SurfaceBooleanHelper: capSequential pass " + (capPass + 1) +
+			" — added " + totalCapTris + " cap tris total");
+	}
+
+	return soup;
+}
+
+/**
  * Triangulate a 3D polygon loop using ear-clipping projected onto the
  * best-fit 2D plane (the plane with the largest projected area).
  *
@@ -1541,7 +1669,7 @@ function triangulateLoop(loop) {
 		}
 	}
 
-	// Compute loop normal to determine best projection plane (Newell's method)
+	// Compute loop normal via Newell's method (needed for winding validation)
 	var nx = 0, ny = 0, nz = 0;
 	for (var i = 0; i < loop.length; i++) {
 		var curr = loop[i];
@@ -1551,13 +1679,24 @@ function triangulateLoop(loop) {
 		nz += (curr.x - next.x) * (curr.y + next.y);
 	}
 
-	// Pick the 2D projection plane that preserves the most area
-	var anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
+	// Pick the 2D projection plane using shoelace area on all 3 planes — pick largest
+	var areaXY = 0, areaXZ = 0, areaYZ = 0;
+	for (var sa = 0; sa < loop.length; sa++) {
+		var saCurr = loop[sa];
+		var saNext = loop[(sa + 1) % loop.length];
+		areaXY += (saCurr.x * saNext.y - saNext.x * saCurr.y);
+		areaXZ += (saCurr.x * saNext.z - saNext.x * saCurr.z);
+		areaYZ += (saCurr.y * saNext.z - saNext.y * saCurr.z);
+	}
+	areaXY = Math.abs(areaXY);
+	areaXZ = Math.abs(areaXZ);
+	areaYZ = Math.abs(areaYZ);
+
 	var projU, projV;
-	if (anz >= anx && anz >= any) {
+	if (areaXY >= areaXZ && areaXY >= areaYZ) {
 		projU = function (p) { return p.x; };
 		projV = function (p) { return p.y; };
-	} else if (any >= anx) {
+	} else if (areaXZ >= areaYZ) {
 		projU = function (p) { return p.x; };
 		projV = function (p) { return p.z; };
 	} else {
@@ -1615,6 +1754,29 @@ function triangulateLoop(loop) {
 				v1: loop[b],
 				v2: loop[c]
 			});
+		}
+	}
+
+	// Fix 4: Validate cap triangle winding against the Newell loop normal
+	// If a cap tri's normal is anti-parallel to the loop normal, flip v1↔v2
+	var nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+	if (nLen > 1e-12) {
+		var nnx = nx / nLen, nny = ny / nLen, nnz = nz / nLen;
+		for (var wi = 0; wi < result.length; wi++) {
+			var wt = result[wi];
+			// Compute triangle normal via cross product
+			var ux = wt.v1.x - wt.v0.x, uy = wt.v1.y - wt.v0.y, uz = wt.v1.z - wt.v0.z;
+			var vx = wt.v2.x - wt.v0.x, vy = wt.v2.y - wt.v0.y, vz = wt.v2.z - wt.v0.z;
+			var tnx = uy * vz - uz * vy;
+			var tny = uz * vx - ux * vz;
+			var tnz = ux * vy - uy * vx;
+			// Dot with loop normal — if negative, winding is reversed
+			var dot = tnx * nnx + tny * nny + tnz * nnz;
+			if (dot < 0) {
+				var tmp = wt.v1;
+				wt.v1 = wt.v2;
+				wt.v2 = tmp;
+			}
 		}
 	}
 
@@ -2036,56 +2198,7 @@ function stitchByProximity(tris, stitchTolerance) {
 	}
 
 	console.log("SurfaceBooleanHelper: stitchByProximity — stitched " + stitchedCount +
-		" edge pairs → " + extraTris.length + " new triangles");
-
-	// Step 4) After proximity stitching, check remaining boundary loops and flat-cap small ones
-	// Limit loop size for flat-capping to avoid freezing on large outer boundaries
-	var MAX_CAP_LOOP_VERTS = 500;
-
-	if (extraTris.length > 0) {
-		// Merge stitch triangles into a temporary soup to re-check boundaries
-		var tempSoup = tris.slice();
-		for (var et = 0; et < extraTris.length; et++) {
-			tempSoup.push(extraTris[et]);
-		}
-		var postResult = extractBoundaryLoops(tempSoup);
-		console.log("SurfaceBooleanHelper: after proximity stitch — " +
-			postResult.boundaryEdgeCount + " boundary edges, " +
-			postResult.loops.length + " loops remain");
-
-		// Flat-cap remaining boundary loops (skip oversized loops)
-		for (var li = 0; li < postResult.loops.length; li++) {
-			var loop = postResult.loops[li];
-			if (loop.length >= 3 && loop.length <= MAX_CAP_LOOP_VERTS) {
-				var capTris = triangulateLoop(loop);
-				for (var ct = 0; ct < capTris.length; ct++) {
-					extraTris.push(capTris[ct]);
-				}
-				console.log("SurfaceBooleanHelper:   flat-capped loop[" + li + "]: " +
-					loop.length + " verts → " + capTris.length + " cap tris");
-			} else if (loop.length > MAX_CAP_LOOP_VERTS) {
-				console.warn("SurfaceBooleanHelper:   skipped loop[" + li + "]: " +
-					loop.length + " verts exceeds cap limit (" + MAX_CAP_LOOP_VERTS + ")");
-			}
-		}
-	} else {
-		// No edge pairs found within tolerance — flat-cap small boundary loops
-		var loopResult = extractBoundaryLoops(tris);
-		for (var li2 = 0; li2 < loopResult.loops.length; li2++) {
-			var loop2 = loopResult.loops[li2];
-			if (loop2.length >= 3 && loop2.length <= MAX_CAP_LOOP_VERTS) {
-				var capTris2 = triangulateLoop(loop2);
-				for (var ct2 = 0; ct2 < capTris2.length; ct2++) {
-					extraTris.push(capTris2[ct2]);
-				}
-				console.log("SurfaceBooleanHelper:   flat-capped loop[" + li2 + "]: " +
-					loop2.length + " verts → " + capTris2.length + " cap tris");
-			} else if (loop2.length > MAX_CAP_LOOP_VERTS) {
-				console.warn("SurfaceBooleanHelper:   skipped loop[" + li2 + "]: " +
-					loop2.length + " verts exceeds cap limit (" + MAX_CAP_LOOP_VERTS + ")");
-			}
-		}
-	}
+		" edge pairs → " + extraTris.length + " stitch quad triangles (no capping)");
 
 	return extraTris;
 }

@@ -603,10 +603,10 @@ function showPhase2(splitResult, gradient) {
 	row2.style.alignItems = "center";
 
 	var closeModeLabel = createInlineLabel("Close:", "0");
-	closeModeLabel.title = "How to handle open edges after merging the kept regions";
+	closeModeLabel.title = "Controls how open boundary edges are handled after boolean merge";
 	var closeModeSelect = document.createElement("select");
 	applySmallSelectStyle(closeModeSelect);
-	closeModeSelect.title = "Stitch Intersection: weld shared seam only (fast)\nClose by Stitching: also bridge nearby open edges and cap small holes";
+	closeModeSelect.title = "None: raw merge, seam is a tear\nStitch Intersection: weld seam only, boundaries stay open\nClose by Stitching: weld + bridge + cap to produce a closed solid";
 	var closeModeOptions = [
 		{ value: "raw", text: "None", disabled: false },
 		{ value: "none", text: "Stitch Intersection", disabled: false },
@@ -629,9 +629,9 @@ function showPhase2(splitResult, gradient) {
 
 	var stitchTolLabel = createInlineLabel("Stitch tol:", "0");
 	stitchTolLabel.style.display = "none";
-	stitchTolLabel.title = "Max distance to bridge open boundary edges — edges with both endpoints within this distance are connected";
+	stitchTolLabel.title = "Max distance (m) to bridge boundary edge pairs. Both endpoints must be within this distance.";
 	var stitchTolInput = createSmallInput("1.0", "60px", "0.1", "0");
-	stitchTolInput.title = "Max distance (metres) between boundary edge endpoints to stitch them together";
+	stitchTolInput.title = "Max distance (m) to bridge boundary edge pairs. Both endpoints must be within this distance.";
 	stitchTolLabel.appendChild(stitchTolInput);
 	stitchTolLabel.appendChild(document.createTextNode("m"));
 	row2.appendChild(stitchTolLabel);
@@ -665,19 +665,19 @@ function showPhase2(splitResult, gradient) {
 
 	// Remove Degenerate checkbox (on by default)
 	var degenerateCheck = createCheckboxLabel("Remove Degenerate", true);
-	degenerateCheck.label.title = "Remove zero-area and collapsed triangles (recommended)";
+	degenerateCheck.label.title = "Remove triangles with near-zero area (< 0.000001 m\u00B2). Safe \u2014 recommended to leave on.";
 	row3.appendChild(degenerateCheck.label);
 
 	// Remove Slivers checkbox + ratio input (off by default)
 	var sliverCheck = createCheckboxLabel("Remove Slivers", false);
-	sliverCheck.label.title = "Remove very thin triangles where shortest edge / longest edge < ratio";
+	sliverCheck.label.title = "\u26A0 Remove needle-thin triangles. May punch holes in valid thin geometry at seam boundaries. Off by default.";
 	row3.appendChild(sliverCheck.label);
 
 	var sliverRatioLabel = createInlineLabel("ratio:", "0");
 	sliverRatioLabel.style.display = "none";
-	sliverRatioLabel.title = "Min edge ratio — triangles with shortest/longest edge below this are removed";
+	sliverRatioLabel.title = "Altitude-to-edge ratio threshold. Lower = only extreme slivers. Higher = more aggressive.";
 	var sliverRatioInput = createSmallInput("0.01", "50px", "0.001", "0");
-	sliverRatioInput.title = "Edge ratio threshold (0.01 = remove very thin slivers only)";
+	sliverRatioInput.title = "Altitude-to-edge ratio threshold. Lower = only extreme slivers. Higher = more aggressive.";
 	sliverRatioLabel.appendChild(sliverRatioInput);
 	row3.appendChild(sliverRatioLabel);
 
@@ -687,19 +687,19 @@ function showPhase2(splitResult, gradient) {
 
 	// Clean Crossings checkbox (off by default)
 	var crossingCheck = createCheckboxLabel("Clean Crossings", false);
-	crossingCheck.label.title = "Remove triangles on over-shared edges (more than 2 triangles sharing an edge) — keeps the 2 largest";
+	crossingCheck.label.title = "Fix non-manifold edges (3+ triangles sharing one edge) \u2014 keeps the 2 largest per edge. Also removes exact duplicate triangles. Runs before AND after stitching/capping.";
 	row3.appendChild(crossingCheck.label);
 
 	// Remove Overlapping / Internal Walls checkbox + tolerance (off by default)
 	var overlapCheck = createCheckboxLabel("Remove Overlapping", false);
-	overlapCheck.label.title = "Remove internal wall triangles — pairs with close centroids and opposing normals";
+	overlapCheck.label.title = "Remove internal walls (anti-parallel triangle pairs) and near-duplicate triangles with close centroids. \u26A0 May remove valid thin walls if tolerance is too large.";
 	row3.appendChild(overlapCheck.label);
 
 	var overlapTolLabel = createInlineLabel("tol:", "0");
 	overlapTolLabel.style.display = "none";
-	overlapTolLabel.title = "Max centroid distance to detect overlapping triangle pairs";
+	overlapTolLabel.title = "Max centroid distance (m) to detect overlapping pairs. Start with 0.5m, reduce if valid geometry is removed.";
 	var overlapTolInput = createSmallInput("0.5", "50px", "0.1", "0");
-	overlapTolInput.title = "Overlap detection tolerance in metres";
+	overlapTolInput.title = "Max centroid distance (m) to detect overlapping pairs. Start with 0.5m, reduce if valid geometry is removed.";
 	overlapTolLabel.appendChild(overlapTolInput);
 	overlapTolLabel.appendChild(document.createTextNode("m"));
 	row3.appendChild(overlapTolLabel);
@@ -729,9 +729,9 @@ function showPhase2(splitResult, gradient) {
 			"<span style='opacity:0.7'>&#8657;</span> Align Z-Up";
 		if (mode === "stitch") {
 			infoDiv.innerHTML =
-				"<b>Close by Stitching:</b> After welding the intersection seam, finds open boundary " +
-				"edges whose endpoints are within the <i>Stitch tolerance</i> and bridges them with " +
-				"triangles. Small remaining holes (< 500 verts) are flat-capped.<br>" + buttons;
+				"<b>Close by Stitching:</b> Welds seam, bridges open edges within <i>Stitch tolerance</i>, " +
+				"then sequentially caps boundary loops (one at a time, with non-manifold cleanup between each). " +
+				"Post-cap cleanup removes duplicates/overlaps. Safety-net closer handles any remaining gaps.<br>" + buttons;
 		} else if (mode === "raw") {
 			infoDiv.innerHTML =
 				"<b>None:</b> No post-processing. Kept regions are merged as raw triangle soup " +
