@@ -19,9 +19,10 @@ import {
 	extractTriangles as ixExtractTriangles,
 	intersectSurfacePairTagged,
 	countOpenEdges,
-	chainSegments,
-	dist3D as ixDist3D,
-	ensureZUpNormals
+	ensureZUpNormals,
+	buildSpatialGrid,
+	queryGrid,
+	estimateAvgEdge
 } from "./SurfaceIntersectionHelper.js";
 
 // ────────────────────────────────────────────────────────
@@ -41,178 +42,173 @@ function cutEdgeKey(va, vb) {
 }
 
 // ────────────────────────────────────────────────────────
-// Polyline classification utilities
+// Ray-casting inside/outside classification
 // ────────────────────────────────────────────────────────
 
 /**
- * Check whether a polyline is closed (first ≈ last point).
- * @param {Array} polyline - Array of {x,y,z}
- * @param {number} threshold - Distance threshold
- * @returns {boolean}
- */
-function isPolylineClosed(polyline, threshold) {
-	if (polyline.length < 3) return false;
-	var a = polyline[0];
-	var b = polyline[polyline.length - 1];
-	var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-	return Math.sqrt(dx * dx + dy * dy + dz * dz) <= threshold;
-}
-
-/**
- * Ray-casting point-in-polygon test on XY projection of a closed 3D loop.
- * @param {number} px - Test point X
- * @param {number} py - Test point Y
- * @param {Array} loop - Array of {x,y,z} forming a closed polygon
- * @returns {boolean} true if (px,py) is inside the loop
- */
-function classifyPointClosedLoop(px, py, loop) {
-	var inside = false;
-	var n = loop.length;
-	for (var i = 0, j = n - 1; i < n; j = i++) {
-		var xi = loop[i].x, yi = loop[i].y;
-		var xj = loop[j].x, yj = loop[j].y;
-		if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-			inside = !inside;
-		}
-	}
-	return inside;
-}
-
-/**
- * Classify a point relative to an open polyline using the signed cross product
- * of the closest segment. Positive = left side, negative = right side.
+ * Classify a point as inside/outside the other surface using Z-ray casting.
  *
- * @param {number} px - Test point X
- * @param {number} py - Test point Y
- * @param {Array} polyline - Array of {x,y,z}
- * @returns {number} Sign: +1 or -1
- */
-function classifyPointOpenPolyline(px, py, polyline) {
-	var bestDistSq = Infinity;
-	var bestCross = 0;
-
-	for (var i = 0; i < polyline.length - 1; i++) {
-		var ax = polyline[i].x, ay = polyline[i].y;
-		var bx = polyline[i + 1].x, by = polyline[i + 1].y;
-
-		// Project point onto segment to find closest point
-		var abx = bx - ax, aby = by - ay;
-		var apx = px - ax, apy = py - ay;
-		var abLenSq = abx * abx + aby * aby;
-
-		if (abLenSq < 1e-20) continue; // degenerate segment
-
-		var t = (apx * abx + apy * aby) / abLenSq;
-		if (t < 0) t = 0;
-		if (t > 1) t = 1;
-
-		var closestX = ax + t * abx;
-		var closestY = ay + t * aby;
-		var dx = px - closestX, dy = py - closestY;
-		var dSq = dx * dx + dy * dy;
-
-		if (dSq < bestDistSq) {
-			bestDistSq = dSq;
-			// 2D cross product of segment direction × vector to point
-			bestCross = abx * apy - aby * apx;
-		}
-	}
-
-	return bestCross >= 0 ? 1 : -1;
-}
-
-/**
- * Classify a single centroid as "inside" (1) or "outside" (-1) relative
- * to the intersection polylines.
+ * Casts a ray from the point in the +Z direction, counts how many triangles
+ * of the other surface the ray passes through. Odd = inside, even = outside.
  *
- * Closed polylines use ray-casting PIP on XY projection.
- * Open polylines use signed cross product of the closest segment.
+ * Works in ALL orientations:
+ * - Closed solids (pit shells, extruded polygons): standard PIP in 3D
+ * - Open terrain surfaces: ray from below crosses once = inside
+ * - Vertical walls: automatically skipped (degenerate XY projection)
  *
- * @param {{x,y,z}} centroid
- * @param {Array} closedPolylines - Array of closed polyline arrays
- * @param {Array} openPolylines - Array of open polyline arrays
+ * @param {{x,y,z}} point - Point to classify
+ * @param {Array} otherTris - Other surface triangles
+ * @param {Object} otherGrid - Spatial grid over otherTris (XY-based)
+ * @param {number} otherCellSize - Grid cell size
  * @returns {number} 1 = inside, -1 = outside
  */
-function classifyCentroid(centroid, closedPolylines, openPolylines) {
-	// Check closed polylines first — inside any closed loop → "inside"
-	for (var c = 0; c < closedPolylines.length; c++) {
-		if (classifyPointClosedLoop(centroid.x, centroid.y, closedPolylines[c])) {
-			return 1; // inside
+function classifyPointByRayCast(point, otherTris, otherGrid, otherCellSize) {
+	var px = point.x, py = point.y, pz = point.z;
+
+	// A +Z ray has fixed XY — query grid cells containing (px, py)
+	var bb = { minX: px, maxX: px, minY: py, maxY: py };
+	var candidates = queryGrid(otherGrid, bb, otherCellSize);
+
+	var count = 0;
+	for (var c = 0; c < candidates.length; c++) {
+		var tri = otherTris[candidates[c]];
+
+		// Barycentric coordinates of (px, py) in triangle's XY projection
+		var x0 = tri.v0.x, y0 = tri.v0.y;
+		var x1 = tri.v1.x, y1 = tri.v1.y;
+		var x2 = tri.v2.x, y2 = tri.v2.y;
+
+		var d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+		if (Math.abs(d) < 1e-12) continue; // degenerate XY — vertical face or sliver
+
+		var u = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / d;
+		var v = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / d;
+		var w = 1 - u - v;
+
+		if (u < -1e-10 || v < -1e-10 || w < -1e-10) continue; // outside triangle
+
+		// Interpolate Z at (px, py) on the triangle's plane
+		var z = u * tri.v0.z + v * tri.v1.z + w * tri.v2.z;
+
+		if (z > pz) count++; // intersection above the point
+	}
+
+	return (count % 2 === 1) ? 1 : -1;
+}
+
+/**
+ * Classify triangles using flood fill from intersection boundary.
+ *
+ * Non-crossed triangles are partitioned into connected components via shared
+ * edges (excluding edges shared with crossed triangles). Each component is
+ * classified by a single seed triangle using ray casting against the other
+ * surface, then that classification is propagated to the entire component.
+ *
+ * @param {Array} tris - Triangle soup to classify
+ * @param {Object} crossedMap - Map of triIndex -> [taggedSegments]
+ * @param {Array} otherTris - Other surface triangles
+ * @param {Object} otherGrid - Spatial grid over otherTris
+ * @param {number} otherCellSize - Grid cell size
+ * @returns {Int8Array} Classification per triangle: 1=inside, -1=outside
+ */
+function classifyByFloodFill(tris, crossedMap, otherTris, otherGrid, otherCellSize) {
+	var n = tris.length;
+	var result = new Int8Array(n);
+
+	// Build edge adjacency for non-crossed triangles only
+	var PREC = 6;
+	function vKey(v) {
+		return v.x.toFixed(PREC) + "," + v.y.toFixed(PREC) + "," + v.z.toFixed(PREC);
+	}
+
+	var edgeToTris = {};
+	for (var i = 0; i < n; i++) {
+		if (crossedMap[i]) continue; // skip crossed triangles
+		var tri = tris[i];
+		var k0 = vKey(tri.v0), k1 = vKey(tri.v1), k2 = vKey(tri.v2);
+		var edges = [
+			k0 < k1 ? k0 + "|" + k1 : k1 + "|" + k0,
+			k1 < k2 ? k1 + "|" + k2 : k2 + "|" + k1,
+			k2 < k0 ? k2 + "|" + k0 : k0 + "|" + k2
+		];
+		for (var e = 0; e < 3; e++) {
+			if (!edgeToTris[edges[e]]) edgeToTris[edges[e]] = [];
+			edgeToTris[edges[e]].push(i);
 		}
 	}
 
-	// Check open polylines — closest segment determines side
-	if (openPolylines.length > 0) {
-		// Use the closest open polyline to determine classification
-		var bestDistSq = Infinity;
-		var bestSign = -1;
+	// Build neighbor list from shared edges (non-crossed only)
+	var neighbors = new Array(n);
+	for (var ni = 0; ni < n; ni++) neighbors[ni] = [];
 
-		for (var o = 0; o < openPolylines.length; o++) {
-			var poly = openPolylines[o];
-			for (var i = 0; i < poly.length - 1; i++) {
-				var ax = poly[i].x, ay = poly[i].y;
-				var bx = poly[i + 1].x, by = poly[i + 1].y;
-				var abx = bx - ax, aby = by - ay;
-				var apx = centroid.x - ax, apy = centroid.y - ay;
-				var abLenSq = abx * abx + aby * aby;
+	for (var ek in edgeToTris) {
+		var triList = edgeToTris[ek];
+		for (var a = 0; a < triList.length; a++) {
+			for (var b = a + 1; b < triList.length; b++) {
+				neighbors[triList[a]].push(triList[b]);
+				neighbors[triList[b]].push(triList[a]);
+			}
+		}
+	}
 
-				if (abLenSq < 1e-20) continue;
+	// BFS flood fill — find connected components, classify each by one seed
+	var visited = new Uint8Array(n);
+	var componentCount = 0;
 
-				var t = (apx * abx + apy * aby) / abLenSq;
-				if (t < 0) t = 0;
-				if (t > 1) t = 1;
+	for (var seed = 0; seed < n; seed++) {
+		if (visited[seed] || crossedMap[seed]) continue;
 
-				var closestX = ax + t * abx;
-				var closestY = ay + t * aby;
-				var dx = centroid.x - closestX, dy = centroid.y - closestY;
-				var dSq = dx * dx + dy * dy;
+		// Classify seed via ray casting against other surface
+		var seedTri = tris[seed];
+		var cx = (seedTri.v0.x + seedTri.v1.x + seedTri.v2.x) / 3;
+		var cy = (seedTri.v0.y + seedTri.v1.y + seedTri.v2.y) / 3;
+		var cz = (seedTri.v0.z + seedTri.v1.z + seedTri.v2.z) / 3;
+		var seedClass = classifyPointByRayCast(
+			{ x: cx, y: cy, z: cz },
+			otherTris, otherGrid, otherCellSize
+		);
 
-				if (dSq < bestDistSq) {
-					bestDistSq = dSq;
-					bestSign = (abx * apy - aby * apx) >= 0 ? 1 : -1;
+		// BFS: propagate seed classification to entire component
+		var queue = [seed];
+		visited[seed] = 1;
+		result[seed] = seedClass;
+
+		var head = 0;
+		while (head < queue.length) {
+			var curr = queue[head++];
+			var nbrs = neighbors[curr];
+			for (var ni2 = 0; ni2 < nbrs.length; ni2++) {
+				var nb = nbrs[ni2];
+				if (!visited[nb]) {
+					visited[nb] = 1;
+					result[nb] = seedClass;
+					queue.push(nb);
 				}
 			}
 		}
 
-		return bestSign;
+		componentCount++;
 	}
 
-	return -1; // default: outside
-}
-
-/**
- * Classify all triangles' centroids against intersection polylines.
- *
- * @param {Array} tris - Triangle soup [{v0,v1,v2}, ...]
- * @param {Array} closedPolylines
- * @param {Array} openPolylines
- * @returns {Int8Array} Classification per triangle: 1=inside, -1=outside
- */
-function classifyAllTriangles(tris, closedPolylines, openPolylines) {
-	var result = new Int8Array(tris.length);
-	for (var i = 0; i < tris.length; i++) {
-		var tri = tris[i];
-		var cx = (tri.v0.x + tri.v1.x + tri.v2.x) / 3;
-		var cy = (tri.v0.y + tri.v1.y + tri.v2.y) / 3;
-		var cz = (tri.v0.z + tri.v1.z + tri.v2.z) / 3;
-		result[i] = classifyCentroid({ x: cx, y: cy, z: cz }, closedPolylines, openPolylines);
-	}
+	console.log("classifyByFloodFill: " + componentCount + " connected components in " + n + " triangles");
 	return result;
 }
 
 /**
  * Separate triangles into inside/outside groups.
  * Non-crossed triangles go directly by classification.
- * Crossed (straddling) triangles are split first, then each sub-triangle classified.
+ * Crossed (straddling) triangles are split first, then each sub-triangle
+ * classified via ray casting against the other surface.
  *
  * @param {Array} tris - Triangle soup
  * @param {Int8Array} classifications - Per-triangle classification
  * @param {Object} crossedMap - Map of triIndex -> [taggedSegments]
- * @param {Array} closedPolylines
- * @param {Array} openPolylines
+ * @param {Array} otherTris - Other surface triangles
+ * @param {Object} otherGrid - Spatial grid over otherTris
+ * @param {number} otherCellSize - Grid cell size
  * @returns {{ inside: Array, outside: Array }}
  */
-function splitStraddlingAndClassify(tris, classifications, crossedMap, closedPolylines, openPolylines) {
+function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris, otherGrid, otherCellSize) {
 	var inside = [];
 	var outside = [];
 
@@ -243,13 +239,16 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, closedPol
 			current = next;
 		}
 
-		// Classify each sub-triangle by its centroid
+		// Classify each sub-triangle via ray casting against other surface
 		for (var j = 0; j < current.length; j++) {
 			var sub = current[j];
 			var cx = (sub.v0.x + sub.v1.x + sub.v2.x) / 3;
 			var cy = (sub.v0.y + sub.v1.y + sub.v2.y) / 3;
 			var cz = (sub.v0.z + sub.v1.z + sub.v2.z) / 3;
-			var cls = classifyCentroid({ x: cx, y: cy, z: cz }, closedPolylines, openPolylines);
+			var cls = classifyPointByRayCast(
+				{ x: cx, y: cy, z: cz },
+				otherTris, otherGrid, otherCellSize
+			);
 			if (cls === 1) {
 				inside.push(sub);
 			} else {
@@ -443,9 +442,9 @@ function buildNoIntersectionResult(trisA, trisB, surfaceIdA, surfaceIdB, surface
  *
  * Algorithm:
  *   1-2) Extract triangles, find Moller intersection segments
- *   3) Chain segments into polylines
- *   4) Classify polylines as closed or open
- *   5) Classify every triangle centroid (inside/outside)
+ *   3) Build crossed triangle sets from intersection tags
+ *   4) Build spatial grids + pre-compute data for signed-distance
+ *   5) Flood-fill classify: connected non-crossed regions get one seed classification
  *   6) Split straddling triangles at intersection edges, classify sub-triangles
  *   7) Deduplicate seam vertices
  *   8) Propagate normals for consistent winding
@@ -484,34 +483,7 @@ export function computeSplits(surfaceIdA, surfaceIdB) {
 		return buildNoIntersectionResult(trisA, trisB, surfaceIdA, surfaceIdB, surfaceA, surfaceB);
 	}
 
-	// Step 3) Chain segments into polylines
-	var avgSegLen = 0;
-	for (var sl = 0; sl < taggedSegments.length; sl++) {
-		avgSegLen += ixDist3D(taggedSegments[sl].p0, taggedSegments[sl].p1);
-	}
-	avgSegLen = taggedSegments.length > 0 ? avgSegLen / taggedSegments.length : 1.0;
-	var chainThreshold = Math.max(avgSegLen * 0.01, 0.001);
-
-	var polylines = chainSegments(taggedSegments, chainThreshold);
-	console.log("Surface Boolean: chained into " + polylines.length + " polyline(s)");
-
-	// Step 4) Classify polylines as closed or open
-	var closedPolylines = [];
-	var openPolylines = [];
-	var closureThreshold = avgSegLen * 0.5;
-
-	for (var p = 0; p < polylines.length; p++) {
-		if (polylines[p].length < 2) continue;
-		if (isPolylineClosed(polylines[p], closureThreshold)) {
-			closedPolylines.push(polylines[p]);
-		} else {
-			openPolylines.push(polylines[p]);
-		}
-	}
-	console.log("Surface Boolean: " + closedPolylines.length + " closed, " +
-		openPolylines.length + " open polyline(s)");
-
-	// Step 3b) Build crossed triangle sets from tagged segments
+	// Step 3) Build crossed triangle sets from tagged segments
 	var crossedSetA = {};
 	var crossedSetB = {};
 	for (var s = 0; s < taggedSegments.length; s++) {
@@ -526,13 +498,23 @@ export function computeSplits(surfaceIdA, surfaceIdB) {
 	var crossedCountB = Object.keys(crossedSetB).length;
 	console.log("Surface Boolean: crossed A=" + crossedCountA + ", crossed B=" + crossedCountB);
 
-	// Step 5) Classify every triangle centroid
-	var classA = classifyAllTriangles(trisA, closedPolylines, openPolylines);
-	var classB = classifyAllTriangles(trisB, closedPolylines, openPolylines);
+	// Step 4) Build spatial grids for ray-cast classification
+	var avgEdgeA = estimateAvgEdge(trisA);
+	var avgEdgeB = estimateAvgEdge(trisB);
+	var cellSizeA = Math.max(avgEdgeA * 2, 0.1);
+	var cellSizeB = Math.max(avgEdgeB * 2, 0.1);
+
+	var gridA = buildSpatialGrid(trisA, cellSizeA);
+	var gridB = buildSpatialGrid(trisB, cellSizeB);
+
+	// Step 5) Flood-fill classify: each connected non-crossed region gets one seed
+	//         Seeds classified by ray casting (+Z) against other surface
+	var classA = classifyByFloodFill(trisA, crossedSetA, trisB, gridB, cellSizeB);
+	var classB = classifyByFloodFill(trisB, crossedSetB, trisA, gridA, cellSizeA);
 
 	// Step 6) Split straddling triangles and classify sub-triangles
-	var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, closedPolylines, openPolylines);
-	var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, closedPolylines, openPolylines);
+	var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridB, cellSizeB);
+	var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridA, cellSizeA);
 
 	console.log("Surface Boolean: A inside=" + groupsA.inside.length + " outside=" + groupsA.outside.length +
 		", B inside=" + groupsB.inside.length + " outside=" + groupsB.outside.length);
