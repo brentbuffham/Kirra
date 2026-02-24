@@ -165,6 +165,30 @@ export function buildExtrudeGeometry(entity, params) {
 		}
 	}
 
+	// Step 6) Ensure outward normals — compute signed volume of the triangle soup.
+	// Positive signed volume = outward normals (CCW convention).
+	// If negative, reverse every triangle's winding order.
+	if (signedDepth !== 0) {
+		var vol = 0;
+		for (var vi = 0; vi < positions.length; vi += 9) {
+			var x0 = positions[vi], y0 = positions[vi + 1], z0 = positions[vi + 2];
+			var x1 = positions[vi + 3], y1 = positions[vi + 4], z1 = positions[vi + 5];
+			var x2 = positions[vi + 6], y2 = positions[vi + 7], z2 = positions[vi + 8];
+			vol += (x0 * (y1 * z2 - y2 * z1) -
+				x1 * (y0 * z2 - y2 * z0) +
+				x2 * (y0 * z1 - y1 * z0)) / 6.0;
+		}
+		if (vol < 0) {
+			// Flip every triangle: swap vertex 1 and vertex 2
+			for (var fi = 0; fi < positions.length; fi += 9) {
+				var tmp;
+				tmp = positions[fi + 3]; positions[fi + 3] = positions[fi + 6]; positions[fi + 6] = tmp;
+				tmp = positions[fi + 4]; positions[fi + 4] = positions[fi + 7]; positions[fi + 7] = tmp;
+				tmp = positions[fi + 5]; positions[fi + 5] = positions[fi + 8]; positions[fi + 8] = tmp;
+			}
+		}
+	}
+
 	var geometry = new THREE.BufferGeometry();
 	geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
 	geometry.computeVertexNormals();

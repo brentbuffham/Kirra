@@ -196,8 +196,12 @@ function performMove(layerType, layersMap, itemIds, targetLayerId) {
 			if (surface) {
 				surface.layerId = targetLayerId;
 			}
+		} else if (layerType === "drawing") {
+			var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(itemId) : null;
+			if (entity) {
+				entity.layerId = targetLayerId;
+			}
 		}
-		// Drawing entities don't store layerId directly — layer tracks via entities Set
 
 		movedCount++;
 	});
@@ -206,7 +210,7 @@ function performMove(layerType, layersMap, itemIds, targetLayerId) {
 	if (typeof window.debouncedSaveLayers === "function") {
 		window.debouncedSaveLayers();
 	}
-	if (layerType === "surface" && typeof window.debouncedSaveSurfaces === "function") {
+	if (layerType === "surface") {
 		// Save updated layerId on surfaces
 		itemIds.forEach(function (id) {
 			if (typeof window.saveSurfaceToDB === "function") {
@@ -215,6 +219,11 @@ function performMove(layerType, layersMap, itemIds, targetLayerId) {
 				});
 			}
 		});
+	} else if (layerType === "drawing") {
+		// Save updated layerId on KAD entities
+		if (typeof window.debouncedSaveKAD === "function") {
+			window.debouncedSaveKAD();
+		}
 	}
 	if (typeof window.debouncedUpdateTreeView === "function") {
 		window.debouncedUpdateTreeView();

@@ -22,8 +22,12 @@ function computeMeshVolume(surface) {
 	var tris = surface.triangles;
 	if (!tris || tris.length === 0) return 0;
 
-	var vol = 0;
 	var pts = surface.points;
+
+	// First pass: extract vertices and compute centroid.
+	// Centering avoids floating-point errors with large UTM coordinates.
+	var verts = [];
+	var cx = 0, cy = 0, cz = 0;
 
 	for (var i = 0; i < tris.length; i++) {
 		var tri = tris[i];
@@ -36,10 +40,28 @@ function computeMeshVolume(surface) {
 			continue;
 		}
 		if (!v0 || !v1 || !v2) continue;
-		// Signed volume of tetrahedron with origin
-		vol += (v0.x * (v1.y * v2.z - v2.y * v1.z)
-			- v1.x * (v0.y * v2.z - v2.y * v0.z)
-			+ v2.x * (v0.y * v1.z - v1.y * v0.z)) / 6.0;
+		verts.push(v0, v1, v2);
+		cx += v0.x + v1.x + v2.x;
+		cy += v0.y + v1.y + v2.y;
+		cz += v0.z + v1.z + v2.z;
+	}
+
+	var n = verts.length / 3;
+	if (n === 0) return 0;
+	var inv = 1.0 / (n * 3);
+	cx *= inv; cy *= inv; cz *= inv;
+
+	// Second pass: divergence theorem with centered coordinates
+	var vol = 0;
+	for (var j = 0; j < n; j++) {
+		var a = verts[j * 3], b = verts[j * 3 + 1], c = verts[j * 3 + 2];
+		var x0 = a.x - cx, y0 = a.y - cy, z0 = a.z - cz;
+		var x1 = b.x - cx, y1 = b.y - cy, z1 = b.z - cz;
+		var x2 = c.x - cx, y2 = c.y - cy, z2 = c.z - cz;
+
+		vol += (x0 * (y1 * z2 - y2 * z1)
+			- x1 * (y0 * z2 - y2 * z0)
+			+ x2 * (y0 * z1 - y1 * z0)) / 6.0;
 	}
 
 	return vol;

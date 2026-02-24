@@ -557,13 +557,21 @@ function applyTransformPermanent() {
 	}
 
 	// Force redraw BEFORE cleanup
-	window.threeDataNeedsRebuild = true;
+	window.threeKADNeedsRebuild = true;
 	if (window.drawData) {
 		window.drawData(window.allBlastHoles, window.selectedHole);
 	}
 
 	// Cleanup
 	cleanupTransformMode();
+
+	// Delayed redraw to ensure 3D scene catches up after cleanup
+	setTimeout(function () {
+		window.threeKADNeedsRebuild = true;
+		if (window.drawData) {
+			window.drawData(window.allBlastHoles, window.selectedHole);
+		}
+	}, 50);
 
 	if (window.updateStatusMessage) {
 		window.updateStatusMessage("Transform applied successfully!");

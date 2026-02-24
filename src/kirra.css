@@ -3122,6 +3122,89 @@ body.dark-mode .floating-dialog input[type="button"][data-jscolor]:hover {
     border-color: #bbb !important;
 }
 
+/* Statistics table inside floating dialogs */
+.floating-dialog .stats-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.floating-dialog .stats-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--light-mode-border);
+}
+
+body.dark-mode .floating-dialog .stats-table td {
+    border-bottom-color: var(--dark-mode-border);
+}
+
+.floating-dialog .stats-table .stats-label {
+    color: var(--light-mode-text);
+    opacity: 0.7;
+    white-space: nowrap;
+}
+
+.floating-dialog .stats-table .stats-value {
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+/* Surface info badges (normals direction, topology) */
+.surface-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    display: inline-block;
+}
+
+.surface-badge-green {
+    background: rgba(0, 180, 0, 0.3);
+    color: #2a2;
+}
+
+body.dark-mode .surface-badge-green {
+    color: #4f4;
+}
+
+.surface-badge-red {
+    background: rgba(180, 0, 0, 0.3);
+    color: #a22;
+}
+
+body.dark-mode .surface-badge-red {
+    color: #f44;
+}
+
+.surface-badge-yellow {
+    background: rgba(180, 180, 0, 0.3);
+    color: #886600;
+}
+
+body.dark-mode .surface-badge-yellow {
+    color: #ff4;
+}
+
+.surface-badge-blue {
+    background: rgba(0, 120, 200, 0.3);
+    color: #26a;
+}
+
+body.dark-mode .surface-badge-blue {
+    color: #4af;
+}
+
+.surface-badge-grey {
+    background: rgba(120, 120, 120, 0.3);
+    color: #666;
+}
+
+body.dark-mode .surface-badge-grey {
+    color: #aaa;
+}
+
 /* Force JSColor popup to appear in front */
 .jscolor-picker-wrap {
     z-index: 20000 !important;

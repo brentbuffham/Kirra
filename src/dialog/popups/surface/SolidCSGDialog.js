@@ -57,12 +57,50 @@ export function showSolidCSGDialog() {
 	container.style.gap = "8px";
 	container.style.padding = "4px 0";
 
+	// Warning div for open/closed status
+	var warningDiv = document.createElement("div");
+	warningDiv.className = "csg-surface-warning";
+	warningDiv.style.fontSize = "11px";
+	warningDiv.style.padding = "6px 8px";
+	warningDiv.style.borderRadius = "4px";
+	warningDiv.style.marginTop = "2px";
+	warningDiv.style.marginBottom = "2px";
+	warningDiv.style.display = "none";
+
+	function updateClosedWarning() {
+		var idA = rowA ? rowA.select.value : null;
+		var idB = rowB ? rowB.select.value : null;
+		if (!idA || !idB) { warningDiv.style.display = "none"; return; }
+		var surfA = window.loadedSurfaces ? window.loadedSurfaces.get(idA) : null;
+		var surfB = window.loadedSurfaces ? window.loadedSurfaces.get(idB) : null;
+		var checkClosed = typeof window.isSurfaceClosed === "function";
+		var closedA = checkClosed && surfA ? window.isSurfaceClosed(surfA) : false;
+		var closedB = checkClosed && surfB ? window.isSurfaceClosed(surfB) : false;
+		var dark = isDarkMode();
+		warningDiv.style.display = "block";
+		if (closedA && closedB) {
+			warningDiv.style.background = "rgba(0,180,80,0.15)";
+			warningDiv.style.border = "1px solid rgba(0,180,80,0.4)";
+			warningDiv.style.color = dark ? "#6fdf6f" : "#1a7a1a";
+			warningDiv.textContent = "Both meshes are closed solids — optimal for CSG.";
+		} else {
+			var which = !closedA && !closedB ? "Both meshes are open surfaces"
+				: !closedA ? "Mesh A is an open surface" : "Mesh B is an open surface";
+			warningDiv.style.background = "rgba(220,160,0,0.15)";
+			warningDiv.style.border = "1px solid rgba(220,160,0,0.4)";
+			warningDiv.style.color = dark ? "#e0c060" : "#7a5a00";
+			warningDiv.textContent = which + " — results may be unreliable. For best results, use closed (watertight) solids with outward-facing normals.";
+		}
+	}
+
 	// Mesh A row
 	var rowA = createPickRow("Mesh A", surfaceOptions, surfaceOptions[0].value, function () {
 		enterPickMode(rowA, function (surfaceId) {
 			rowA.select.value = surfaceId;
+			updateClosedWarning();
 		});
 	});
+	rowA.select.addEventListener("change", updateClosedWarning);
 	container.appendChild(rowA.row);
 
 	// Mesh B row
@@ -70,9 +108,17 @@ export function showSolidCSGDialog() {
 	var rowB = createPickRow("Mesh B", surfaceOptions, defaultB, function () {
 		enterPickMode(rowB, function (surfaceId) {
 			rowB.select.value = surfaceId;
+			updateClosedWarning();
 		});
 	});
+	rowB.select.addEventListener("change", updateClosedWarning);
 	container.appendChild(rowB.row);
+
+	// Insert warning div after both rows
+	container.appendChild(warningDiv);
+
+	// Initial check
+	updateClosedWarning();
 
 	// Operation & gradient
 	var otherFields = [

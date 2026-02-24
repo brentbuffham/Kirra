@@ -49,7 +49,14 @@ export function highlightSurface(surfaceId, options) {
 		side: THREE.DoubleSide
 	});
 
-	// Traverse the surface mesh and create overlay clones
+	var wireMaterial = new THREE.LineBasicMaterial({
+		color: color,
+		transparent: true,
+		opacity: Math.min(opacity * 3, 1.0),
+		depthTest: depthTest
+	});
+
+	// Traverse the surface mesh and create overlay clones + wireframe
 	mesh.traverse(function (child) {
 		if (child.isMesh && child.geometry) {
 			var overlay = new THREE.Mesh(child.geometry, highlightMaterial);
@@ -58,6 +65,13 @@ export function highlightSurface(surfaceId, options) {
 			child.updateWorldMatrix(true, false);
 			overlay.matrix.copy(child.matrixWorld);
 			highlightGroup.add(overlay);
+
+			// Wireframe overlay
+			var wireGeo = new THREE.WireframeGeometry(child.geometry);
+			var wireframe = new THREE.LineSegments(wireGeo, wireMaterial);
+			wireframe.matrixAutoUpdate = false;
+			wireframe.matrix.copy(child.matrixWorld);
+			highlightGroup.add(wireframe);
 		}
 	});
 
@@ -87,10 +101,13 @@ export function clearHighlight(surfaceId) {
 		tr.scene.remove(group);
 	}
 
-	// Dispose materials only (geometry is shared with original mesh)
+	// Dispose materials and wireframe geometry (solid geometry is shared with original mesh)
 	group.traverse(function (child) {
-		if (child.isMesh && child.material) {
+		if (child.material) {
 			child.material.dispose();
+		}
+		if (child.isLineSegments && child.geometry) {
+			child.geometry.dispose();
 		}
 	});
 
@@ -100,40 +117,15 @@ export function clearHighlight(surfaceId) {
 }
 
 /**
- * Flash-highlight a surface 3 times in ~400ms for clear visual feedback.
- * Schedule: ON 0-100ms, OFF 100-150ms, ON 150-250ms, OFF 250-300ms, ON 300-400ms (stays visible).
- * Returns a Promise that resolves when the flash sequence completes.
+ * Highlight a surface (select = highlight, deselect = clear).
+ * Previously flashed 3 times — now just applies a steady highlight.
+ * Kept as an alias for backwards compatibility with existing call sites.
  *
  * @param {string} surfaceId - ID in surfaceMeshMap
  * @param {object} [options] - Passed through to highlightSurface()
- * @returns {Promise<void>}
  */
 export function flashHighlight(surfaceId, options) {
-	return new Promise(function (resolve) {
-		// Flash 1: ON at 0ms
-		highlightSurface(surfaceId, options);
-
-		// Flash 1: OFF at 100ms
-		setTimeout(function () {
-			clearHighlight(surfaceId);
-		}, 100);
-
-		// Flash 2: ON at 150ms
-		setTimeout(function () {
-			highlightSurface(surfaceId, options);
-		}, 150);
-
-		// Flash 2: OFF at 250ms
-		setTimeout(function () {
-			clearHighlight(surfaceId);
-		}, 250);
-
-		// Flash 3: ON at 300ms (stays visible)
-		setTimeout(function () {
-			highlightSurface(surfaceId, options);
-			resolve();
-		}, 300);
-	});
+	highlightSurface(surfaceId, options);
 }
 
 /**
@@ -146,8 +138,11 @@ export function clearAllHighlights() {
 			tr.scene.remove(group);
 		}
 		group.traverse(function (child) {
-			if (child.isMesh && child.material) {
+			if (child.material) {
 				child.material.dispose();
+			}
+			if (child.isLineSegments && child.geometry) {
+				child.geometry.dispose();
 			}
 		});
 	});
@@ -156,3 +151,6 @@ export function clearAllHighlights() {
 	var tr = window.threeRenderer;
 	if (tr) tr.needsRender = true;
 }
+
+// Expose globally for clearAllSelectionState in kirra.js
+window.clearAllSurfaceHighlights = clearAllHighlights;

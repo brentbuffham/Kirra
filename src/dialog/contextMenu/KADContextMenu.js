@@ -614,10 +614,18 @@ export function convertLinePolyType(kadObject, newType) {
 	const entity = window.getEntityFromKADObject(kadObject);
 	if (!entity) return;
 
-	// Step 7a) Update entity type
+	// Step 7a) Validate: closing a line requires 3+ points
+	var pointCount = entity.data ? entity.data.length : 0;
+	if (newType === "poly" && pointCount < 3) {
+		window.updateStatusMessage("Cannot close — need 3+ points (has " + pointCount + ")");
+		setTimeout(() => window.updateStatusMessage(""), 3000);
+		return;
+	}
+
+	// Step 7b) Update entity type
 	entity.entityType = newType;
 
-	// Step 7b) Update all data points to reflect the new type
+	// Step 7c) Update all data points to reflect the new type
 	entity.data.forEach(point => {
 		point.entityType = newType;
 		if (newType === "poly") {

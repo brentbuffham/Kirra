@@ -643,14 +643,13 @@ function showPhase2(splitResult, gradient) {
 
 	container.appendChild(row2);
 
-	// ── Row 3: Cleanup Options ──
+	// ── Row 3: Cleanup Options (vertical stack) ──
 	var row3 = document.createElement("div");
 	row3.style.display = "flex";
-	row3.style.gap = "10px";
+	row3.style.flexDirection = "column";
+	row3.style.gap = "4px";
 	row3.style.marginTop = "6px";
-	row3.style.alignItems = "center";
-	row3.style.flexWrap = "wrap";
-	row3.style.padding = "4px 6px";
+	row3.style.padding = "6px 8px";
 	row3.style.background = p2Dark ? "rgba(0,0,0,0.15)" : "rgba(240,240,240,0.5)";
 	row3.style.borderRadius = "4px";
 	row3.style.border = p2Dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.1)";
@@ -663,23 +662,33 @@ function showPhase2(splitResult, gradient) {
 	cleanTitle.title = "Post-merge cleanup operations to improve mesh quality";
 	row3.appendChild(cleanTitle);
 
+	// Helper: wrap checkbox + optional inline input into a row
+	function createCleanupRow(checkResult, extraLabel) {
+		var rowDiv = document.createElement("div");
+		rowDiv.style.display = "flex";
+		rowDiv.style.alignItems = "center";
+		rowDiv.style.gap = "8px";
+		rowDiv.style.marginLeft = "4px";
+		rowDiv.appendChild(checkResult.label);
+		if (extraLabel) rowDiv.appendChild(extraLabel);
+		return rowDiv;
+	}
+
 	// Remove Degenerate checkbox (on by default)
 	var degenerateCheck = createCheckboxLabel("Remove Degenerate", true);
 	degenerateCheck.label.title = "Remove triangles with near-zero area (< 0.000001 m\u00B2). Safe \u2014 recommended to leave on.";
-	row3.appendChild(degenerateCheck.label);
+	row3.appendChild(createCleanupRow(degenerateCheck));
 
 	// Remove Slivers checkbox + ratio input (off by default)
 	var sliverCheck = createCheckboxLabel("Remove Slivers", false);
 	sliverCheck.label.title = "\u26A0 Remove needle-thin triangles. May punch holes in valid thin geometry at seam boundaries. Off by default.";
-	row3.appendChild(sliverCheck.label);
-
 	var sliverRatioLabel = createInlineLabel("ratio:", "0");
 	sliverRatioLabel.style.display = "none";
 	sliverRatioLabel.title = "Altitude-to-edge ratio threshold. Lower = only extreme slivers. Higher = more aggressive.";
 	var sliverRatioInput = createSmallInput("0.01", "50px", "0.001", "0");
 	sliverRatioInput.title = "Altitude-to-edge ratio threshold. Lower = only extreme slivers. Higher = more aggressive.";
 	sliverRatioLabel.appendChild(sliverRatioInput);
-	row3.appendChild(sliverRatioLabel);
+	row3.appendChild(createCleanupRow(sliverCheck, sliverRatioLabel));
 
 	sliverCheck.checkbox.addEventListener("change", function () {
 		sliverRatioLabel.style.display = sliverCheck.checkbox.checked ? "flex" : "none";
@@ -688,13 +697,11 @@ function showPhase2(splitResult, gradient) {
 	// Clean Crossings checkbox (off by default)
 	var crossingCheck = createCheckboxLabel("Clean Crossings", false);
 	crossingCheck.label.title = "Fix non-manifold edges (3+ triangles sharing one edge) \u2014 keeps the 2 largest per edge. Also removes exact duplicate triangles. Runs before AND after stitching/capping.";
-	row3.appendChild(crossingCheck.label);
+	row3.appendChild(createCleanupRow(crossingCheck));
 
 	// Remove Overlapping / Internal Walls checkbox + tolerance (off by default)
 	var overlapCheck = createCheckboxLabel("Remove Overlapping", false);
 	overlapCheck.label.title = "Remove internal walls (anti-parallel triangle pairs) and near-duplicate triangles with close centroids. \u26A0 May remove valid thin walls if tolerance is too large.";
-	row3.appendChild(overlapCheck.label);
-
 	var overlapTolLabel = createInlineLabel("tol:", "0");
 	overlapTolLabel.style.display = "none";
 	overlapTolLabel.title = "Max centroid distance (m) to detect overlapping pairs. Start with 0.5m, reduce if valid geometry is removed.";
@@ -702,7 +709,7 @@ function showPhase2(splitResult, gradient) {
 	overlapTolInput.title = "Max centroid distance (m) to detect overlapping pairs. Start with 0.5m, reduce if valid geometry is removed.";
 	overlapTolLabel.appendChild(overlapTolInput);
 	overlapTolLabel.appendChild(document.createTextNode("m"));
-	row3.appendChild(overlapTolLabel);
+	row3.appendChild(createCleanupRow(overlapCheck, overlapTolLabel));
 
 	overlapCheck.checkbox.addEventListener("change", function () {
 		overlapTolLabel.style.display = overlapCheck.checkbox.checked ? "flex" : "none";

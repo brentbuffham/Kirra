@@ -354,16 +354,31 @@ export function compute3DSurfaceArea(tris) {
  * Compute signed mesh volume from triangle soup using divergence theorem.
  */
 function computeVolumeFromTris(tris) {
+	if (tris.length === 0) return 0;
+
+	// Translate to local centroid to avoid floating-point issues with large UTM coordinates.
+	// The divergence theorem is origin-independent for a perfectly closed mesh,
+	// but with tiny gaps the error is proportional to distance from origin.
+	// Centering keeps errors proportional to mesh size, not UTM offset.
+	var cx = 0, cy = 0, cz = 0;
+	var n = tris.length;
+	for (var c = 0; c < n; c++) {
+		cx += tris[c].v0.x + tris[c].v1.x + tris[c].v2.x;
+		cy += tris[c].v0.y + tris[c].v1.y + tris[c].v2.y;
+		cz += tris[c].v0.z + tris[c].v1.z + tris[c].v2.z;
+	}
+	var inv = 1.0 / (n * 3);
+	cx *= inv; cy *= inv; cz *= inv;
+
 	var vol = 0;
+	for (var i = 0; i < n; i++) {
+		var x0 = tris[i].v0.x - cx, y0 = tris[i].v0.y - cy, z0 = tris[i].v0.z - cz;
+		var x1 = tris[i].v1.x - cx, y1 = tris[i].v1.y - cy, z1 = tris[i].v1.z - cz;
+		var x2 = tris[i].v2.x - cx, y2 = tris[i].v2.y - cy, z2 = tris[i].v2.z - cz;
 
-	for (var i = 0; i < tris.length; i++) {
-		var v0 = tris[i].v0;
-		var v1 = tris[i].v1;
-		var v2 = tris[i].v2;
-
-		vol += (v0.x * (v1.y * v2.z - v2.y * v1.z)
-			- v1.x * (v0.y * v2.z - v2.y * v0.z)
-			+ v2.x * (v0.y * v1.z - v1.y * v0.z)) / 6.0;
+		vol += (x0 * (y1 * z2 - y2 * z1)
+			- x1 * (y0 * z2 - y2 * z0)
+			+ x2 * (y0 * z1 - y1 * z0)) / 6.0;
 	}
 
 	return vol;

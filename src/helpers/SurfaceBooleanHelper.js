@@ -223,21 +223,10 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris
 			continue;
 		}
 
-		// Crossed triangle: split by each intersection segment
+		// Crossed triangle: re-triangulate with all intersection segment endpoints
+		// as Steiner points. This handles large triangles crossed by many small ones.
 		var segments = crossedMap[i];
-		var current = [tris[i]];
-
-		for (var s = 0; s < segments.length; s++) {
-			var seg = segments[s];
-			var next = [];
-			for (var t = 0; t < current.length; t++) {
-				var subResult = splitOneTriangleBySegment(current[t], seg.p0, seg.p1, null);
-				for (var r = 0; r < subResult.length; r++) {
-					next.push(subResult[r]);
-				}
-			}
-			current = next;
-		}
+		var current = retriangulateWithSteinerPoints(tris[i], segments);
 
 		// Classify each sub-triangle via ray casting against other surface
 		for (var j = 0; j < current.length; j++) {
@@ -597,8 +586,211 @@ export function computeSplits(surfaceIdA, surfaceIdB) {
 // ────────────────────────────────────────────────────────
 
 /**
+ * Re-triangulate a crossed triangle by inserting all intersection segment
+ * endpoints as Steiner points and running Constrained Delaunay Triangulation.
+ *
+ * This handles the case where a large triangle is crossed by many small
+ * triangles on the other surface — producing many short segments whose
+ * endpoints lie interior to the large triangle. The old merge-two-endpoints
+ * approach failed for these cases.
+ *
+ * Steps:
+ *   1. Build local 2D frame + barycentric validator
+ *   2. Collect unique segment endpoints, validate inside triangle
+ *   3. Run Delaunator, constrain segment edges (NOT boundary edges)
+ *   4. Filter sub-triangles by barycentric centroid test + area check
+ *
+ * @param {Object} tri - {v0, v1, v2}
+ * @param {Array} segments - Array of {p0, p1, ...} from Moller intersection
+ * @returns {Array} Sub-triangles [{v0, v1, v2}, ...] or [tri] on failure
+ */
+function retriangulateWithSteinerPoints(tri, segments) {
+	if (!segments || segments.length === 0) return [tri];
+
+	// ── Step 1: Build local 2D coordinate frame on triangle plane ──
+
+	var e1x = tri.v1.x - tri.v0.x;
+	var e1y = tri.v1.y - tri.v0.y;
+	var e1z = tri.v1.z - tri.v0.z;
+	var e2x = tri.v2.x - tri.v0.x;
+	var e2y = tri.v2.y - tri.v0.y;
+	var e2z = tri.v2.z - tri.v0.z;
+
+	var e1Len = Math.sqrt(e1x * e1x + e1y * e1y + e1z * e1z);
+	if (e1Len < 1e-12) return [tri];
+	var lux = e1x / e1Len, luy = e1y / e1Len, luz = e1z / e1Len;
+
+	var lnx = e1y * e2z - e1z * e2y;
+	var lny = e1z * e2x - e1x * e2z;
+	var lnz = e1x * e2y - e1y * e2x;
+	var lnLen = Math.sqrt(lnx * lnx + lny * lny + lnz * lnz);
+	if (lnLen < 1e-12) return [tri];
+
+	var lvx = lny * luz - lnz * luy;
+	var lvy = lnz * lux - lnx * luz;
+	var lvz = lnx * luy - lny * lux;
+	var lvLen = Math.sqrt(lvx * lvx + lvy * lvy + lvz * lvz);
+	if (lvLen < 1e-12) return [tri];
+	lvx /= lvLen; lvy /= lvLen; lvz /= lvLen;
+
+	var lox = tri.v0.x, loy = tri.v0.y, loz = tri.v0.z;
+
+	// Project 3D → local 2D
+	function toLocal(p) {
+		var dx = p.x - lox, dy = p.y - loy, dz = p.z - loz;
+		return [dx * lux + dy * luy + dz * luz, dx * lvx + dy * lvy + dz * lvz];
+	}
+
+	// Triangle vertices in local 2D
+	var l0 = toLocal(tri.v0); // (0, 0) by construction
+	var l1 = toLocal(tri.v1);
+	var l2 = toLocal(tri.v2);
+
+	// Barycentric coordinate calculator in local 2D
+	var baryD = (l1[1] - l2[1]) * (l0[0] - l2[0]) + (l2[0] - l1[0]) * (l0[1] - l2[1]);
+	if (Math.abs(baryD) < 1e-12) return [tri]; // degenerate
+
+	// Returns [u, v, w] barycentric coords; inside when all >= 0
+	function baryCoords(pu, pv) {
+		var u = ((l1[1] - l2[1]) * (pu - l2[0]) + (l2[0] - l1[0]) * (pv - l2[1])) / baryD;
+		var v = ((l2[1] - l0[1]) * (pu - l2[0]) + (l0[0] - l2[0]) * (pv - l2[1])) / baryD;
+		return [u, v, 1 - u - v];
+	}
+
+	// Triangle area in local 2D (for sub-triangle area filtering)
+	var triArea2D = Math.abs(baryD) * 0.5;
+	var MIN_AREA_RATIO = 1e-8; // discard sub-tris smaller than this fraction of original
+
+	// ── Step 2: Collect unique segment endpoints, validate inside triangle ──
+
+	var PREC = 6;
+	var seen = {};
+	var v0Key = tri.v0.x.toFixed(PREC) + "," + tri.v0.y.toFixed(PREC) + "," + tri.v0.z.toFixed(PREC);
+	var v1Key = tri.v1.x.toFixed(PREC) + "," + tri.v1.y.toFixed(PREC) + "," + tri.v1.z.toFixed(PREC);
+	var v2Key = tri.v2.x.toFixed(PREC) + "," + tri.v2.y.toFixed(PREC) + "," + tri.v2.z.toFixed(PREC);
+	seen[v0Key] = true;
+	seen[v1Key] = true;
+	seen[v2Key] = true;
+
+	var BARY_TOL = -1e-4; // allow points slightly outside due to float precision
+	var validSteiner = [];
+
+	// Track segment endpoint keys → index in pts array for constraining segment edges
+	var keyToIndex = {};
+	keyToIndex[v0Key] = 0;
+	keyToIndex[v1Key] = 1;
+	keyToIndex[v2Key] = 2;
+
+	for (var s = 0; s < segments.length; s++) {
+		var seg = segments[s];
+		var endpts = [seg.p0, seg.p1];
+		for (var e = 0; e < 2; e++) {
+			var p = endpts[e];
+			var key = p.x.toFixed(PREC) + "," + p.y.toFixed(PREC) + "," + p.z.toFixed(PREC);
+			if (seen[key]) continue;
+			seen[key] = true;
+
+			// Validate: must be inside the triangle (barycentric check)
+			var lp = toLocal(p);
+			var bc = baryCoords(lp[0], lp[1]);
+			if (bc[0] < BARY_TOL || bc[1] < BARY_TOL || bc[2] < BARY_TOL) {
+				continue; // outside triangle — discard
+			}
+
+			validSteiner.push({ x: p.x, y: p.y, z: p.z, key: key });
+		}
+	}
+
+	if (validSteiner.length === 0) return [tri];
+
+	// Build pts array: indices 0,1,2 = original vertices, 3+ = Steiner
+	var pts = [
+		{ x: tri.v0.x, y: tri.v0.y, z: tri.v0.z },
+		{ x: tri.v1.x, y: tri.v1.y, z: tri.v1.z },
+		{ x: tri.v2.x, y: tri.v2.y, z: tri.v2.z }
+	];
+	for (var vi = 0; vi < validSteiner.length; vi++) {
+		keyToIndex[validSteiner[vi].key] = pts.length;
+		pts.push(validSteiner[vi]);
+	}
+
+	// ── Step 3: Project all to local 2D, run Delaunator ──
+
+	var n = pts.length;
+	var coords = new Float64Array(n * 2);
+	for (var j = 0; j < n; j++) {
+		var lj = toLocal(pts[j]);
+		coords[j * 2] = lj[0];
+		coords[j * 2 + 1] = lj[1];
+	}
+
+	var del;
+	try {
+		del = new Delaunator(coords);
+	} catch (de) {
+		console.warn("retriangulateWithSteinerPoints: Delaunator failed:", de.message);
+		return [tri];
+	}
+
+	// Constrain segment edges (NOT boundary edges — those are the convex hull already).
+	// Boundary constraints are harmful when Steiner points lie on boundary edges,
+	// because constrainOne(0,1) would skip intermediate points on edge 0→1.
+	try {
+		var con = new Constrainautor(del);
+		for (var cs = 0; cs < segments.length; cs++) {
+			var cSeg = segments[cs];
+			var k0 = cSeg.p0.x.toFixed(PREC) + "," + cSeg.p0.y.toFixed(PREC) + "," + cSeg.p0.z.toFixed(PREC);
+			var k1 = cSeg.p1.x.toFixed(PREC) + "," + cSeg.p1.y.toFixed(PREC) + "," + cSeg.p1.z.toFixed(PREC);
+			var idx0 = keyToIndex[k0];
+			var idx1 = keyToIndex[k1];
+			if (idx0 !== undefined && idx1 !== undefined && idx0 !== idx1) {
+				try { con.constrainOne(idx0, idx1); } catch (ce2) { /* skip */ }
+			}
+		}
+	} catch (ce) {
+		// Constrainautor init failed — unconstrained Delaunator is still usable
+	}
+
+	// ── Step 4: Filter sub-triangles by barycentric centroid + area check ──
+
+	var result = [];
+	var delTris = del.triangles;
+	for (var k = 0; k < delTris.length; k += 3) {
+		var a = delTris[k], b = delTris[k + 1], c = delTris[k + 2];
+
+		// Centroid in local 2D
+		var cx = (coords[a * 2] + coords[b * 2] + coords[c * 2]) / 3;
+		var cy = (coords[a * 2 + 1] + coords[b * 2 + 1] + coords[c * 2 + 1]) / 3;
+
+		// Barycentric centroid test (more tolerant than ray-cast PIP for boundary)
+		var cBary = baryCoords(cx, cy);
+		if (cBary[0] < -1e-6 || cBary[1] < -1e-6 || cBary[2] < -1e-6) continue;
+
+		// Area check — discard degenerate sub-triangles
+		var au = coords[a * 2], av = coords[a * 2 + 1];
+		var bu = coords[b * 2], bv = coords[b * 2 + 1];
+		var cu = coords[c * 2], cv = coords[c * 2 + 1];
+		var subArea = Math.abs((bu - au) * (cv - av) - (cu - au) * (bv - av)) * 0.5;
+		if (subArea < triArea2D * MIN_AREA_RATIO) continue;
+
+		result.push({
+			v0: pts[a],
+			v1: pts[b],
+			v2: pts[c]
+		});
+	}
+
+	if (result.length === 0) {
+		console.warn("retriangulateWithSteinerPoints: no sub-triangles inside boundary, returning original");
+		return [tri];
+	}
+
+	return result;
+}
+
+/**
  * Split a single triangle by a single intersection segment.
- * Finds where the segment (or its infinite extension) crosses the triangle edges,
+ * Finds where the segment line crosses the triangle edges,
  * then splits the triangle at those crossing points.
  *
  * @param {Object} tri - {v0, v1, v2}
@@ -713,11 +905,12 @@ function splitOneTriangleBySegment(tri, segP0, segP1, cutEdgeKeysOut) {
 }
 
 /**
- * 2D segment-segment intersection test.
- * Returns {t, u} where t is parameter on segment AB and u is parameter on segment CD.
- * Returns null if segments are parallel or don't intersect.
- * t in [0,1] means intersection is on segment AB.
- * u can be any value (we use the line extension of CD).
+ * 2D line-segment intersection test.
+ * Returns {t, u} where t is parameter on segment AB and u is parameter on line CD.
+ * Returns null if parallel or t not in [0,1].
+ * t is bounded to [0,1] (crossing must be on the triangle edge).
+ * u is unbounded (line extension of CD finds triangle edge crossings).
+ * Sliver prevention is handled upstream by merging segments before splitting.
  */
 function segSegIntersection2D(ax, ay, bx, by, cx, cy, dx, dy) {
 	var dABx = bx - ax;
@@ -735,8 +928,10 @@ function segSegIntersection2D(ax, ay, bx, by, cx, cy, dx, dy) {
 	var u = (dACx * dABy - dACy * dABx) / denom;
 
 	// t must be in [0,1] (on the triangle edge)
-	// u can be anything (we use the extended line of the intersection segment)
 	if (t < -1e-10 || t > 1.0 + 1e-10) return null;
+
+	// u is unbounded — we use the line extension of CD to find triangle edge crossings.
+	// Sliver prevention is handled upstream by merging segments before splitting.
 
 	return { t: Math.max(0, Math.min(1, t)), u: u };
 }
@@ -952,7 +1147,7 @@ export function updateSplitMeshAppearance(mesh, kept) {
 	mesh.traverse(function (child) {
 		if (!child.material) return;
 		if (child.name === "solidFill") {
-			child.material.opacity = kept ? 0.3 : 0.08;
+			child.material.opacity = kept ? 0.15 : 0.05;
 			child.material.color.set(kept ? originalColor : "#444444");
 			child.material.needsUpdate = true;
 		} else if (child.name === "wireframe") {
@@ -1820,7 +2015,7 @@ function trianglesToMesh(tris, color, visible) {
 	var solidMaterial = new THREE.MeshBasicMaterial({
 		color: new THREE.Color(color || "#4488FF"),
 		transparent: true,
-		opacity: visible ? 0.3 : 0.08,
+		opacity: visible ? 0.15 : 0.05,
 		side: THREE.DoubleSide,
 		depthWrite: false
 	});

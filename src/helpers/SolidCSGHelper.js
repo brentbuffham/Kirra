@@ -73,17 +73,9 @@ export function solidCSG(config) {
 	meshB.updateMatrix();
 
 	// Step 3) Convert to CSG and perform operation
-	// ⚠️ DEVELOPER REMINDER / AGENT WARNING ⚠️
-	// The CSG operation mapping below is INTENTIONAL and CORRECT.
-	// The THREE-CSGMesh library produces inverted results with Kirra's
-	// 2.5D surface meshes (not closed manifold solids). The mapping was
-	// verified visually:
-	//   "union"         → csgA.intersect(csgB)  ← produces correct union result
-	//   "intersect"     → csgA.union(csgB)      ← produces correct intersection result
-	//   "subtract"      → csgB.subtract(csgA)   ← produces correct A-minus-B result
-	//   "reverseSubtract" → csgA.subtract(csgB) ← produces correct B-minus-A result
-	//   "difference"    → (A-B) union (B-A)     ← XOR via two subtracts + union
-	// DO NOT change these mappings. See screenshots in project history.
+	// Standard CSG boolean mapping. Closed solids preserve outward-facing normals,
+	// so the CSG library produces correct results with standard operations.
+	// Open surfaces use ensureZUpNormals() as a best-effort fallback.
 	var csgA, csgB, csgResult;
 	try {
 		csgA = CSG.fromMesh(meshA);
@@ -91,21 +83,21 @@ export function solidCSG(config) {
 
 		switch (config.operation) {
 			case "union":
-				csgResult = csgA.intersect(csgB);
-				break;
-			case "intersect":
 				csgResult = csgA.union(csgB);
 				break;
+			case "intersect":
+				csgResult = csgA.intersect(csgB);
+				break;
 			case "subtract":
-				csgResult = csgB.subtract(csgA);
+				csgResult = csgA.subtract(csgB);
 				break;
 			case "reverseSubtract":
-				csgResult = csgA.subtract(csgB);
+				csgResult = csgB.subtract(csgA);
 				break;
 			case "difference":
 				// XOR: (A - B) ∪ (B - A)
-				var aMinusB = csgB.subtract(csgA);
-				var bMinusA = csgA.subtract(csgB);
+				var aMinusB = csgA.subtract(csgB);
+				var bMinusA = csgB.subtract(csgA);
 				csgResult = aMinusB.union(bMinusA);
 				break;
 			default:
@@ -257,9 +249,14 @@ function surfaceToMesh(surface) {
 		return null;
 	}
 
-	// Normalize triangles to {v0, v1, v2} format and ensure Z-up normals
+	// Normalize triangles to {v0, v1, v2} format
 	var normalizedTris = extractTriangles(surface);
-	normalizedTris = ensureZUpNormals(normalizedTris);
+	var closed = typeof window.isSurfaceClosed === "function" && window.isSurfaceClosed(surface);
+	if (!closed) {
+		// Open surfaces: force Z-up as best-effort (results may be unreliable)
+		normalizedTris = ensureZUpNormals(normalizedTris);
+	}
+	// Closed solids: preserve original winding — normals should already be outward-facing
 
 	var positions = [];
 

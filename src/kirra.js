@@ -865,7 +865,7 @@ function exposeGlobalsToWindow() {
 	window.setKADEntityVisibility = setKADEntityVisibility;
 	window.endKadTools = endKadTools; // CRITICAL: Expose for ContextMenuManager right-click handling
 	window.setSurfaceVisibility = setSurfaceVisibility;
-	window.showSurfaceLegend = showSurfaceLegend;
+	// showSurfaceLegend removed — now driven by displayLegend checkbox in toolbar
 	window.deleteSurfaceFromDB = deleteSurfaceFromDB;
 	window.deleteAllSurfacesFromDB = deleteAllSurfacesFromDB;
 	window.saveSurfaceToDB = saveSurfaceToDB;
@@ -5439,6 +5439,11 @@ function clearAllSelectionState() {
 	selectedKADObject = null;
 	selectedKADPolygon = null;
 	selectedMultipleKADObjects = []; // Add this line
+
+	// Clear surface highlights (from SurfaceHighlightHelper)
+	if (typeof window.clearAllSurfaceHighlights === "function") {
+		window.clearAllSurfaceHighlights();
+	}
 	// Clear multiple selections (with null safety)
 	if (selectedMultipleHoles) {
 		selectedMultipleHoles.length = 0; // Clear array but keep reference?
@@ -5855,7 +5860,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		secondSelectedHole: secondSelectedHole,
 		selectedMultipleHoles: selectedMultipleHoles,
 		loadedSurfaces: loadedSurfaces,
-		showSurfaceLegend: showSurfaceLegend,
+		showSurfaceLegend: document.getElementById("displayLegend") ? document.getElementById("displayLegend").checked : true,
 		elevationToColor: elevationToColor,
 		currentGradient: currentGradient,
 		surfaceTextureData: surfaceTextureData,
@@ -5918,9 +5923,10 @@ const displayMassPerHole = document.getElementById("display6B"); //Mass Per Hole
 const displayMassPerDeck = document.getElementById("display6C"); //Mass Per Deck toggle
 const displayChargesToggle = document.getElementById("displayCharges"); //Charges toggle
 const displayDownholeTiming = document.getElementById("display6D"); //Downhole Timing toggle
+const displayLegend = document.getElementById("displayLegend"); //Legend toggle
 
 // after const option16 = ?
-const allToggles = [displayHoleId, displayHoleLength, displayHoleDiameter, displayHoleAngle, displayHoleDip, displayHoleBearing, displayHoleSubdrill, displayConnectors, displayDelays, displayTimes, displayContours, displaySlope, displayRelief, displayFirstMovements, displayXLocation, displayYLocation, displayElevation, displayHoleType, displayMLength, displayMMass, displayMComment, displayVoronoiCells, displayRowAndPosId, displayKADPointIDs, displayMassPerHole, displayMassPerDeck, displayChargesToggle, displayDownholeTiming];
+const allToggles = [displayHoleId, displayHoleLength, displayHoleDiameter, displayHoleAngle, displayHoleDip, displayHoleBearing, displayHoleSubdrill, displayConnectors, displayDelays, displayTimes, displayContours, displaySlope, displayRelief, displayFirstMovements, displayXLocation, displayYLocation, displayElevation, displayHoleType, displayMLength, displayMMass, displayMComment, displayVoronoiCells, displayRowAndPosId, displayKADPointIDs, displayMassPerHole, displayMassPerDeck, displayChargesToggle, displayDownholeTiming, displayLegend];
 
 allToggles.forEach((opt) => {
 	if (opt)
@@ -35621,7 +35627,48 @@ function endKadTools(forceEnd = false) {
 	if (anyKADToolActive) {
 		// Step 2) Decide: complete entity OR end tool
 		if (!createNewEntity && !forceEnd) {
-			// Step 2a) Actively drawing AND NOT forceEnd - complete entity, keep tool active
+			// Step 2a) Validate entity before completing — auto-convert invalid types
+			if (currentDrawingEntityName && allKADDrawingsMap.has(currentDrawingEntityName)) {
+				var finEntity = allKADDrawingsMap.get(currentDrawingEntityName);
+				var finCount = finEntity.data ? finEntity.data.length : 0;
+				var finType = finEntity.entityType;
+
+				if (finCount === 0) {
+					// 0 points — discard silently
+					allKADDrawingsMap.delete(currentDrawingEntityName);
+					var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(currentDrawingEntityName) : null;
+					if (delLayer && delLayer.entities) delLayer.entities.delete(currentDrawingEntityName);
+				} else if (finType === "line" && finCount < 2) {
+					// 1-point line → convert to point
+					finEntity.entityType = "point";
+					for (var fp = 0; fp < finEntity.data.length; fp++) {
+						finEntity.data[fp].entityType = "point";
+					}
+					updateStatusMessage("Converted to point (lines need 2+ points)");
+					setTimeout(function () { updateStatusMessage(""); }, 3000);
+				} else if (finType === "poly" && finCount < 3) {
+					if (finCount === 1) {
+						// 1-point poly → convert to point
+						finEntity.entityType = "point";
+						for (var fp2 = 0; fp2 < finEntity.data.length; fp2++) {
+							finEntity.data[fp2].entityType = "point";
+						}
+						updateStatusMessage("Converted to point (polygons need 3+ points)");
+						setTimeout(function () { updateStatusMessage(""); }, 3000);
+					} else {
+						// 2-point poly → convert to line
+						finEntity.entityType = "line";
+						for (var fp3 = 0; fp3 < finEntity.data.length; fp3++) {
+							finEntity.data[fp3].entityType = "line";
+							finEntity.data[fp3].closed = false;
+						}
+						updateStatusMessage("Converted to line (polygons need 3+ points)");
+						setTimeout(function () { updateStatusMessage(""); }, 3000);
+					}
+				}
+			}
+
+			// Step 2b) Actively drawing AND NOT forceEnd - complete entity, keep tool active
 			createNewEntity = true;
 			lastKADDrawPoint = null;
 			entityName = null;
@@ -45004,7 +45051,7 @@ window.invalidateTriangulationCaches = invalidateTriangulationCaches;
 
 const assignSurfaceToHolesTool = document.getElementById("assignSurfaceTool");
 const assignGradeTool = document.getElementById("assignGradeTool");
-let showSurfaceLegend = true; // Add legend visibility control
+// showSurfaceLegend removed — now driven by displayLegend checkbox in toolbar
 let currentGradient = "default"; // Default gradient
 // Add these variables near your other surface variables
 let surfaceTransparency = 1.0; // Default fully opaque (same as image.transparency pattern)
@@ -46710,8 +46757,9 @@ function drawSurface() {
 }
 // Step #) Surface legend - now uses CSS panel stacked with other legends
 function drawSurfaceLegend() {
-	// Step 1) Check if any surfaces are visible and have legend enabled
-	if (!showSurfaceLegend || loadedSurfaces.size === 0) {
+	// Step 1) Check if legend flag is disabled or no surfaces loaded
+	var legendToggle = document.getElementById("displayLegend");
+	if (!legendToggle || !legendToggle.checked || loadedSurfaces.size === 0) {
 		hideSurfaceElevationLegend();
 		return;
 	}
@@ -52032,12 +52080,19 @@ window.handleTreeViewRename = function (nodeId, treeViewInstance) {
 
 						// Save to IndexedDB if function exists
 						if (typeof window.saveSurfaceToDB === "function") {
-							window.saveSurfaceToDB(surfaceId, surface);
+							window.saveSurfaceToDB(surfaceId);
 						}
 
 						// Update TreeView
 						if (treeViewInstance && typeof treeViewInstance.updateTreeData === "function") {
 							treeViewInstance.updateTreeData();
+						}
+
+						// Redraw to ensure surface stays visible
+						if (typeof window.redraw3D === "function") {
+							window.redraw3D();
+						} else {
+							drawData(allBlastHoles, selectedHole);
 						}
 
 						console.log("✅ Surface renamed:", surfaceId, "->", trimmedName);
@@ -52079,6 +52134,9 @@ window.handleTreeViewRename = function (nodeId, treeViewInstance) {
 						if (treeViewInstance && typeof treeViewInstance.updateTreeData === "function") {
 							treeViewInstance.updateTreeData();
 						}
+
+						// Redraw to ensure image stays visible
+						drawData(allBlastHoles, selectedHole);
 
 						console.log("✅ Image renamed:", imageId, "->", trimmedName);
 					}
@@ -52187,6 +52245,13 @@ window.handleTreeViewRename = function (nodeId, treeViewInstance) {
 
 					// Step 3b.4) Update the hole ID
 					hole.holeID = trimmedID;
+
+					// Step 3b.4a) Remap charging keys (same pattern as bulk reassignment)
+					if (window.remapChargingKeys) {
+						var remapMap = new Map();
+						remapMap.set(entityName + ":::" + oldHoleID, entityName + ":::" + trimmedID);
+						window.remapChargingKeys(remapMap);
+					}
 
 					// Step 3b.5) Save to IndexedDB
 					if (typeof debouncedSaveHoles === "function") {

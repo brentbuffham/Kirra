@@ -4,6 +4,9 @@
 //=============================================================
 // Step 0) Converted to ES Module for Vite bundling - 2025-12-26
 
+import { computeSurfaceStatistics, classifyNormalDirection } from "../../helpers/SurfaceNormalHelper.js";
+import { extractTriangles } from "../../helpers/SurfaceIntersectionHelper.js";
+
 // Step 1) Show surface context menu
 export function showSurfaceContextMenu(x, y, surfaceId = null) {
 	// Step 1a) Stop any ongoing drag operations
@@ -81,7 +84,7 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 			options: gradientOptions
 		},
 		{
-			label: "Min Elevation Limit (actual: " + (isFinite(actualMinZ) ? actualMinZ.toFixed(2) : "N/A") + ")",
+			label: "Min Z (actual: " + (isFinite(actualMinZ) ? actualMinZ.toFixed(2) : "N/A") + ")",
 			name: "minLimit",
 			type: "number",
 			value: currentMinLimit,
@@ -90,7 +93,7 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 			style: "width:100px"
 		},
 		{
-			label: "Max Elevation Limit (actual: " + (isFinite(actualMaxZ) ? actualMaxZ.toFixed(2) : "N/A") + ")",
+			label: "Max Z (actual: " + (isFinite(actualMaxZ) ? actualMaxZ.toFixed(2) : "N/A") + ")",
 			name: "maxLimit",
 			type: "number",
 			value: currentMaxLimit,
@@ -156,9 +159,7 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 
 	var hillshadeLabel = document.createElement("label");
 	hillshadeLabel.textContent = "Hillshade Color:";
-	hillshadeLabel.style.fontSize = "12px";
-	hillshadeLabel.style.color = "#aaa";
-	hillshadeLabel.style.minWidth = "100px";
+	hillshadeLabel.className = "labelWhite12";
 
 	var hillshadeColorInput = document.createElement("input");
 	hillshadeColorInput.type = "text";
@@ -183,34 +184,59 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 		});
 	}
 
-	// Step 6c) Add legend checkbox section
-	var legendSection = document.createElement("div");
-	legendSection.style.gridColumn = "1 / -1";
-	legendSection.style.display = "flex";
-	legendSection.style.alignItems = "center";
-	legendSection.style.gap = "8px";
-	legendSection.style.marginTop = "10px";
+	// Legend checkbox removed — now driven by displayLegend checkbox in toolbar
 
-	var legendCheckbox = document.createElement("input");
-	legendCheckbox.type = "checkbox";
-	legendCheckbox.name = "showLegend";
-	legendCheckbox.checked = window.showSurfaceLegend;
-	legendCheckbox.style.width = "16px";
-	legendCheckbox.style.height = "16px";
-	legendCheckbox.style.cursor = "pointer";
+	// Step 6d) Add normals direction badge
+	var normalsSection = document.createElement("div");
+	normalsSection.style.gridColumn = "1 / -1";
+	normalsSection.style.display = "flex";
+	normalsSection.style.alignItems = "center";
+	normalsSection.style.gap = "8px";
+	normalsSection.style.marginTop = "10px";
 
-	var legendLabel = document.createElement("label");
-	legendLabel.textContent = "Show Legend";
-	legendLabel.style.fontSize = "12px";
-	legendLabel.style.color = "#aaa";
-	legendLabel.style.cursor = "pointer";
-	legendLabel.onclick = function () {
-		legendCheckbox.click();
-	};
+	var normalsLabel = document.createElement("label");
+	normalsLabel.textContent = "Normals:";
+	normalsLabel.className = "labelWhite12";
 
-	legendSection.appendChild(legendCheckbox);
-	legendSection.appendChild(legendLabel);
-	formContent.appendChild(legendSection);
+	// Compute normals direction and open/closed status
+	var surfTris = extractTriangles(currentSurface);
+	var isClosed = typeof window.isSurfaceClosed === "function" && window.isSurfaceClosed(currentSurface);
+	var volume = 0;
+	if (isClosed && surfTris.length > 0) {
+		for (var ti = 0; ti < surfTris.length; ti++) {
+			var sv0 = surfTris[ti].v0, sv1 = surfTris[ti].v1, sv2 = surfTris[ti].v2;
+			volume += (sv0.x * (sv1.y * sv2.z - sv2.y * sv1.z) -
+				sv1.x * (sv0.y * sv2.z - sv2.y * sv0.z) +
+				sv2.x * (sv0.y * sv1.z - sv1.y * sv0.z)) / 6.0;
+		}
+	}
+	var normalDir = classifyNormalDirection(surfTris, isClosed, volume);
+	var topologyText = isClosed ? "Closed" : "Open";
+
+	var normalsBadge = document.createElement("span");
+	normalsBadge.textContent = normalDir;
+	normalsBadge.className = "surface-badge";
+	if (normalDir === "Up" || normalDir === "Out" || normalDir === "Z+") {
+		normalsBadge.className += " surface-badge-green";
+	} else if (normalDir === "Down" || normalDir === "In" || normalDir === "Z-") {
+		normalsBadge.className += " surface-badge-red";
+	} else {
+		normalsBadge.className += " surface-badge-yellow";
+	}
+
+	var topologyBadge = document.createElement("span");
+	topologyBadge.textContent = topologyText;
+	topologyBadge.className = "surface-badge";
+	if (isClosed) {
+		topologyBadge.className += " surface-badge-blue";
+	} else {
+		topologyBadge.className += " surface-badge-grey";
+	}
+
+	normalsSection.appendChild(normalsLabel);
+	normalsSection.appendChild(normalsBadge);
+	normalsSection.appendChild(topologyBadge);
+	formContent.appendChild(normalsSection);
 
 	// Step 6c-1) Initialize jscolor for hillshade color picker
 	if (typeof window.jscolor !== "undefined") {
@@ -222,22 +248,24 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 		title: currentSurface.name || "Surface Properties",
 		content: formContent,
 		layoutType: "compact",
-		width: 350,
+		width: 370,
 		height: 300,
 		showConfirm: true, // "Ok" button
 		showCancel: true, // "Cancel" button
 		showOption1: true, // "Delete" button
 		showOption2: true, // "Hide" button
+		showOption3: true, // "Statistics" button
 		confirmText: "Ok",
 		cancelText: "Cancel",
 		option1Text: "Delete",
 		option2Text: currentSurface.visible ? "Hide" : "Show",
+		option3Text: "Statistics",
 		onConfirm: function () {
 			// Step 7a) Get form values and commit changes
 			var formData = window.getFormData ? window.getFormData(formContent) : {};
 			var newTransparency = formData.transparency !== undefined ? parseFloat(formData.transparency) / 100 : currentSurface.transparency;
 			var newGradient = formData.gradient !== undefined ? formData.gradient : currentSurface.gradient;
-			var showLegend = formData.showLegend !== undefined ? formData.showLegend : window.showSurfaceLegend;
+
 
 			// Handle min/max limits (convert empty strings to null)
 			var newMinLimit = formData.minLimit !== undefined && formData.minLimit !== "" ? parseFloat(formData.minLimit) : null;
@@ -265,7 +293,7 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 			currentSurface.hillshadeColor = newHillshadeColor;
 			currentSurface.minLimit = newMinLimit;
 			currentSurface.maxLimit = newMaxLimit;
-			window.showSurfaceLegend = showLegend;
+			// Legend toggle now in toolbar — no longer set here
 
 			// Step 7a-4) Invalidate 2D surface cache so it re-renders with new settings
 			if (typeof window.invalidateSurfaceCache === "function") {
@@ -318,6 +346,11 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 			} else {
 				window.drawData(window.allBlastHoles, window.selectedHole);
 			}
+		},
+		onOption3: function () {
+			// Step 7e) Show statistics dialog
+			var stats = computeSurfaceStatistics(currentSurface);
+			showSurfaceStatsDialog(stats);
 		}
 	});
 
@@ -334,6 +367,81 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 		dialog.element.style.left = posX + "px";
 		dialog.element.style.top = posY + "px";
 	}
+}
+
+/**
+ * Show a statistics dialog for a single surface.
+ * Reuses the same table format as TreeView's showStatistics.
+ */
+function showSurfaceStatsDialog(stats) {
+	function formatArea(val) {
+		if (val >= 1e6) return (val / 1e6).toFixed(3) + "M";
+		if (val >= 1e3) return (val / 1e3).toFixed(3) + "K";
+		return val.toFixed(2);
+	}
+
+	var content = document.createElement("div");
+
+	var table = document.createElement("table");
+	table.className = "stats-table";
+
+	var rows = [
+		["Points", stats.points.toLocaleString()],
+		["Edges", stats.edges.toLocaleString()],
+		["Faces", stats.faces.toLocaleString()],
+		["Normal Dir.", stats.normalDirection],
+		["Closed", stats.closed],
+		["XY Area (m\u00B2)", formatArea(stats.xyArea)],
+		["YZ Area (m\u00B2)", formatArea(stats.yzArea)],
+		["XZ Area (m\u00B2)", formatArea(stats.xzArea)],
+		["3D Area (m\u00B2)", formatArea(stats.surfaceArea)],
+		["Volume (m\u00B3)", formatArea(stats.volume)]
+	];
+
+	var tbody = document.createElement("tbody");
+	for (var r = 0; r < rows.length; r++) {
+		var tr = document.createElement("tr");
+
+		var tdLabel = document.createElement("td");
+		tdLabel.textContent = rows[r][0];
+		tdLabel.className = "stats-label";
+
+		var tdValue = document.createElement("td");
+		tdValue.textContent = rows[r][1];
+		tdValue.className = "stats-value";
+
+		tr.appendChild(tdLabel);
+		tr.appendChild(tdValue);
+		tbody.appendChild(tr);
+	}
+	table.appendChild(tbody);
+	content.appendChild(table);
+
+	// Build clipboard text
+	var clipText = stats.name + "\n";
+	for (var ci = 0; ci < rows.length; ci++) {
+		clipText += rows[ci][0] + "\t" + rows[ci][1] + "\n";
+	}
+
+	var dialog = new window.FloatingDialog({
+		title: "Statistics: " + stats.name,
+		content: content,
+		width: 320,
+		height: 380,
+		showConfirm: true,
+		confirmText: "Copy",
+		onConfirm: function () {
+			navigator.clipboard.writeText(clipText).then(function () {
+				console.log("Statistics copied to clipboard");
+			}).catch(function (err) {
+				console.error("Clipboard copy failed:", err);
+			});
+			return false; // Keep dialog open after copy
+		},
+		showCancel: true,
+		cancelText: "Close"
+	});
+	dialog.show();
 }
 
 //===========================================
