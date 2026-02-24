@@ -91,6 +91,13 @@ export function showSolidCSGDialog() {
 			warningDiv.style.color = dark ? "#e0c060" : "#7a5a00";
 			warningDiv.textContent = which + " — results may be unreliable. For best results, use closed (watertight) solids with outward-facing normals.";
 		}
+		// Auto-enable repair when either mesh is open
+		if (repairSection && repairSection.checkbox) {
+			if (!closedA || !closedB) {
+				repairSection.checkbox.checked = true;
+			}
+			repairSection.updateVisibility();
+		}
 	}
 
 	// Mesh A row
@@ -117,7 +124,11 @@ export function showSolidCSGDialog() {
 	// Insert warning div after both rows
 	container.appendChild(warningDiv);
 
-	// Initial check
+	// Repair options section
+	var repairSection = createRepairSection(isDarkMode());
+	container.appendChild(repairSection.wrapper);
+
+	// Initial check (also sets repair checkbox state)
 	updateClosedWarning();
 
 	// Operation & gradient
@@ -177,7 +188,7 @@ export function showSolidCSGDialog() {
 		content: container,
 		layoutType: "wide",
 		width: 480,
-		height: 470,
+		height: 560,
 		showConfirm: true,
 		showCancel: true,
 		confirmText: "Execute",
@@ -195,19 +206,43 @@ export function showSolidCSGDialog() {
 				return;
 			}
 
-			console.log("CSG: Starting " + data.operation + " operation...");
-			setTimeout(function () {
-				var resultId = solidCSG({
-					surfaceIdA: surfaceIdA,
-					surfaceIdB: surfaceIdB,
-					operation: data.operation,
-					gradient: data.gradient || "default"
-				});
+			var doRepair = repairSection.checkbox.checked;
+			var closeMode = doRepair ? repairSection.closeModeSelect.value : "none";
+			var snapTol = doRepair ? parseFloat(repairSection.snapInput.value) || 0 : 0;
+			var stitchTol = doRepair ? parseFloat(repairSection.stitchInput.value) || 1.0 : 1.0;
 
-				if (resultId) {
-					console.log("CSG complete: " + resultId);
-				} else {
-					showInfoDialog("CSG operation failed or produced no result.\nEnsure both meshes overlap and are valid geometry.");
+			var progressDialog = showProgressDialog("Computing CSG...");
+
+			console.log("CSG: Starting " + data.operation + " operation...");
+			setTimeout(async function () {
+				try {
+					var resultId = await solidCSG({
+						surfaceIdA: surfaceIdA,
+						surfaceIdB: surfaceIdB,
+						operation: data.operation,
+						gradient: data.gradient || "default",
+						repairMesh: doRepair,
+						closeMode: closeMode,
+						snapTolerance: snapTol,
+						stitchTolerance: stitchTol,
+						onProgress: function (msg) {
+							if (progressDialog && progressDialog._contentEl) {
+								progressDialog._contentEl.textContent = msg;
+							}
+						}
+					});
+
+					if (progressDialog) progressDialog.close();
+
+					if (resultId) {
+						console.log("CSG complete: " + resultId);
+					} else {
+						showInfoDialog("CSG operation failed or produced no result.\nEnsure both meshes overlap and are valid geometry.");
+					}
+				} catch (err) {
+					if (progressDialog) progressDialog.close();
+					console.error("CSG operation error:", err);
+					showInfoDialog("CSG operation failed:\n" + (err.message || err));
 				}
 			}, 50);
 		},
@@ -390,6 +425,184 @@ function clearPickHighlight() {
 		clearHighlight(highlightedSurfaceId);
 		highlightedSurfaceId = null;
 	}
+}
+
+// ────────────────────────────────────────────────────────
+// Progress dialog (no buttons — auto-closed on completion)
+// ────────────────────────────────────────────────────────
+
+function showProgressDialog(message) {
+	var content = document.createElement("div");
+	content.style.padding = "15px";
+	content.style.whiteSpace = "pre-wrap";
+	content.style.textAlign = "center";
+	content.textContent = message;
+
+	var dialog = new FloatingDialog({
+		title: "Solid CSG",
+		content: content,
+		width: 350,
+		height: 160,
+		showConfirm: false,
+		showCancel: false
+	});
+	dialog._contentEl = content;
+	dialog.show();
+	return dialog;
+}
+
+// ────────────────────────────────────────────────────────
+// Repair options section builder
+// ────────────────────────────────────────────────────────
+
+function createRepairSection(dark) {
+	var wrapper = document.createElement("div");
+	wrapper.style.marginTop = "4px";
+	wrapper.style.marginBottom = "2px";
+
+	// Checkbox row
+	var checkRow = document.createElement("div");
+	checkRow.style.display = "flex";
+	checkRow.style.alignItems = "center";
+	checkRow.style.gap = "6px";
+
+	var checkbox = document.createElement("input");
+	checkbox.type = "checkbox";
+	checkbox.id = "csg-repair-checkbox";
+	checkbox.style.margin = "0";
+
+	var checkLabel = document.createElement("label");
+	checkLabel.htmlFor = "csg-repair-checkbox";
+	checkLabel.textContent = "Repair result mesh";
+	checkLabel.style.fontSize = "12px";
+	checkLabel.style.fontWeight = "bold";
+	checkLabel.style.cursor = "pointer";
+
+	checkRow.appendChild(checkbox);
+	checkRow.appendChild(checkLabel);
+	wrapper.appendChild(checkRow);
+
+	// Options container (shown/hidden by checkbox)
+	var optionsDiv = document.createElement("div");
+	optionsDiv.style.display = "none";
+	optionsDiv.style.marginTop = "6px";
+	optionsDiv.style.marginLeft = "22px";
+	optionsDiv.style.fontSize = "12px";
+
+	// Close mode row
+	var modeRow = document.createElement("div");
+	modeRow.style.display = "flex";
+	modeRow.style.alignItems = "center";
+	modeRow.style.gap = "8px";
+	modeRow.style.marginBottom = "4px";
+
+	var modeLabel = document.createElement("label");
+	modeLabel.textContent = "Close Mode";
+	modeLabel.style.minWidth = "90px";
+	modeLabel.style.fontSize = "12px";
+
+	var closeModeSelect = document.createElement("select");
+	closeModeSelect.style.flex = "1";
+	closeModeSelect.style.padding = "3px 5px";
+	closeModeSelect.style.fontSize = "11px";
+	closeModeSelect.style.borderRadius = "4px";
+	closeModeSelect.style.border = dark ? "1px solid rgba(255,255,255,0.2)" : "1px solid #999";
+	closeModeSelect.style.background = dark ? "rgba(30,30,30,0.9)" : "#fff";
+	closeModeSelect.style.color = dark ? "#eee" : "#333";
+
+	var weldOpt = document.createElement("option");
+	weldOpt.value = "weld";
+	weldOpt.textContent = "Weld Only";
+	weldOpt.selected = true;
+	closeModeSelect.appendChild(weldOpt);
+
+	var stitchOpt = document.createElement("option");
+	stitchOpt.value = "stitch";
+	stitchOpt.textContent = "Close by Stitching";
+	closeModeSelect.appendChild(stitchOpt);
+
+	modeRow.appendChild(modeLabel);
+	modeRow.appendChild(closeModeSelect);
+	optionsDiv.appendChild(modeRow);
+
+	// Snap tolerance row
+	var snapRow = document.createElement("div");
+	snapRow.style.display = "flex";
+	snapRow.style.alignItems = "center";
+	snapRow.style.gap = "8px";
+	snapRow.style.marginBottom = "4px";
+
+	var snapLabel = document.createElement("label");
+	snapLabel.textContent = "Snap Tol.";
+	snapLabel.style.minWidth = "90px";
+	snapLabel.style.fontSize = "12px";
+
+	var snapInput = document.createElement("input");
+	snapInput.type = "number";
+	snapInput.value = "0";
+	snapInput.min = "0";
+	snapInput.step = "0.001";
+	snapInput.style.flex = "1";
+	snapInput.style.padding = "3px 5px";
+	snapInput.style.fontSize = "11px";
+	snapInput.style.borderRadius = "4px";
+	snapInput.style.border = dark ? "1px solid rgba(255,255,255,0.2)" : "1px solid #999";
+	snapInput.style.background = dark ? "rgba(30,30,30,0.9)" : "#fff";
+	snapInput.style.color = dark ? "#eee" : "#333";
+	snapInput.style.maxWidth = "80px";
+
+	snapRow.appendChild(snapLabel);
+	snapRow.appendChild(snapInput);
+	optionsDiv.appendChild(snapRow);
+
+	// Stitch tolerance row (only visible when close mode = stitch)
+	var stitchRow = document.createElement("div");
+	stitchRow.style.display = "none";
+	stitchRow.style.alignItems = "center";
+	stitchRow.style.gap = "8px";
+	stitchRow.style.marginBottom = "4px";
+
+	var stitchLabel = document.createElement("label");
+	stitchLabel.textContent = "Stitch Tol.";
+	stitchLabel.style.minWidth = "90px";
+	stitchLabel.style.fontSize = "12px";
+
+	var stitchInput = document.createElement("input");
+	stitchInput.type = "number";
+	stitchInput.value = "1.0";
+	stitchInput.min = "0";
+	stitchInput.step = "0.1";
+	stitchInput.style.flex = "1";
+	stitchInput.style.padding = "3px 5px";
+	stitchInput.style.fontSize = "11px";
+	stitchInput.style.borderRadius = "4px";
+	stitchInput.style.border = dark ? "1px solid rgba(255,255,255,0.2)" : "1px solid #999";
+	stitchInput.style.background = dark ? "rgba(30,30,30,0.9)" : "#fff";
+	stitchInput.style.color = dark ? "#eee" : "#333";
+	stitchInput.style.maxWidth = "80px";
+
+	stitchRow.appendChild(stitchLabel);
+	stitchRow.appendChild(stitchInput);
+	optionsDiv.appendChild(stitchRow);
+
+	wrapper.appendChild(optionsDiv);
+
+	function updateVisibility() {
+		optionsDiv.style.display = checkbox.checked ? "block" : "none";
+		stitchRow.style.display = closeModeSelect.value === "stitch" ? "flex" : "none";
+	}
+
+	checkbox.addEventListener("change", updateVisibility);
+	closeModeSelect.addEventListener("change", updateVisibility);
+
+	return {
+		wrapper: wrapper,
+		checkbox: checkbox,
+		closeModeSelect: closeModeSelect,
+		snapInput: snapInput,
+		stitchInput: stitchInput,
+		updateVisibility: updateVisibility
+	};
 }
 
 // ────────────────────────────────────────────────────────
