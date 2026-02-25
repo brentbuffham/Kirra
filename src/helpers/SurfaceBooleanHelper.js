@@ -22,6 +22,8 @@ import {
 	ensureZUpNormals,
 	buildSpatialGrid,
 	queryGrid,
+	buildSpatialGridOnAxes,
+	queryGridOnAxes,
 	estimateAvgEdge
 } from "./SurfaceIntersectionHelper.js";
 import {
@@ -65,54 +67,127 @@ function cutEdgeKey(va, vb) {
 // ────────────────────────────────────────────────────────
 
 /**
- * Classify a point as inside/outside the other surface using Z-ray casting.
+ * Classify a point on a single axis by casting rays in both +/- directions.
  *
- * Casts a ray from the point in the +Z direction, counts how many triangles
- * of the other surface the ray passes through. Odd = inside, even = outside.
+ * For each axis (z, x, y), does barycentric test in the appropriate 2D projection:
+ *   axis='z': project to XY, count hits above/below in Z
+ *   axis='x': project to YZ, count hits in +X/-X
+ *   axis='y': project to XZ, count hits in +Y/-Y
  *
- * Works in ALL orientations:
- * - Closed solids (pit shells, extruded polygons): standard PIP in 3D
- * - Open terrain surfaces: ray from below crosses once = inside
- * - Vertical walls: automatically skipped (degenerate XY projection)
- *
- * @param {{x,y,z}} point - Point to classify
- * @param {Array} otherTris - Other surface triangles
- * @param {Object} otherGrid - Spatial grid over otherTris (XY-based)
- * @param {number} otherCellSize - Grid cell size
- * @returns {number} 1 = inside, -1 = outside
+ * @param {{x,y,z}} point
+ * @param {Array} otherTris
+ * @param {Object} grid - spatial grid for the relevant 2D projection
+ * @param {number} cellSize
+ * @param {string} axis - 'z', 'x', or 'y'
+ * @returns {{countPos: number, countNeg: number}}
  */
-function classifyPointByRayCast(point, otherTris, otherGrid, otherCellSize) {
-	var px = point.x, py = point.y, pz = point.z;
+function classifyPointOnAxis(point, otherTris, grid, cellSize, axis) {
+	var countPos = 0;
 
-	// A +Z ray has fixed XY — query grid cells containing (px, py)
-	var bb = { minX: px, maxX: px, minY: py, maxY: py };
-	var candidates = queryGrid(otherGrid, bb, otherCellSize);
+	// Pick the 2 projection axes (a, b) and the ray axis (r)
+	var pa, pb, pr;
+	var candidates;
 
-	var count = 0;
+	if (axis === "z") {
+		pa = point.x; pb = point.y; pr = point.z;
+		var bb = { minX: pa, maxX: pa, minY: pb, maxY: pb };
+		candidates = queryGrid(grid, bb, cellSize);
+	} else {
+		// For x-axis ray: grid is on YZ, query at (point.y, point.z)
+		// For y-axis ray: grid is on XZ, query at (point.x, point.z)
+		if (axis === "x") {
+			pa = point.y; pb = point.z; pr = point.x;
+		} else {
+			pa = point.x; pb = point.z; pr = point.y;
+		}
+		candidates = queryGridOnAxes(grid, pa, pb, cellSize);
+	}
+
 	for (var c = 0; c < candidates.length; c++) {
 		var tri = otherTris[candidates[c]];
 
-		// Barycentric coordinates of (px, py) in triangle's XY projection
-		var x0 = tri.v0.x, y0 = tri.v0.y;
-		var x1 = tri.v1.x, y1 = tri.v1.y;
-		var x2 = tri.v2.x, y2 = tri.v2.y;
+		// Extract the 2 projection coords + ray coord for each vertex
+		var a0, b0, r0, a1, b1, r1, a2, b2, r2;
+		if (axis === "z") {
+			a0 = tri.v0.x; b0 = tri.v0.y; r0 = tri.v0.z;
+			a1 = tri.v1.x; b1 = tri.v1.y; r1 = tri.v1.z;
+			a2 = tri.v2.x; b2 = tri.v2.y; r2 = tri.v2.z;
+		} else if (axis === "x") {
+			a0 = tri.v0.y; b0 = tri.v0.z; r0 = tri.v0.x;
+			a1 = tri.v1.y; b1 = tri.v1.z; r1 = tri.v1.x;
+			a2 = tri.v2.y; b2 = tri.v2.z; r2 = tri.v2.x;
+		} else {
+			a0 = tri.v0.x; b0 = tri.v0.z; r0 = tri.v0.y;
+			a1 = tri.v1.x; b1 = tri.v1.z; r1 = tri.v1.y;
+			a2 = tri.v2.x; b2 = tri.v2.z; r2 = tri.v2.y;
+		}
 
-		var d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
-		if (Math.abs(d) < 1e-12) continue; // degenerate XY — vertical face or sliver
+		// Barycentric test in (a, b) projection
+		var d = (b1 - b2) * (a0 - a2) + (a2 - a1) * (b0 - b2);
+		if (Math.abs(d) < 1e-12) continue; // degenerate projection
 
-		var u = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / d;
-		var v = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / d;
+		var u = ((b1 - b2) * (pa - a2) + (a2 - a1) * (pb - b2)) / d;
+		var v = ((b2 - b0) * (pa - a2) + (a0 - a2) * (pb - b2)) / d;
 		var w = 1 - u - v;
 
 		if (u < -1e-10 || v < -1e-10 || w < -1e-10) continue; // outside triangle
 
-		// Interpolate Z at (px, py) on the triangle's plane
-		var z = u * tri.v0.z + v * tri.v1.z + w * tri.v2.z;
+		// Interpolate ray-axis coord at (pa, pb) on the triangle's plane
+		var rHit = u * r0 + v * r1 + w * r2;
 
-		if (z > pz) count++; // intersection above the point
+		if (rHit > pr) countPos++;
 	}
 
-	return (count % 2 === 1) ? 1 : -1;
+	return countPos;
+}
+
+/**
+ * Multi-axis point classification using majority vote across all 3 axes.
+ *
+ * Casts +Z, +X, and +Y rays and classifies by majority vote:
+ *   - Each axis with hits > 0 votes: odd count → inside, even count → outside
+ *   - If 2+ axes vote "inside" → inside (handles any wall angle)
+ *   - If only 1 axis votes "inside" and 1+ vote "outside" → outside (prevents false positives)
+ *   - If only 1 axis has hits at all → trust that single result
+ *   - If 0 axes have hits → outside
+ *
+ * This handles any geometry angle (0°–90° walls) without thresholds.
+ *
+ * @param {{x,y,z}} point
+ * @param {Array} otherTris
+ * @param {Object} grids - { xy: {grid, cellSize}, yz: {grid, cellSize}, xz: {grid, cellSize} }
+ * @returns {number} 1 = inside, -1 = outside
+ */
+function classifyPointMultiAxis(point, otherTris, grids) {
+	var zCount = classifyPointOnAxis(point, otherTris, grids.xy.grid, grids.xy.cellSize, "z");
+	var xCount = classifyPointOnAxis(point, otherTris, grids.yz.grid, grids.yz.cellSize, "x");
+	var yCount = classifyPointOnAxis(point, otherTris, grids.xz.grid, grids.xz.cellSize, "y");
+
+	var insideVotes = 0;
+	var outsideVotes = 0;
+
+	if (zCount > 0) {
+		if (zCount % 2 === 1) insideVotes++;
+		else outsideVotes++;
+	}
+	if (xCount > 0) {
+		if (xCount % 2 === 1) insideVotes++;
+		else outsideVotes++;
+	}
+	if (yCount > 0) {
+		if (yCount % 2 === 1) insideVotes++;
+		else outsideVotes++;
+	}
+
+	// Majority vote: 2+ inside → inside; otherwise outside
+	if (insideVotes >= 2) return 1;
+	if (outsideVotes >= 1) return -1;
+
+	// Only one axis had hits and it voted inside — trust it
+	if (insideVotes === 1) return 1;
+
+	// No axes had any hits → outside
+	return -1;
 }
 
 /**
@@ -120,17 +195,17 @@ function classifyPointByRayCast(point, otherTris, otherGrid, otherCellSize) {
  *
  * Non-crossed triangles are partitioned into connected components via shared
  * edges (excluding edges shared with crossed triangles). Each component is
- * classified by a single seed triangle using ray casting against the other
- * surface, then that classification is propagated to the entire component.
+ * classified by a single seed triangle using multi-axis ray casting against
+ * the other surface, then that classification is propagated to the entire
+ * component.
  *
  * @param {Array} tris - Triangle soup to classify
  * @param {Object} crossedMap - Map of triIndex -> [taggedSegments]
  * @param {Array} otherTris - Other surface triangles
- * @param {Object} otherGrid - Spatial grid over otherTris
- * @param {number} otherCellSize - Grid cell size
+ * @param {Object} otherGrids - { xy: {grid, cellSize}, yz: {grid, cellSize}, xz: {grid, cellSize} }
  * @returns {Int8Array} Classification per triangle: 1=inside, -1=outside
  */
-function classifyByFloodFill(tris, crossedMap, otherTris, otherGrid, otherCellSize) {
+function classifyByFloodFill(tris, crossedMap, otherTris, otherGrids) {
 	var n = tris.length;
 	var result = new Int8Array(n);
 
@@ -177,14 +252,14 @@ function classifyByFloodFill(tris, crossedMap, otherTris, otherGrid, otherCellSi
 	for (var seed = 0; seed < n; seed++) {
 		if (visited[seed] || crossedMap[seed]) continue;
 
-		// Classify seed via ray casting against other surface
+		// Classify seed via multi-axis ray casting against other surface
 		var seedTri = tris[seed];
 		var cx = (seedTri.v0.x + seedTri.v1.x + seedTri.v2.x) / 3;
 		var cy = (seedTri.v0.y + seedTri.v1.y + seedTri.v2.y) / 3;
 		var cz = (seedTri.v0.z + seedTri.v1.z + seedTri.v2.z) / 3;
-		var seedClass = classifyPointByRayCast(
+		var seedClass = classifyPointMultiAxis(
 			{ x: cx, y: cy, z: cz },
-			otherTris, otherGrid, otherCellSize
+			otherTris, otherGrids
 		);
 
 		// BFS: propagate seed classification to entire component
@@ -217,47 +292,109 @@ function classifyByFloodFill(tris, crossedMap, otherTris, otherGrid, otherCellSi
  * Separate triangles into inside/outside groups.
  * Non-crossed triangles go directly by classification.
  * Crossed (straddling) triangles are split first, then each sub-triangle
- * classified via ray casting against the other surface.
+ * classified via multi-axis ray casting against the other surface.
  *
  * @param {Array} tris - Triangle soup
  * @param {Int8Array} classifications - Per-triangle classification
  * @param {Object} crossedMap - Map of triIndex -> [taggedSegments]
  * @param {Array} otherTris - Other surface triangles
- * @param {Object} otherGrid - Spatial grid over otherTris
- * @param {number} otherCellSize - Grid cell size
+ * @param {Object} otherGrids - { xy: {grid, cellSize}, yz: {grid, cellSize}, xz: {grid, cellSize} }
  * @returns {{ inside: Array, outside: Array }}
  */
-function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris, otherGrid, otherCellSize) {
+function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris, otherGrids) {
 	var inside = [];
 	var outside = [];
 
+	var PREC = 6;
+	function vKey(v) {
+		return v.x.toFixed(PREC) + "," + v.y.toFixed(PREC) + "," + v.z.toFixed(PREC);
+	}
+
+	// Step A: Build vertex-key → classification map from NON-CROSSED triangles.
+	// Each original mesh vertex that belongs to at least one non-crossed triangle
+	// gets the flood-fill classification of that triangle.
+	var vertexClassMap = {};
 	for (var i = 0; i < tris.length; i++) {
-		if (!crossedMap[i]) {
-			// Non-crossed: use pre-computed classification
-			if (classifications[i] === 1) {
-				inside.push(tris[i]);
+		if (crossedMap[i]) continue; // skip crossed triangles
+		var cls = classifications[i];
+		var tri = tris[i];
+		var verts = [tri.v0, tri.v1, tri.v2];
+		for (var vi = 0; vi < 3; vi++) {
+			var key = vKey(verts[vi]);
+			if (vertexClassMap[key] === undefined) {
+				vertexClassMap[key] = cls;
+			}
+		}
+	}
+
+	// Step B: Collect all Steiner point keys (intersection segment endpoints).
+	// These vertices lie ON the intersection line — skip them for classification.
+	var steinerKeys = {};
+	for (var ci in crossedMap) {
+		var segs = crossedMap[ci];
+		for (var s = 0; s < segs.length; s++) {
+			steinerKeys[vKey(segs[s].p0)] = true;
+			steinerKeys[vKey(segs[s].p1)] = true;
+		}
+	}
+
+	// Step C: Process each triangle
+	var adjacencyHits = 0;
+	var raycastFallbacks = 0;
+
+	for (var ti = 0; ti < tris.length; ti++) {
+		if (!crossedMap[ti]) {
+			// Non-crossed: use pre-computed flood-fill classification
+			if (classifications[ti] === 1) {
+				inside.push(tris[ti]);
 			} else {
-				outside.push(tris[i]);
+				outside.push(tris[ti]);
 			}
 			continue;
 		}
 
-		// Crossed triangle: re-triangulate with all intersection segment endpoints
-		// as Steiner points. This handles large triangles crossed by many small ones.
-		var segments = crossedMap[i];
-		var current = retriangulateWithSteinerPoints(tris[i], segments);
+		// Crossed triangle: re-triangulate with intersection segment endpoints
+		var segments = crossedMap[ti];
+		var current = retriangulateWithSteinerPoints(tris[ti], segments);
 
-		// Classify each sub-triangle via ray casting against other surface
+		// Classify each sub-triangle by vertex adjacency:
+		// Find the vertex NOT on the intersection line, then inherit classification
+		// from the adjacent non-crossed triangle that shares that vertex.
 		for (var j = 0; j < current.length; j++) {
 			var sub = current[j];
-			var cx = (sub.v0.x + sub.v1.x + sub.v2.x) / 3;
-			var cy = (sub.v0.y + sub.v1.y + sub.v2.y) / 3;
-			var cz = (sub.v0.z + sub.v1.z + sub.v2.z) / 3;
-			var cls = classifyPointByRayCast(
-				{ x: cx, y: cy, z: cz },
-				otherTris, otherGrid, otherCellSize
-			);
-			if (cls === 1) {
+			var subVerts = [sub.v0, sub.v1, sub.v2];
+
+			// Look for a "free" vertex (not a Steiner point) that has a
+			// known classification from an adjacent non-crossed triangle
+			var foundClass = 0;
+			for (var sv = 0; sv < 3; sv++) {
+				var svKey = vKey(subVerts[sv]);
+				if (steinerKeys[svKey]) continue; // vertex is ON the intersection line
+
+				var adjClass = vertexClassMap[svKey];
+				if (adjClass !== undefined) {
+					foundClass = adjClass;
+					break;
+				}
+			}
+
+			if (foundClass !== 0) {
+				adjacencyHits++;
+			} else {
+				// Fallback: no adjacent non-crossed triangle found for any free vertex.
+				// This can happen when all original vertices of the parent triangle
+				// are shared only by other crossed triangles. Use ray-casting.
+				var cx = (sub.v0.x + sub.v1.x + sub.v2.x) / 3;
+				var cy = (sub.v0.y + sub.v1.y + sub.v2.y) / 3;
+				var cz = (sub.v0.z + sub.v1.z + sub.v2.z) / 3;
+				foundClass = classifyPointMultiAxis(
+					{ x: cx, y: cy, z: cz },
+					otherTris, otherGrids
+				);
+				raycastFallbacks++;
+			}
+
+			if (foundClass === 1) {
 				inside.push(sub);
 			} else {
 				outside.push(sub);
@@ -265,6 +402,8 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris
 		}
 	}
 
+	console.log("splitStraddlingAndClassify: " + adjacencyHits + " sub-tris classified by vertex adjacency, " +
+		raycastFallbacks + " by ray-cast fallback");
 	return { inside: inside, outside: outside };
 }
 
@@ -506,23 +645,35 @@ export function computeSplits(surfaceIdA, surfaceIdB) {
 	var crossedCountB = Object.keys(crossedSetB).length;
 	console.log("Surface Boolean: crossed A=" + crossedCountA + ", crossed B=" + crossedCountB);
 
-	// Step 4) Build spatial grids for ray-cast classification
+	// Step 4) Build spatial grids for multi-axis ray-cast classification
+	//   3 grids per surface: XY (Z-ray), YZ (X-ray), XZ (Y-ray)
 	var avgEdgeA = estimateAvgEdge(trisA);
 	var avgEdgeB = estimateAvgEdge(trisB);
 	var cellSizeA = Math.max(avgEdgeA * 2, 0.1);
 	var cellSizeB = Math.max(avgEdgeB * 2, 0.1);
 
-	var gridA = buildSpatialGrid(trisA, cellSizeA);
-	var gridB = buildSpatialGrid(trisB, cellSizeB);
+	var gridsA = {
+		xy: { grid: buildSpatialGrid(trisA, cellSizeA), cellSize: cellSizeA },
+		yz: { grid: buildSpatialGridOnAxes(trisA, cellSizeA, function(v) { return v.y; }, function(v) { return v.z; }), cellSize: cellSizeA },
+		xz: { grid: buildSpatialGridOnAxes(trisA, cellSizeA, function(v) { return v.x; }, function(v) { return v.z; }), cellSize: cellSizeA }
+	};
+	var gridsB = {
+		xy: { grid: buildSpatialGrid(trisB, cellSizeB), cellSize: cellSizeB },
+		yz: { grid: buildSpatialGridOnAxes(trisB, cellSizeB, function(v) { return v.y; }, function(v) { return v.z; }), cellSize: cellSizeB },
+		xz: { grid: buildSpatialGridOnAxes(trisB, cellSizeB, function(v) { return v.x; }, function(v) { return v.z; }), cellSize: cellSizeB }
+	};
 
-	// Step 5) Flood-fill classify: each connected non-crossed region gets one seed
-	//         Seeds classified by ray casting (+Z) against other surface
-	var classA = classifyByFloodFill(trisA, crossedSetA, trisB, gridB, cellSizeB);
-	var classB = classifyByFloodFill(trisB, crossedSetB, trisA, gridA, cellSizeA);
+	// Step 5) Flood-fill classify: each connected non-crossed region gets one seed.
+	// Seed classification uses majority vote across all 3 axes (+Z, +X, +Y) —
+	// handles any wall angle without thresholds.
+	var classA = classifyByFloodFill(trisA, crossedSetA, trisB, gridsB);
+	var classB = classifyByFloodFill(trisB, crossedSetB, trisA, gridsA);
 
-	// Step 6) Split straddling triangles and classify sub-triangles
-	var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridB, cellSizeB);
-	var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridA, cellSizeA);
+	// Step 6) Split straddling triangles and classify sub-triangles.
+	// Sub-triangles inherit classification from adjacent non-crossed triangles
+	// via vertex adjacency (no ray-casting at the boundary).
+	var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridsB);
+	var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridsA);
 
 	console.log("Surface Boolean: A inside=" + groupsA.inside.length + " outside=" + groupsA.outside.length +
 		", B inside=" + groupsB.inside.length + " outside=" + groupsB.outside.length);

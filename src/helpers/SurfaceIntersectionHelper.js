@@ -265,6 +265,67 @@ export function queryGrid(grid, bb, cellSize) {
     return result;
 }
 
+/**
+ * Build a spatial grid on arbitrary two axes.
+ * getA/getB extract the two bucketing coordinates from a vertex.
+ *
+ * @param {Array} tris - Array of {v0, v1, v2}
+ * @param {number} cellSize
+ * @param {function} getA - e.g. v => v.y for YZ grid
+ * @param {function} getB - e.g. v => v.z for YZ grid
+ * @returns {Object} grid hash
+ */
+export function buildSpatialGridOnAxes(tris, cellSize, getA, getB) {
+    var grid = {};
+
+    for (var i = 0; i < tris.length; i++) {
+        var t = tris[i];
+        var verts = [t.v0, t.v1, t.v2];
+
+        var minA = Infinity, maxA = -Infinity;
+        var minB = Infinity, maxB = -Infinity;
+        for (var j = 0; j < 3; j++) {
+            var a = getA(verts[j]), b = getB(verts[j]);
+            if (a < minA) minA = a;
+            if (a > maxA) maxA = a;
+            if (b < minB) minB = b;
+            if (b > maxB) maxB = b;
+        }
+
+        var a0 = Math.floor(minA / cellSize);
+        var b0 = Math.floor(minB / cellSize);
+        var a1 = Math.floor(maxA / cellSize);
+        var b1 = Math.floor(maxB / cellSize);
+
+        for (var ga = a0; ga <= a1; ga++) {
+            for (var gb = b0; gb <= b1; gb++) {
+                var key = ga + "," + gb;
+                if (!grid[key]) grid[key] = [];
+                grid[key].push(i);
+            }
+        }
+    }
+
+    return grid;
+}
+
+/**
+ * Query a grid built by buildSpatialGridOnAxes for a single point.
+ *
+ * @param {Object} grid
+ * @param {number} a - first axis coordinate of the query point
+ * @param {number} b - second axis coordinate of the query point
+ * @param {number} cellSize
+ * @returns {Array} triangle indices
+ */
+export function queryGridOnAxes(grid, a, b, cellSize) {
+    var ga = Math.floor(a / cellSize);
+    var gb = Math.floor(b / cellSize);
+    var key = ga + "," + gb;
+    var cell = grid[key];
+    return cell ? cell : [];
+}
+
 // ────────────────────────────────────────────────────────
 // Step 4) Moller triangle-triangle intersection
 // ────────────────────────────────────────────────────────
