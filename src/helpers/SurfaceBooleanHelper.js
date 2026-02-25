@@ -66,47 +66,36 @@ function cutEdgeKey(va, vb) {
 // Ray-casting inside/outside classification
 // ────────────────────────────────────────────────────────
 
+// Deterministic jitter offsets for avoiding edge/coplanar ray hits.
+// 3 offsets per axis, each pair (da, db) shifts the ray's 2D position slightly.
+// Different offsets per axis to avoid correlated edge hits on axis-aligned geometry.
+var JITTERS = {
+	z: [
+		{ da: 0.0000537, db: 0.0000241 },
+		{ da: -0.0000319, db: 0.0000673 },
+		{ da: 0.0000157, db: -0.0000489 }
+	],
+	x: [
+		{ da: 0.0000443, db: -0.0000317 },
+		{ da: -0.0000261, db: 0.0000559 },
+		{ da: 0.0000189, db: 0.0000371 }
+	],
+	y: [
+		{ da: -0.0000397, db: 0.0000283 },
+		{ da: 0.0000521, db: -0.0000447 },
+		{ da: -0.0000173, db: 0.0000613 }
+	]
+};
+
 /**
- * Classify a point on a single axis by casting rays in both +/- directions.
- *
- * For each axis (z, x, y), does barycentric test in the appropriate 2D projection:
- *   axis='z': project to XY, count hits above/below in Z
- *   axis='x': project to YZ, count hits in +X/-X
- *   axis='y': project to XZ, count hits in +Y/-Y
- *
- * @param {{x,y,z}} point
- * @param {Array} otherTris
- * @param {Object} grid - spatial grid for the relevant 2D projection
- * @param {number} cellSize
- * @param {string} axis - 'z', 'x', or 'y'
- * @returns {{countPos: number, countNeg: number}}
+ * Cast a single ray on one axis and count positive-direction hits.
  */
-function classifyPointOnAxis(point, otherTris, grid, cellSize, axis) {
+function castRayOnAxis(pa, pb, pr, candidates, otherTris, axis) {
 	var countPos = 0;
-
-	// Pick the 2 projection axes (a, b) and the ray axis (r)
-	var pa, pb, pr;
-	var candidates;
-
-	if (axis === "z") {
-		pa = point.x; pb = point.y; pr = point.z;
-		var bb = { minX: pa, maxX: pa, minY: pb, maxY: pb };
-		candidates = queryGrid(grid, bb, cellSize);
-	} else {
-		// For x-axis ray: grid is on YZ, query at (point.y, point.z)
-		// For y-axis ray: grid is on XZ, query at (point.x, point.z)
-		if (axis === "x") {
-			pa = point.y; pb = point.z; pr = point.x;
-		} else {
-			pa = point.x; pb = point.z; pr = point.y;
-		}
-		candidates = queryGridOnAxes(grid, pa, pb, cellSize);
-	}
 
 	for (var c = 0; c < candidates.length; c++) {
 		var tri = otherTris[candidates[c]];
 
-		// Extract the 2 projection coords + ray coord for each vertex
 		var a0, b0, r0, a1, b1, r1, a2, b2, r2;
 		if (axis === "z") {
 			a0 = tri.v0.x; b0 = tri.v0.y; r0 = tri.v0.z;
@@ -122,19 +111,16 @@ function classifyPointOnAxis(point, otherTris, grid, cellSize, axis) {
 			a2 = tri.v2.x; b2 = tri.v2.z; r2 = tri.v2.y;
 		}
 
-		// Barycentric test in (a, b) projection
 		var d = (b1 - b2) * (a0 - a2) + (a2 - a1) * (b0 - b2);
-		if (Math.abs(d) < 1e-12) continue; // degenerate projection
+		if (Math.abs(d) < 1e-12) continue;
 
 		var u = ((b1 - b2) * (pa - a2) + (a2 - a1) * (pb - b2)) / d;
 		var v = ((b2 - b0) * (pa - a2) + (a0 - a2) * (pb - b2)) / d;
 		var w = 1 - u - v;
 
-		if (u < -1e-10 || v < -1e-10 || w < -1e-10) continue; // outside triangle
+		if (u < -1e-10 || v < -1e-10 || w < -1e-10) continue;
 
-		// Interpolate ray-axis coord at (pa, pb) on the triangle's plane
 		var rHit = u * r0 + v * r1 + w * r2;
-
 		if (rHit > pr) countPos++;
 	}
 
@@ -142,10 +128,58 @@ function classifyPointOnAxis(point, otherTris, grid, cellSize, axis) {
 }
 
 /**
+ * Classify a point on a single axis by casting 3 jittered rays and taking
+ * the majority vote. Each ray is offset slightly in the 2D projection
+ * plane to avoid hitting triangle edges/vertices exactly.
+ *
+ * @param {{x,y,z}} point
+ * @param {Array} otherTris
+ * @param {Object} grid - spatial grid for the relevant 2D projection
+ * @param {number} cellSize
+ * @param {string} axis - 'z', 'x', or 'y'
+ * @returns {number} 0 = no hits (no vote), 1 = inside (odd majority), 2 = outside (even majority)
+ */
+function classifyPointOnAxis(point, otherTris, grid, cellSize, axis) {
+	var basePa, basePb, pr;
+	if (axis === "z") {
+		basePa = point.x; basePb = point.y; pr = point.z;
+	} else if (axis === "x") {
+		basePa = point.y; basePb = point.z; pr = point.x;
+	} else {
+		basePa = point.x; basePb = point.z; pr = point.y;
+	}
+
+	var jitters = JITTERS[axis];
+	var insideVotes = 0;
+	var hadHits = 0;
+
+	for (var j = 0; j < 3; j++) {
+		var pa = basePa + jitters[j].da;
+		var pb = basePb + jitters[j].db;
+
+		var candidates;
+		if (axis === "z") {
+			candidates = queryGrid(grid, { minX: pa, maxX: pa, minY: pb, maxY: pb }, cellSize);
+		} else {
+			candidates = queryGridOnAxes(grid, pa, pb, cellSize);
+		}
+
+		var count = castRayOnAxis(pa, pb, pr, candidates, otherTris, axis);
+
+		if (count > 0) hadHits++;
+		if (count % 2 === 1) insideVotes++;
+	}
+
+	// 3-state return: 0 = no hits (no vote), 1 = inside, 2 = outside
+	if (hadHits === 0) return 0;
+	return insideVotes >= 2 ? 1 : 2;
+}
+
+/**
  * Multi-axis point classification using majority vote across all 3 axes.
  *
- * Casts +Z, +X, and +Y rays and classifies by majority vote:
- *   - Each axis with hits > 0 votes: odd count → inside, even count → outside
+ * Casts +Z, +X, and +Y rays (3 jittered rays per axis) and classifies by majority vote:
+ *   - Each axis returns 0 (no hits/no vote), 1 (inside), or 2 (outside)
  *   - If 2+ axes vote "inside" → inside (handles any wall angle)
  *   - If only 1 axis votes "inside" and 1+ vote "outside" → outside (prevents false positives)
  *   - If only 1 axis has hits at all → trust that single result
@@ -163,21 +197,18 @@ function classifyPointMultiAxis(point, otherTris, grids) {
 	var xCount = classifyPointOnAxis(point, otherTris, grids.yz.grid, grids.yz.cellSize, "x");
 	var yCount = classifyPointOnAxis(point, otherTris, grids.xz.grid, grids.xz.cellSize, "y");
 
+	// 0 = no hits (no vote), 1 = inside, 2 = outside
 	var insideVotes = 0;
 	var outsideVotes = 0;
 
-	if (zCount > 0) {
-		if (zCount % 2 === 1) insideVotes++;
-		else outsideVotes++;
-	}
-	if (xCount > 0) {
-		if (xCount % 2 === 1) insideVotes++;
-		else outsideVotes++;
-	}
-	if (yCount > 0) {
-		if (yCount % 2 === 1) insideVotes++;
-		else outsideVotes++;
-	}
+	if (zCount === 1) insideVotes++;
+	else if (zCount === 2) outsideVotes++;
+
+	if (xCount === 1) insideVotes++;
+	else if (xCount === 2) outsideVotes++;
+
+	if (yCount === 1) insideVotes++;
+	else if (yCount === 2) outsideVotes++;
 
 	// Majority vote: 2+ inside → inside; otherwise outside
 	if (insideVotes >= 2) return 1;
