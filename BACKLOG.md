@@ -2,6 +2,23 @@
 
 Ideas and potential tasks to discuss or implement later.
 
+## Contents (ordered: quick wins → high effort/risk)
+
+1. KAD Entity Validation & Sorting — _low risk, low effort_
+2. Charging System UI Improvements — _low risk, small UI tweaks_
+3. Surface Contour Line Generation — _low risk, reuses existing intersection pipeline_
+4. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
+5. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
+6. KAD Modification Tools — _low risk, additive new tools_
+7. TreeView Revamp — _low-medium risk, medium effort_
+8. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
+9. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
+10. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
+11. Electronic Timing Tools — _medium risk, new feature area_
+12. Performance & Large Dataset Scalability — _medium-high risk, high effort_
+13. Replace local helpers with trimesh-boolean npm package — _high risk, dependency swap_
+14. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
+
 ## Under Consideration
 
 - **Replace local helpers with trimesh-boolean npm package** — Remove ~4,300 lines of duplicated algorithm code from `src/helpers/` (SurfaceBooleanHelper, MeshRepairHelper, SurfaceIntersectionHelper, SurfaceNormalHelper) and import from `trimesh-boolean` instead. Keeps Kirra-specific wrappers (dialogs, undo, preview). Risk: adds npm dependency. (2026-02-25)
@@ -55,6 +72,16 @@ Ideas and potential tasks to discuss or implement later.
   - **Triangulated timing surface** — Use two or more points, lines, or polys at an elevation, build a triangulation between them, then use the resulting surface as a timing contour. Assign downhole times to blast holes by interpolating timing values from the triangulated surface at each hole's XY location
 
 - **Surface Contour Line Generation** — Generate contour lines from a triangulated surface by reusing the existing surface intersection tool. Approach: for each contour interval, generate an imaginary horizontal plane at that elevation in memory, then intersect it against the selected surface using the existing intersection pipeline. Output the resulting intersection lines as KAD line/poly entities for display and export. No need for marching squares — the intersection tool already handles triangle-plane math and segment extraction. (2026-02-25)
+
+- **Improve 3D Draw Calls & Interaction Response** — 3D performance is very poor with multiple surfaces loaded (4 FPS at 728K triangles, 21 surfaces, 32 draw calls, ~550ms avg frame time). Investigate and fix: (2026-02-25)
+  - **Frustum culling** — skip rendering surfaces/objects outside the camera view
+  - **Geometry merging** — merge static surfaces into fewer draw calls where possible
+  - **LOD / decimation** — reduce triangle count for distant surfaces
+  - **Throttle raycasting** — interaction (mouse move, hover) may be triggering expensive raycasts every frame
+  - **KAD line batching** — 20,932 lines across 2 KADs may benefit from merging into fewer BufferGeometry objects
+  - **Render-on-demand** — only re-render when camera moves or data changes, not every frame
+
+- **Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer Scenario)** — Surface boolean operations fail when both input meshes are open (e.g., a tea cup intersected with a saucer — two open shells). Works perfectly on open mesh vs closed solid, and closed solid vs closed solid. Investigate edge cases in the boolean pipeline for dual-open-mesh inputs. (2026-02-25)
 
 - **KAD Entity Validation & Sorting** — The previous entity type auto-sorting code (converting invalid types like 2-pt poly→line, 1-pt line→point) didn't stick. Revisit with a stricter approach: (2026-02-25)
   - **Prevent saving invalid entities** — lines must have ≥2 points, polys must have ≥3 points
