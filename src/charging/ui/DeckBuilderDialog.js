@@ -61,7 +61,7 @@ function productSnapshot(product) {
 function isFixedDelayType(initiatorType) {
     var t = (initiatorType || "").toLowerCase();
     return t === "shocktube" || t === "electric" || t === "detonatingcord" ||
-           t === "surfaceconnector" || t === "surfacecord";
+        t === "surfaceconnector" || t === "surfacecord";
 }
 
 /**
@@ -114,6 +114,212 @@ function buildFormulaCtxFromDecks(workingCharging) {
     ctx.chargeLength = deepestLen;
     ctx.stemLength = firstChargeTop !== null ? firstChargeTop : 0;
     return ctx;
+}
+
+/**
+ * Build the Formula Builder panel (right side of Deck Builder).
+ * Provides draggable/clickable variable and operator chips with a formula bar
+ * and live preview. Returns { element, refreshIndexedVars, setActiveField }.
+ */
+function buildFormulaPanel(workingCharging) {
+    var activeFormulaField = null;
+
+    var panel = document.createElement("div");
+    panel.className = "formula-builder-panel";
+
+    // ---- Sticky top area: title + bar + preview/apply ----
+    var topArea = document.createElement("div");
+    topArea.className = "formula-top-area";
+    panel.appendChild(topArea);
+
+    var title = document.createElement("div");
+    title.className = "deck-builder-palette-title";
+    title.textContent = "Formula Builder";
+    topArea.appendChild(title);
+
+    // Formula bar
+    var formulaBar = document.createElement("input");
+    formulaBar.type = "text";
+    formulaBar.className = "formula-bar";
+    formulaBar.placeholder = "Type or click chips...";
+    topArea.appendChild(formulaBar);
+
+    // Preview line
+    var preview = document.createElement("div");
+    preview.className = "formula-preview";
+    preview.textContent = "= ?";
+    topArea.appendChild(preview);
+
+    // Field indicator
+    var fieldIndicator = document.createElement("div");
+    fieldIndicator.className = "formula-field-indicator";
+    fieldIndicator.textContent = "Click Edit then focus a formula field";
+    topArea.appendChild(fieldIndicator);
+
+    // Apply button — full width
+    var applyBtn = document.createElement("button");
+    applyBtn.className = "formula-apply-btn";
+    applyBtn.textContent = "Apply to Field";
+    applyBtn.disabled = true;
+    applyBtn.addEventListener("click", function () {
+        if (!activeFormulaField) return;
+        var expr = formulaBar.value.trim();
+        if (expr) {
+            activeFormulaField.value = "fx:" + expr;
+            activeFormulaField.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    });
+    topArea.appendChild(applyBtn);
+
+    // Allow drop on formula bar
+    formulaBar.addEventListener("dragover", function (e) { e.preventDefault(); });
+    formulaBar.addEventListener("drop", function (e) {
+        e.preventDefault();
+        var text = e.dataTransfer.getData("text/plain");
+        if (!text) return;
+        var pos = formulaBar.selectionStart || formulaBar.value.length;
+        var val = formulaBar.value;
+        formulaBar.value = val.slice(0, pos) + text + val.slice(pos);
+        formulaBar.focus();
+        formulaBar.selectionStart = formulaBar.selectionEnd = pos + text.length;
+        updatePreview();
+    });
+    formulaBar.addEventListener("input", updatePreview);
+
+    function updatePreview() {
+        var expr = formulaBar.value.trim();
+        if (!expr) { preview.textContent = "= ?"; preview.style.color = ""; return; }
+        var fxExpr = "fx:" + expr;
+        var ctx = buildFormulaCtxFromDecks(workingCharging);
+        var result = evaluateFormula(fxExpr, ctx);
+        if (result != null) {
+            preview.textContent = "= " + result.toFixed(3) + "m";
+            preview.style.color = "";
+        } else {
+            preview.textContent = "= error";
+            preview.style.color = "#c00";
+        }
+    }
+
+    // ---- Scrollable chip area ----
+    var chipsArea = document.createElement("div");
+    chipsArea.className = "formula-chips-area";
+    panel.appendChild(chipsArea);
+
+    // Helper: create a chip element
+    function makeChip(text, extraClass) {
+        var chip = document.createElement("span");
+        chip.className = "formula-chip" + (extraClass ? " " + extraClass : "");
+        chip.textContent = text;
+        chip.draggable = true;
+        chip.addEventListener("dragstart", function (e) {
+            e.dataTransfer.setData("text/plain", text);
+        });
+        chip.addEventListener("click", function () {
+            var pos = formulaBar.selectionStart || formulaBar.value.length;
+            var val = formulaBar.value;
+            formulaBar.value = val.slice(0, pos) + text + val.slice(pos);
+            formulaBar.focus();
+            formulaBar.selectionStart = formulaBar.selectionEnd = pos + text.length;
+            updatePreview();
+        });
+        return chip;
+    }
+
+    // Helper: create a section
+    function makeSection(titleText) {
+        var sec = document.createElement("div");
+        var t = document.createElement("div");
+        t.className = "formula-section-title";
+        t.textContent = titleText;
+        sec.appendChild(t);
+        var group = document.createElement("div");
+        group.className = "formula-chip-group";
+        sec.appendChild(group);
+        return { container: sec, group: group };
+    }
+
+    // ---- Operators (most used, show first) ----
+    var opSec = makeSection("Operators");
+    var ops = ["+", "-", "*", "/", "(", ")", ">", "<", ">=", "<=", "==", "!=", "?", ":", "&&", "||"];
+    for (var o = 0; o < ops.length; o++) {
+        opSec.group.appendChild(makeChip(ops[o], "operator"));
+    }
+    chipsArea.appendChild(opSec.container);
+
+    // ---- Hole variables ----
+    var holeSec = makeSection("Hole");
+    var holeVars = ["holeLength", "holeDiameter", "benchHeight", "subdrillLength"];
+    for (var i = 0; i < holeVars.length; i++) {
+        holeSec.group.appendChild(makeChip(holeVars[i]));
+    }
+    chipsArea.appendChild(holeSec.container);
+
+    // ---- Charge variables ----
+    var chargeSec = makeSection("Charge");
+    var chargeVars = ["chargeBase", "chargeTop", "chargeLength", "stemLength"];
+    for (var j = 0; j < chargeVars.length; j++) {
+        chargeSec.group.appendChild(makeChip(chargeVars[j]));
+    }
+    chipsArea.appendChild(chargeSec.container);
+
+    // ---- Indexed variables (dynamic from decks) ----
+    var indexedSec = makeSection("Indexed");
+    chipsArea.appendChild(indexedSec.container);
+
+    function refreshIndexedVars() {
+        var group = indexedSec.group;
+        while (group.firstChild) group.removeChild(group.firstChild);
+        var numDecks = workingCharging.decks.length;
+        if (numDecks === 0) {
+            var empty = document.createElement("span");
+            empty.style.cssText = "opacity:0.5;font-size:9px;";
+            empty.textContent = "No decks yet";
+            group.appendChild(empty);
+            return;
+        }
+        var indexedNames = ["deckBase", "deckTop", "chargeBase", "chargeTop"];
+        for (var d = 1; d <= numDecks; d++) {
+            for (var n = 0; n < indexedNames.length; n++) {
+                group.appendChild(makeChip(indexedNames[n] + "[" + d + "]"));
+            }
+        }
+    }
+    refreshIndexedVars();
+
+    // ---- Functions ----
+    var funcSec = makeSection("Functions");
+    var funcs = ["massLength( , )", "Math.min( , )", "Math.max( , )"];
+    for (var f = 0; f < funcs.length; f++) {
+        funcSec.group.appendChild(makeChip(funcs[f], "function"));
+    }
+    chipsArea.appendChild(funcSec.container);
+
+    function setActiveField(inputEl) {
+        activeFormulaField = inputEl;
+        applyBtn.disabled = !inputEl;
+        if (inputEl) {
+            fieldIndicator.textContent = "\u25B6 " + (inputEl.name || "field");
+            // Load current value into formula bar (strip fx: prefix if present)
+            var curVal = (inputEl.value || "").trim();
+            if (curVal.substring(0, 3) === "fx:") {
+                formulaBar.value = curVal.substring(3);
+            } else if (curVal.charAt(0) === "=") {
+                formulaBar.value = curVal.substring(1);
+            } else {
+                formulaBar.value = "";
+            }
+            updatePreview();
+        } else {
+            fieldIndicator.textContent = "Click Edit then focus a formula field";
+        }
+    }
+
+    return {
+        element: panel,
+        refreshIndexedVars: refreshIndexedVars,
+        setActiveField: setActiveField
+    };
 }
 
 /**
@@ -225,6 +431,10 @@ export function showDeckBuilderDialog(referenceHole) {
     sectionCanvas.style.cssText = "flex:1;width:100%;";
     sectionDiv.appendChild(sectionCanvas);
 
+    // -------- RIGHT: Formula Builder Panel --------
+    var formulaPanel = buildFormulaPanel(workingCharging);
+    mainArea.appendChild(formulaPanel.element);
+
     var sectionView = new HoleSectionView({
         canvas: sectionCanvas,
         padding: 25,
@@ -237,6 +447,7 @@ export function showDeckBuilderDialog(referenceHole) {
             workingCharging.modified = new Date().toISOString();
             sectionView.draw();
             updateSummary();
+            formulaPanel.refreshIndexedVars();
         },
         onPrimerSelect: function (primer, index) {
             updatePrimerInfo(primer, index);
@@ -287,13 +498,13 @@ export function showDeckBuilderDialog(referenceHole) {
 
     actionRow.appendChild(
         makeBtn("Edit", "option2", function () {
-            editSelected(workingCharging, sectionView, refHole, function () { updateSummary(); });
+            editSelected(workingCharging, sectionView, refHole, function () { updateSummary(); }, formulaPanel);
         })
     );
 
     actionRow.appendChild(
         makeBtn("Remove", "deny", function () {
-            removeSelected(workingCharging, sectionView, function () { updateSummary(); }, showInlineWarning, isFixedSpacer, findGapFillDeck);
+            removeSelected(workingCharging, sectionView, function () { updateSummary(); formulaPanel.refreshIndexedVars(); }, showInlineWarning, isFixedSpacer, findGapFillDeck);
         })
     );
 
@@ -303,6 +514,7 @@ export function showDeckBuilderDialog(referenceHole) {
             workingCharging.clear();
             sectionView.setData(workingCharging);
             updateSummary();
+            formulaPanel.refreshIndexedVars();
         })
     );
 
@@ -312,7 +524,7 @@ export function showDeckBuilderDialog(referenceHole) {
 
     actionRow.appendChild(
         makeBtn("Apply Rule...", "option2", function () {
-            showRuleSelector(workingCharging, sectionView, refHole, configTracker);
+            showRuleSelector(workingCharging, sectionView, refHole, configTracker, formulaPanel);
         })
     );
 
@@ -329,14 +541,14 @@ export function showDeckBuilderDialog(referenceHole) {
     );
 
     // ======== DRAG & DROP SETUP ========
-    setupDragDrop(sectionCanvas, sectionView, workingCharging, refHole, configTracker);
+    setupDragDrop(sectionCanvas, sectionView, workingCharging, refHole, configTracker, formulaPanel);
 
     // ======== CREATE DIALOG ========
     var dialog = new FloatingDialog({
         title: "Deck Builder",
         content: contentDiv,
-        width: 680,
-        height: 560,
+        width: 800,
+        height: 640,
         showConfirm: false,
         showCancel: true,
         cancelText: "Close",
@@ -580,7 +792,7 @@ function buildProductPalette(container) {
 /**
  * Setup drag-and-drop from palette to section view canvas
  */
-function setupDragDrop(canvas, sectionView, workingCharging, refHole, configTracker) {
+function setupDragDrop(canvas, sectionView, workingCharging, refHole, configTracker, formulaPanel) {
     canvas.addEventListener("dragover", function (e) {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
@@ -667,6 +879,7 @@ function setupDragDrop(canvas, sectionView, workingCharging, refHole, configTrac
         workingCharging.fillInterval(parseFloat(topD.toFixed(2)), parseFloat(baseD.toFixed(2)), deckType, productSnapshot(fullProduct));
 
         sectionView.setData(workingCharging);
+        if (formulaPanel) formulaPanel.refreshIndexedVars();
     });
 }
 
@@ -813,7 +1026,7 @@ function addPrimerToCharging(workingCharging, sectionView, refHole) {
  * Edit an existing primer via dialog pre-populated with its current values.
  * Updates the primer in-place on confirm.
  */
-function editPrimer(workingCharging, sectionView, refHole) {
+function editPrimer(workingCharging, sectionView, refHole, formulaPanel) {
     var idx = sectionView.selectedPrimerIndex;
     if (idx < 0 || idx >= workingCharging.primers.length) {
         var row = document.getElementById("deckBuilderPropsRow");
@@ -884,10 +1097,18 @@ function editPrimer(workingCharging, sectionView, refHole) {
     if (detSelect) detSelect.addEventListener("change", syncDelayField);
     syncDelayField(); // set initial state from current primer's detonator
 
+    // Wire formula field to the Formula Builder panel
+    if (formulaPanel) {
+        var depthField = formContent.querySelector('input[name="depthFromCollar"]');
+        if (depthField) {
+            depthField.addEventListener("focus", function () { formulaPanel.setActiveField(depthField); });
+        }
+    }
+
     var editDialog = new FloatingDialog({
         title: "Edit Primer " + (idx + 1),
         content: formContent,
-        width: 350,
+        width: 420,
         height: 320,
         showConfirm: true,
         confirmText: "Update",
@@ -960,10 +1181,10 @@ function editPrimer(workingCharging, sectionView, refHole) {
 /**
  * Universal Edit: auto-detect whether a primer or deck is selected and open the right editor.
  */
-function editSelected(workingCharging, sectionView, refHole, onUpdate) {
+function editSelected(workingCharging, sectionView, refHole, onUpdate, formulaPanel) {
     // Primer selection takes priority (more specific)
     if (sectionView.selectedPrimerIndex >= 0 && sectionView.selectedPrimerIndex < workingCharging.primers.length) {
-        editPrimer(workingCharging, sectionView, refHole);
+        editPrimer(workingCharging, sectionView, refHole, formulaPanel);
         return;
     }
     // Embedded content selection
@@ -972,7 +1193,7 @@ function editSelected(workingCharging, sectionView, refHole, onUpdate) {
         return;
     }
     if (sectionView.selectedDeckIndex >= 0 && sectionView.selectedDeckIndex < workingCharging.decks.length) {
-        editDeck(workingCharging, sectionView, refHole, onUpdate);
+        editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel);
         return;
     }
     // Nothing selected
@@ -1035,7 +1256,7 @@ function removeSelected(workingCharging, sectionView, onUpdate, showInlineWarnin
  * Edit an existing deck via dialog pre-populated with its current values.
  * Supports fx: formulas for topDepth and baseDepth.
  */
-function editDeck(workingCharging, sectionView, refHole, onUpdate) {
+function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel) {
     var idx = sectionView.selectedDeckIndex;
     if (idx < 0 || idx >= workingCharging.decks.length) return;
 
@@ -1120,8 +1341,8 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate) {
     // Scaling mode selector
     var currentScalingMode = deck.isFixedLength ? DECK_SCALING_MODES.FIXED_LENGTH
         : deck.isFixedMass ? DECK_SCALING_MODES.FIXED_MASS
-        : deck.isVariable ? DECK_SCALING_MODES.VARIABLE
-        : DECK_SCALING_MODES.PROPORTIONAL;
+            : deck.isVariable ? DECK_SCALING_MODES.VARIABLE
+                : DECK_SCALING_MODES.PROPORTIONAL;
     fields.push({
         label: "Scaling Mode", name: "scalingMode", type: "select",
         options: [
@@ -1152,6 +1373,18 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate) {
         });
     }
 
+    // Wire formula fields to the Formula Builder panel
+    if (formulaPanel) {
+        var topField = formContent.querySelector('input[name="topDepth"]');
+        var baseField2 = formContent.querySelector('input[name="baseDepth"]');
+        if (topField) {
+            topField.addEventListener("focus", function () { formulaPanel.setActiveField(topField); });
+        }
+        if (baseField2) {
+            baseField2.addEventListener("focus", function () { formulaPanel.setActiveField(baseField2); });
+        }
+    }
+
     // Calculate dialog height based on extra fields
     var dialogHeight = 340;
     if (isDecoupled) dialogHeight += 45; // overlap pattern field
@@ -1160,7 +1393,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate) {
     var editDialog = new FloatingDialog({
         title: "Edit Deck " + (idx + 1),
         content: formContent,
-        width: 380,
+        width: 450,
         height: dialogHeight,
         showConfirm: true,
         confirmText: "Update",
@@ -1332,6 +1565,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate) {
             workingCharging.sortDecks();
             sectionView.setData(workingCharging);
             if (onUpdate) onUpdate();
+            if (formulaPanel) formulaPanel.refreshIndexedVars();
         }
     });
     editDialog.show();
@@ -1388,7 +1622,7 @@ function editEmbeddedContent(workingCharging, sectionView, onUpdate) {
 /**
  * Show rule selection dropdown and apply selected rule
  */
-function showRuleSelector(workingCharging, sectionView, refHole, configTracker) {
+function showRuleSelector(workingCharging, sectionView, refHole, configTracker, formulaPanel) {
     var configs = window.loadedChargeConfigs || new Map();
     if (configs.size === 0) {
         showModalMessage("Apply Rule", "No charge configs loaded. Import a config template first.", "warning");
@@ -1435,6 +1669,7 @@ function showRuleSelector(workingCharging, sectionView, refHole, configTracker) 
                         }
                     }
                     sectionView.setData(workingCharging);
+                    if (formulaPanel) formulaPanel.refreshIndexedVars();
                 }
             } else {
                 showModalMessage("Apply Rule", "Rule engine not loaded.", "warning");

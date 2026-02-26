@@ -251,7 +251,7 @@ export class HoleSectionView {
         if (parentPos === "static") parent.style.position = "relative";
 
         var overlay = document.createElement("div");
-        overlay.style.cssText = "position:absolute;top:104px;right:4px;display:flex;flex-direction:column;gap:2px;z-index:10;";
+        overlay.style.cssText = "position:absolute;top:40px;right:10px;display:flex;flex-direction:column;gap:2px;z-index:10;";
 
         var zoomIn = document.createElement("img");
         zoomIn.src = "icons/zoom-in.png";
