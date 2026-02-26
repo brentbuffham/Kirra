@@ -36557,6 +36557,25 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 });
 
+// Contour Surface button handler
+document.addEventListener("DOMContentLoaded", function () {
+	var contourBtn = document.getElementById("contourSurfaceBtn");
+	if (contourBtn) {
+		contourBtn.addEventListener("click", async function () {
+			try {
+				var { showContourDialog } = await import("./dialog/popups/surface/ContourDialog.js");
+				var { generateContours } = await import("./helpers/ContourHelper.js");
+
+				showContourDialog(function(config) {
+					generateContours(config);
+				});
+			} catch (error) {
+				console.error("Failed to load Surface Contours:", error);
+			}
+		});
+	}
+});
+
 // Extrude KAD to Solid button handler
 document.addEventListener("DOMContentLoaded", function () {
 	var extrudeBtn = document.getElementById("extrudeKADToSolidBtn");

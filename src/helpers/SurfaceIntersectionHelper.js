@@ -897,7 +897,7 @@ function distSq3D(a, b) {
 // Step 6) Simplify polyline by vertex spacing
 // ────────────────────────────────────────────────────────
 
-function simplifyPolyline(points, spacing) {
+export function simplifyPolyline(points, spacing) {
     if (points.length <= 2 || spacing <= 0) return points;
 
     var result = [points[0]];
@@ -921,7 +921,7 @@ function simplifyPolyline(points, spacing) {
 // Step 7) Create KAD poly entities with undo batch
 // ────────────────────────────────────────────────────────
 
-function createKADEntities(polylines, config) {
+export function createKADEntities(polylines, config) {
     // Step 7a) Begin batch
     if (window.undoManager && polylines.length > 1) {
         window.undoManager.beginBatch("Surface Intersection (" + polylines.length + " polygons)");
@@ -952,22 +952,25 @@ function createKADEntities(polylines, config) {
     }
 
     // Step 7c) Create entity per polyline
+    var isClosed = config.closedPolygons === true;
+    var entType = isClosed ? "poly" : "line";
+
     polylines.forEach(function(points, idx) {
         var entityName = config.layerName + "_" + Math.random().toString(36).substring(2, 6) + "_" + idx;
         var entityData = {
-            entityType: "poly",
+            entityType: entType,
             layerId: activeLayerId,
             data: points.map(function(pt, i) {
                 return {
                     entityName: entityName,
-                    entityType: "poly",
+                    entityType: entType,
                     pointID: i + 1,
                     pointXLocation: pt.x,
                     pointYLocation: pt.y,
                     pointZLocation: pt.z,
                     lineWidth: config.lineWidth || 3,
                     color: config.color || "#FFCC00",
-                    closed: config.closedPolygons !== false,
+                    closed: isClosed,
                     visible: true
                 };
             })

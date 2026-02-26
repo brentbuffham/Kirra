@@ -6,7 +6,7 @@ Ideas and potential tasks to discuss or implement later.
 
 1. KAD Entity Validation & Sorting — _low risk, low effort_
 2. Charging System UI Improvements — _low risk, small UI tweaks_
-3. Surface Contour Line Generation — _low risk, reuses existing intersection pipeline_
+3. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
 4. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
 5. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
 6. KAD Modification Tools — _low risk, additive new tools_
@@ -71,8 +71,6 @@ Ideas and potential tasks to discuss or implement later.
   - **Polyline/polygon to timing contour** — Draw a polyline or polygon entity and convert it to a timing contour
   - **Triangulated timing surface** — Use two or more points, lines, or polys at an elevation, build a triangulation between them, then use the resulting surface as a timing contour. Assign downhole times to blast holes by interpolating timing values from the triangulated surface at each hole's XY location
 
-- **Surface Contour Line Generation** — Generate contour lines from a triangulated surface by reusing the existing surface intersection tool. Approach: for each contour interval, generate an imaginary horizontal plane at that elevation in memory, then intersect it against the selected surface using the existing intersection pipeline. Output the resulting intersection lines as KAD line/poly entities for display and export. No need for marching squares — the intersection tool already handles triangle-plane math and segment extraction. (2026-02-25)
-
 - **Improve 3D Draw Calls & Interaction Response** — 3D performance is very poor with multiple surfaces loaded (4 FPS at 728K triangles, 21 surfaces, 32 draw calls, ~550ms avg frame time). Investigate and fix: (2026-02-25)
   - **Frustum culling** — skip rendering surfaces/objects outside the camera view
   - **Geometry merging** — merge static surfaces into fewer draw calls where possible
@@ -94,4 +92,4 @@ _(move items here when ready to proceed)_
 
 ## Completed
 
-_(move items here when done)_
+- **Surface Contour Line Generation** — Implemented 2026-02-26. Files: `src/helpers/ContourHelper.js`, `src/dialog/popups/surface/ContourDialog.js`. Plane-triangle intersection slicing with elevation-based entity naming (`RL{elev}-{seq}-{uid}`), line/poly toggle, settings persistence.
