@@ -4,20 +4,22 @@ Ideas and potential tasks to discuss or implement later.
 
 ## Contents (ordered: quick wins → high effort/risk)
 
-1. KAD Entity Validation & Sorting — _low risk, low effort_
+1. ~~KAD Entity Validation & Sorting~~ — **COMPLETED** (2026-02-26)
 2. Charging System UI Improvements — _low risk, small UI tweaks_
 3. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
 4. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
 5. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
-6. KAD Modification Tools — _low risk, additive new tools_
-7. TreeView Revamp — _low-medium risk, medium effort_
-8. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
-9. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
-10. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
-11. Electronic Timing Tools — _medium risk, new feature area_
-12. Performance & Large Dataset Scalability — _medium-high risk, high effort_
-13. Replace local helpers with trimesh-boolean npm package — _high risk, dependency swap_
-14. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
+6. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
+7. Charging — Formula Builder UI — _medium risk, new UI component_
+8. KAD Modification Tools — _low risk, additive new tools_
+9. TreeView Revamp — _low-medium risk, medium effort_
+10. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
+11. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
+12. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
+13. Electronic Timing Tools — _medium risk, new feature area_
+14. Performance & Large Dataset Scalability — _medium-high risk, high effort_
+15. Replace local helpers with trimesh-boolean npm package — _high risk, dependency swap_
+16. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
 
 ## Under Consideration
 
@@ -61,7 +63,21 @@ Ideas and potential tasks to discuss or implement later.
 
 - **Charging System UI Improvements** — Enhance the deck/charging interface for better usability: (2026-02-25)
   - **Right-click context menu on deck** — Right-click a deck to edit it, link to deck-base above, or link to deck-top below
-  - **Text field expansion priority** — The edit deck dialog text fields should prioritise expandability so users can write long formulas (e.g., resizable/multi-line inputs instead of fixed-width single-line fields)
+  - **Text field expansion priority** — The edit deck/primer dialog text fields should prioritise expandability so users can write long formulas (e.g., resizable/multi-line inputs instead of fixed-width single-line fields). Currently formula fields like `fx:chargeBase[4] - 0.3` are cramped in small fixed-width inputs
+
+- **Charging — Hole Conditions / Swap Editor** — Add a dialog for setting hole conditions and swap rules on blast holes. The swap engine already supports condition codes (`w` wet, `d` damp, `r` reactive, `t` temperature) and the hole data model has `holeConditions`, `measuredTemperature`, `measuredTemperatureUnit` fields — but there is no UI to set them. (2026-02-26)
+  - Checkbox list for condition codes (wet, damp, reactive)
+  - Temperature input with C/F unit selector
+  - Accessible from hole right-click context menu or Deck Builder dialog
+  - Critical for testing and applying product swap rules
+
+- **Charging — Formula Builder UI** — Add a drag-and-drop formula builder for deck/primer depth formulas. Instead of manually typing `fx:chargeBase[4] - 0.3`, provide a visual builder with: (2026-02-26)
+  - **Draggable variable chips**: `holeLength`, `stemLength`, `chargeBase[n]`, `deckTop[n]`, `deckBase[n]`, `benchHeight`, `subdrill`, etc.
+  - **Draggable operator chips**: `+`, `-`, `*`, `/`, `?`, `:`, `>`, `<`, `>=`, `<=`, `(`, `)`
+  - **Drop zone / formula bar** where chips are assembled left-to-right into a formula string
+  - **Live preview** showing the resolved numeric value for the current hole
+  - Clicking a chip in the formula bar selects it for editing or deletion
+  - Formula string output feeds directly into existing `fx:` formula engine
 
 - **Charging Tools — Temperature Recording from Hole Conditions** — Extend the charging tools to record temperature data, sourcing from the existing "Hole Conditions" code. Allow temperature to be captured per hole/deck and stored alongside charge data for reporting and product selection. (2026-02-25)
 
@@ -91,5 +107,7 @@ Ideas and potential tasks to discuss or implement later.
 _(move items here when ready to proceed)_
 
 ## Completed
+
+- **KAD Entity Validation & Sorting** — Implemented 2026-02-26. Files: `src/helpers/KADValidationHelper.js`, modified `src/kirra.js` (endKadTools, debouncedSaveKAD, loadKADFromDB), `src/dialog/contextMenu/ContextMenuManager.js`. Interactive Convert/Discard dialog on invalid entities (Escape, right-click, entity finish). Silent batch validation on save/load chokepoints.
 
 - **Surface Contour Line Generation** — Implemented 2026-02-26. Files: `src/helpers/ContourHelper.js`, `src/dialog/popups/surface/ContourDialog.js`. Plane-triangle intersection slicing with elevation-based entity naming (`RL{elev}-{seq}-{uid}`), line/poly toggle, settings persistence.

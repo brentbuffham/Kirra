@@ -175,6 +175,7 @@ import "./dialog/popups/export/DXFExportDialog.js";
 import "./dialog/popups/export/ChargingExportDialog.js";
 // Helper Modules
 import { getOrCreateDrawingLayer } from "./helpers/LayerHelper.js";
+import { validateKADEntity, fixKADEntity, validateAllKADEntities } from "./helpers/KADValidationHelper.js";
 import { exportImagesAsGeoTIFF, exportSurfacesAsElevationGeoTIFF } from "./helpers/GeoTIFFExporter.js";
 import { CoordinateDebugger } from "./helpers/CoordinateDebugger.js";
 // ProcessingIndicator - Shows "Please Wait" overlay during heavy operations
@@ -33425,6 +33426,11 @@ function debouncedSaveKAD() {
 		console.log("Auto-saving KAD drawings to DB...");
 		// Only save if DB is initialized
 		if (db) {
+			// Silently fix any invalid entities before persisting
+			var saveValResult = validateAllKADEntities(allKADDrawingsMap);
+			if (saveValResult.fixed > 0 || saveValResult.removed > 0) {
+				console.log("KAD save validation: fixed " + saveValResult.fixed + ", removed " + saveValResult.removed + " invalid entities");
+			}
 			saveKADToDB(allKADDrawingsMap);
 		} else {
 			console.log("DB not ready, skipping auto-save");
@@ -33496,7 +33502,12 @@ function loadKADFromDB() {
 		request.onsuccess = (event) => {
 			const result = event.target.result;
 			if (result && result.data && result.data.length > 0) {
-				allKADDrawingsMap = new Map(result.data); // ? Access the data property
+				allKADDrawingsMap = new Map(result.data);
+				// Silently fix any legacy invalid entities on load
+				var loadValResult = validateAllKADEntities(allKADDrawingsMap);
+				if (loadValResult.fixed > 0 || loadValResult.removed > 0) {
+					console.log("KAD load validation: fixed " + loadValResult.fixed + ", removed " + loadValResult.removed + " invalid entities");
+				}
 				console.log("✅ //-- LOADED UNIFIED DRAWING OBJECTS FROM IndexedDB --//");
 				debouncedUpdateTreeView();
 				drawData(allBlastHoles, selectedHole);
@@ -35627,43 +35638,23 @@ function endKadTools(forceEnd = false) {
 	if (anyKADToolActive) {
 		// Step 2) Decide: complete entity OR end tool
 		if (!createNewEntity && !forceEnd) {
-			// Step 2a) Validate entity before completing — auto-convert invalid types
+			// Step 2a) Validate entity before completing — show dialog if invalid
+			var validationHandled = false;
 			if (currentDrawingEntityName && allKADDrawingsMap.has(currentDrawingEntityName)) {
-				var finEntity = allKADDrawingsMap.get(currentDrawingEntityName);
-				var finCount = finEntity.data ? finEntity.data.length : 0;
-				var finType = finEntity.entityType;
+				var finEntityName = currentDrawingEntityName;
+				var finEntity = allKADDrawingsMap.get(finEntityName);
+				var valResult = validateKADEntity(finEntity);
 
-				if (finCount === 0) {
-					// 0 points — discard silently
-					allKADDrawingsMap.delete(currentDrawingEntityName);
-					var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(currentDrawingEntityName) : null;
-					if (delLayer && delLayer.entities) delLayer.entities.delete(currentDrawingEntityName);
-				} else if (finType === "line" && finCount < 2) {
-					// 1-point line → convert to point
-					finEntity.entityType = "point";
-					for (var fp = 0; fp < finEntity.data.length; fp++) {
-						finEntity.data[fp].entityType = "point";
-					}
-					updateStatusMessage("Converted to point (lines need 2+ points)");
-					setTimeout(function () { updateStatusMessage(""); }, 3000);
-				} else if (finType === "poly" && finCount < 3) {
-					if (finCount === 1) {
-						// 1-point poly → convert to point
-						finEntity.entityType = "point";
-						for (var fp2 = 0; fp2 < finEntity.data.length; fp2++) {
-							finEntity.data[fp2].entityType = "point";
-						}
-						updateStatusMessage("Converted to point (polygons need 3+ points)");
-						setTimeout(function () { updateStatusMessage(""); }, 3000);
+				if (valResult.status === "invalid") {
+					if (valResult.pointCount === 0) {
+						// 0 points — discard silently, no dialog needed
+						allKADDrawingsMap.delete(finEntityName);
+						var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(finEntityName) : null;
+						if (delLayer && delLayer.entities) delLayer.entities.delete(finEntityName);
 					} else {
-						// 2-point poly → convert to line
-						finEntity.entityType = "line";
-						for (var fp3 = 0; fp3 < finEntity.data.length; fp3++) {
-							finEntity.data[fp3].entityType = "line";
-							finEntity.data[fp3].closed = false;
-						}
-						updateStatusMessage("Converted to line (polygons need 3+ points)");
-						setTimeout(function () { updateStatusMessage(""); }, 3000);
+						// Show dialog: Accept (auto-convert) or Discard
+						validationHandled = true;
+						showKADValidationDialog(finEntityName, finEntity, valResult, false);
 					}
 				}
 			}
@@ -35676,14 +35667,35 @@ function endKadTools(forceEnd = false) {
 			currentDrawingEntityName = null;
 			deleteKeyCount = 0;
 
-			updateStatusMessage("Entity finished. Click to start new " + (isDrawingLine ? "line" : isDrawingPoly ? "polygon" : isDrawingCircle ? "circle" : isDrawingPoint ? "point" : "text"));
-			setTimeout(function () { updateStatusMessage(""); }, 2000);
+			if (!validationHandled) {
+				updateStatusMessage("Entity finished. Click to start new " + (isDrawingLine ? "line" : isDrawingPoly ? "polygon" : isDrawingCircle ? "circle" : isDrawingPoint ? "point" : "text"));
+				setTimeout(function () { updateStatusMessage(""); }, 2000);
+			}
 			drawData(allBlastHoles, selectedHole);
 			setTimeout(() => { drawData(allBlastHoles, selectedHole); }, 10);
-			clearKADLeadingLineThreeJSV2();  // ADD THIS
+			clearKADLeadingLineThreeJSV2();
 
 		} else {
-			// Step 2b) NOT actively drawing OR forceEnd - turn off tool entirely
+			// Step 2c) NOT actively drawing OR forceEnd - turn off tool entirely
+			// Validate current entity before discarding tool state
+			if (currentDrawingEntityName && allKADDrawingsMap.has(currentDrawingEntityName)) {
+				var feEntityName = currentDrawingEntityName;
+				var feEntity = allKADDrawingsMap.get(feEntityName);
+				var feResult = validateKADEntity(feEntity);
+
+				if (feResult.status === "invalid") {
+					if (feResult.pointCount === 0) {
+						// 0 points — discard silently
+						allKADDrawingsMap.delete(feEntityName);
+						var feDelLayer = window.layerManager ? window.layerManager.getLayerForEntity(feEntityName) : null;
+						if (feDelLayer && feDelLayer.entities) feDelLayer.entities.delete(feEntityName);
+					} else {
+						// Show dialog: Accept (auto-convert) or Discard
+						showKADValidationDialog(feEntityName, feEntity, feResult, true);
+					}
+				}
+			}
+
 			addPointDraw.checked = false;
 			addLineDraw.checked = false;
 			addCircleDraw.checked = false;
@@ -35713,7 +35725,7 @@ function endKadTools(forceEnd = false) {
 			setTimeout(function () { updateStatusMessage(""); }, 1500);
 			drawData(allBlastHoles, selectedHole);
 			setTimeout(() => { drawData(allBlastHoles, selectedHole); }, 10);
-			clearKADLeadingLineThreeJSV2();  // ADD THIS
+			clearKADLeadingLineThreeJSV2();
 		}
 	}
 
@@ -35732,6 +35744,43 @@ function endKadTools(forceEnd = false) {
 	hidePatternToolLabels();
 	// Step 5) Hide drawingDistance panel when KAD tools end
 	hideDrawingDistance();
+}
+
+/**
+ * Shows a compact confirmation dialog for an invalid KAD entity.
+ * Convert = auto-convert to valid type, Discard = delete entity.
+ * @param {string} entityName - The entity key in allKADDrawingsMap
+ * @param {Object} entity - The entity data object
+ * @param {Object} valResult - Result from validateKADEntity
+ * @param {boolean} isForceEnd - Whether this was triggered from forceEnd path
+ */
+function showKADValidationDialog(entityName, entity, valResult, isForceEnd) {
+	showConfirmationDialog(
+		"Invalid Entity",
+		valResult.message,
+		"Convert",
+		"Discard",
+		function () {
+			// Convert to valid type
+			fixKADEntity(entity, valResult.convertTo);
+			updateStatusMessage("Converted to " + valResult.convertTo);
+			setTimeout(function () { updateStatusMessage(""); }, 3000);
+			debouncedSaveKAD();
+			debouncedUpdateTreeView();
+			drawData(allBlastHoles, selectedHole);
+		},
+		function () {
+			// Discard entity
+			allKADDrawingsMap.delete(entityName);
+			var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(entityName) : null;
+			if (delLayer && delLayer.entities) delLayer.entities.delete(entityName);
+			updateStatusMessage("Entity discarded");
+			setTimeout(function () { updateStatusMessage(""); }, 2000);
+			debouncedSaveKAD();
+			debouncedUpdateTreeView();
+			drawData(allBlastHoles, selectedHole);
+		}
+	);
 }
 
 function findClosestKadPoint(worldPoint, snapDistance) {

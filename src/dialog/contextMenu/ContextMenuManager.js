@@ -26,9 +26,8 @@ export function handle2DContextMenu(event) {
 	const clickX = event.clientX - rect.left;
 	const clickY = event.clientY - rect.top;
 
-	// Step 2b) If a KAD tool is active, handle new object creation
+	// Step 2b) If a KAD tool is active, right-click ends the current entity
 	if (anyKADToolActive) {
-		window.clearCurrentDrawingEntity();
 		kadContextMenu(event);
 		return;
 	}
@@ -170,10 +169,9 @@ export function handle3DContextMenu(event) {
 	event.preventDefault();
 	closeAllContextMenus();
 
-	// Step 3b.1) If a KAD tool is active, handle new object creation (same as 2D)
+	// Step 3b.1) If a KAD tool is active, right-click ends the current entity (same as 2D)
 	const anyKADToolActive = window.addPointDraw.checked || window.addLineDraw.checked || window.addCircleDraw.checked || window.addPolyDraw.checked || window.addTextDraw.checked;
 	if (anyKADToolActive) {
-		window.clearCurrentDrawingEntity();
 		kadContextMenu(event);
 		return;
 	}

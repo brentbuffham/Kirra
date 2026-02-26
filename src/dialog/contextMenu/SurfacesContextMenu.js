@@ -238,11 +238,6 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 	normalsSection.appendChild(topologyBadge);
 	formContent.appendChild(normalsSection);
 
-	// Step 6c-1) Initialize jscolor for hillshade color picker
-	if (typeof window.jscolor !== "undefined") {
-		window.jscolor.install();
-	}
-
 	// Step 7) Create dialog with footer buttons
 	var dialog = new window.FloatingDialog({
 		title: currentSurface.name || "Surface Properties",
@@ -356,6 +351,13 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 
 	dialog.show();
 
+	// Step 7a-1) Initialize jscolor AFTER dialog is in DOM so it can find the input
+	setTimeout(function () {
+		if (typeof window.jscolor !== "undefined") {
+			window.jscolor.install();
+		}
+	}, 50);
+
 	// Step 8) Position dialog near click location (adjusted for viewport bounds)
 	if (dialog.element) {
 		var dialogWidth = 370;
@@ -374,10 +376,13 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
  * Reuses the same table format as TreeView's showStatistics.
  */
 function showSurfaceStatsDialog(stats) {
-	function formatArea(val) {
-		if (val >= 1e6) return (val / 1e6).toFixed(3) + "M";
-		if (val >= 1e3) return (val / 1e3).toFixed(3) + "K";
+	function formatValue(val) {
+		if (val >= 1e9) return val.toExponential(3);
 		return val.toFixed(2);
+	}
+	function formatCount(val) {
+		if (val >= 1e9) return val.toExponential(3);
+		return String(val);
 	}
 
 	var content = document.createElement("div");
@@ -386,16 +391,16 @@ function showSurfaceStatsDialog(stats) {
 	table.className = "stats-table";
 
 	var rows = [
-		["Points", stats.points.toLocaleString()],
-		["Edges", stats.edges.toLocaleString()],
-		["Faces", stats.faces.toLocaleString()],
+		["Points (pts)", formatCount(stats.points)],
+		["Edges (segs)", formatCount(stats.edges)],
+		["Faces (tris)", formatCount(stats.faces)],
 		["Normal Dir.", stats.normalDirection],
 		["Closed", stats.closed],
-		["XY Area (m\u00B2)", formatArea(stats.xyArea)],
-		["YZ Area (m\u00B2)", formatArea(stats.yzArea)],
-		["XZ Area (m\u00B2)", formatArea(stats.xzArea)],
-		["3D Area (m\u00B2)", formatArea(stats.surfaceArea)],
-		["Volume (m\u00B3)", formatArea(stats.volume)]
+		["XY Area (m\u00B2)", formatValue(stats.xyArea)],
+		["YZ Area (m\u00B2)", formatValue(stats.yzArea)],
+		["XZ Area (m\u00B2)", formatValue(stats.xzArea)],
+		["3D Area (m\u00B2)", formatValue(stats.surfaceArea)],
+		["Volume (m\u00B3)", formatValue(stats.volume)]
 	];
 
 	var tbody = document.createElement("tbody");
