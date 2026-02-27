@@ -6,6 +6,7 @@
  */
 
 import { AddKADEntityAction } from "../tools/UndoActions.js";
+import { showWorkerProgressDialog } from "../dialog/popups/generic/WorkerProgressDialog.js";
 
 /**
  * Compute surface intersections and create KAD polyline entities.
@@ -18,7 +19,7 @@ import { AddKADEntityAction } from "../tools/UndoActions.js";
  * @param {number} config.lineWidth - Line width
  * @param {string} config.layerName - Target KAD layer name
  */
-export function computeSurfaceIntersections(config) {
+export async function computeSurfaceIntersections(config) {
     if (!config || !config.surfaceIds || config.surfaceIds.length < 2) {
         console.error("SurfaceIntersectionHelper: Need at least 2 surface IDs");
         return;
@@ -26,8 +27,8 @@ export function computeSurfaceIntersections(config) {
 
     console.log("Computing surface intersections for " + config.surfaceIds.length + " surfaces...");
 
-    // Step 1) Extract triangle data from each surface
-    var surfaceData = [];
+    // Step 1) Collect surface data on main thread (needs window.loadedSurfaces)
+    var surfaces = [];
     for (var i = 0; i < config.surfaceIds.length; i++) {
         var surfId = config.surfaceIds[i];
         var surface = window.loadedSurfaces.get(surfId);
@@ -35,84 +36,90 @@ export function computeSurfaceIntersections(config) {
             console.warn("Surface not found: " + surfId);
             continue;
         }
-        var tris = extractTriangles(surface);
-        if (tris.length === 0) {
-            console.warn("No triangles in surface: " + surfId);
-            continue;
-        }
-        // Step 1a) Align normals Z-up for consistent Moller tri-tri intersection
-        tris = ensureZUpNormals(tris);
-        var bbox = computeBBox(tris);
-        surfaceData.push({ id: surfId, triangles: tris, bbox: bbox });
+        // Send serializable surface data to worker
+        surfaces.push({ id: surfId, points: surface.points, triangles: surface.triangles });
     }
 
-    if (surfaceData.length < 2) {
+    if (surfaces.length < 2) {
         console.error("Need at least 2 surfaces with triangles");
         return;
     }
 
-    // Step 2) Process all surface pairs
-    var allSegments = [];
-    for (var a = 0; a < surfaceData.length; a++) {
-        for (var b = a + 1; b < surfaceData.length; b++) {
-            var sA = surfaceData[a];
-            var sB = surfaceData[b];
+    // Step 2) Show progress dialog and delegate heavy computation to Web Worker
+    var progressDialog = showWorkerProgressDialog("Surface Intersection", {
+        initialMessage: "Computing intersections for " + surfaces.length + " surfaces..."
+    });
 
-            // Skip pairs with no AABB overlap
-            if (!bboxOverlap(sA.bbox, sB.bbox)) {
-                console.log("No overlap between " + sA.id + " and " + sB.id + ", skipping");
-                continue;
-            }
+    try {
+        var result = await computeInWorker(surfaces, config, progressDialog);
 
-            var segments = intersectSurfacePair(sA.triangles, sB.triangles);
-            console.log("Pair " + sA.id + " x " + sB.id + ": " + segments.length + " segments");
-            for (var s = 0; s < segments.length; s++) {
-                allSegments.push(segments[s]);
+        if (result.noIntersection) {
+            progressDialog.close();
+            showInfo("No intersections found between the selected surfaces.");
+            return;
+        }
+
+        if (!result.polylines || result.polylines.length === 0) {
+            progressDialog.close();
+            showInfo("Intersections found but all polylines were too short after simplification.");
+            return;
+        }
+
+        console.log("Worker returned " + result.polylines.length + " polyline(s) from " + result.segmentCount + " segments");
+
+        // Step 3) Create KAD poly entities on main thread (needs window state)
+        createKADEntities(result.polylines, config);
+
+        progressDialog.complete(result.polylines.length + " polyline(s) created");
+    } catch (err) {
+        console.error("Surface intersection worker error:", err);
+        progressDialog.fail("Intersection failed: " + err.message);
+        showInfo("Surface intersection failed: " + err.message);
+    }
+}
+
+/**
+ * Run surface intersection computation in a Web Worker.
+ */
+function computeInWorker(surfaces, config, progressDialog) {
+    return new Promise(function(resolve, reject) {
+        var worker = new Worker(
+            new URL("../workers/surfaceIntersectionWorker.js", import.meta.url),
+            { type: "module" }
+        );
+
+        function handler(e) {
+            var msg = e.data;
+            if (msg.type === "progress") {
+                if (progressDialog) progressDialog.update(msg.percent, msg.message);
+            } else if (msg.type === "result") {
+                worker.removeEventListener("message", handler);
+                worker.removeEventListener("error", errHandler);
+                worker.terminate();
+                resolve(msg.data);
+            } else if (msg.type === "error") {
+                worker.removeEventListener("message", handler);
+                worker.removeEventListener("error", errHandler);
+                worker.terminate();
+                reject(new Error(msg.message));
             }
         }
-    }
 
-    if (allSegments.length === 0) {
-        console.warn("No intersections found between selected surfaces");
-        showInfo("No intersections found between the selected surfaces.");
-        return;
-    }
-
-    console.log("Total intersection segments: " + allSegments.length);
-
-    // Step 5) Chain segments into polylines
-    // Use tolerance based on average segment length (floating-point matching)
-    var avgSegLen = 0;
-    for (var sl = 0; sl < allSegments.length; sl++) {
-        avgSegLen += dist3D(allSegments[sl].p0, allSegments[sl].p1);
-    }
-    avgSegLen = allSegments.length > 0 ? avgSegLen / allSegments.length : 1.0;
-    var chainThreshold = Math.max(avgSegLen * 0.01, 0.001); // 1% of avg segment length, min 1mm
-    console.log("Chain threshold: " + chainThreshold.toFixed(6) + "m (avg seg len: " + avgSegLen.toFixed(4) + "m)");
-
-    var polylines = chainSegments(allSegments, chainThreshold);
-    console.log("Chained into " + polylines.length + " polyline(s)");
-
-    // Step 6) Simplify by vertex spacing
-    if (config.vertexSpacing > 0) {
-        for (var p = 0; p < polylines.length; p++) {
-            polylines[p] = simplifyPolyline(polylines[p], config.vertexSpacing);
+        function errHandler(err) {
+            worker.removeEventListener("message", handler);
+            worker.removeEventListener("error", errHandler);
+            worker.terminate();
+            reject(new Error("Worker error: " + (err.message || String(err))));
         }
-    }
 
-    // Filter out degenerate polylines (< 2 points)
-    polylines = polylines.filter(function(pl) { return pl.length >= 2; });
+        worker.addEventListener("message", handler);
+        worker.addEventListener("error", errHandler);
 
-    if (polylines.length === 0) {
-        console.warn("No valid polylines after simplification");
-        showInfo("Intersections found but all polylines were too short after simplification.");
-        return;
-    }
-
-    // Step 7) Create KAD poly entities with undo batch
-    createKADEntities(polylines, config);
-
-    console.log("Surface intersection complete: " + polylines.length + " polyline(s) created");
+        worker.postMessage({
+            type: "intersect",
+            payload: { surfaces: surfaces, config: { vertexSpacing: config.vertexSpacing || 0 } }
+        });
+    });
 }
 
 // ────────────────────────────────────────────────────────

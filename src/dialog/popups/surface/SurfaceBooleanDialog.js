@@ -205,8 +205,8 @@ function showPhase1(surfaceEntries) {
 			// Show progress
 			var progressDialog = showProgressDialog("Computing intersection splits...\nThis may take a moment for large surfaces.");
 
-			setTimeout(function () {
-				var result = computeSplits(surfaceIdA, surfaceIdB);
+			setTimeout(async function () {
+				var result = await computeSplits(surfaceIdA, surfaceIdB);
 
 				if (progressDialog && progressDialog.close) {
 					progressDialog.close();
@@ -801,8 +801,8 @@ function showPhase2(splitResult, gradient) {
 				" regions...\nMode: " + (closeMode === "stitch" ? "Close by Stitching" : "Stitch Intersection")
 			);
 
-			setTimeout(function () {
-				var resultId = applyMerge(splits, mergeConfig);
+			setTimeout(async function () {
+				var resultId = await applyMerge(splits, mergeConfig);
 
 				if (progressDialog && progressDialog.close) {
 					progressDialog.close();

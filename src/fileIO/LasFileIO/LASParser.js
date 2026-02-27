@@ -11,46 +11,12 @@
 import BaseParser from "../BaseParser.js";
 import proj4 from "proj4";
 import { top100EPSGCodes, isLikelyWGS84 } from "../../dialog/popups/generic/ProjectionDialog.js";
-import { Delaunay } from "d3-delaunay";
-import { deduplicatePoints, decimatePoints } from "../../helpers/PointDeduplication.js";
+import { showWorkerProgressDialog } from "../../dialog/popups/generic/WorkerProgressDialog.js";
+// Delaunay and PointDeduplication now handled in Web Worker (lasImportWorker.js)
 
-// Step 6) LAS Classification lookup table
-const LAS_CLASSIFICATIONS = {
-	0: "Created, never classified",
-	1: "Unclassified",
-	2: "Ground",
-	3: "Low Vegetation",
-	4: "Medium Vegetation",
-	5: "High Vegetation",
-	6: "Building",
-	7: "Low Point (noise)",
-	8: "Model Key-point",
-	9: "Water",
-	10: "Rail",
-	11: "Road Surface",
-	12: "Reserved (Overlap)",
-	13: "Wire - Guard (Shield)",
-	14: "Wire - Conductor (Phase)",
-	15: "Transmission Tower",
-	16: "Wire-structure Connector",
-	17: "Bridge Deck",
-	18: "High Noise"
-};
+// LAS classifications now in lasImportWorker.js
 
-// Step 7) Point Data Record sizes by format
-const POINT_RECORD_SIZES = {
-	0: 20, // Core: X, Y, Z, Intensity, Return info, Classification, ScanAngle, UserData, PointSourceID
-	1: 28, // Format 0 + GPS Time
-	2: 26, // Format 0 + RGB
-	3: 34, // Format 0 + GPS Time + RGB
-	4: 57, // Format 1 + Wave Packets
-	5: 63, // Format 3 + Wave Packets
-	6: 30, // New base format (LAS 1.4): Extended return/class + GPS Time
-	7: 36, // Format 6 + RGB
-	8: 38, // Format 6 + RGB + NIR
-	9: 59, // Format 6 + Wave Packets
-	10: 67 // Format 8 + Wave Packets
-};
+// Point record sizes and parsing now handled by lasImportWorker.js
 
 // Step 8) LASParser class
 class LASParser extends BaseParser {
@@ -59,84 +25,181 @@ class LASParser extends BaseParser {
 		this.littleEndian = true; // LAS is always little-endian
 	}
 
-	// Step 9) Main parse method
+	// Step 9) Main parse method — header on main thread, heavy compute in Web Worker
 	async parse(file) {
 		try {
 			// Step 10) Read file as ArrayBuffer for binary parsing
 			var arrayBuffer = await this.readAsArrayBuffer(file);
 
-			// Step 11) Parse the LAS data (initial parsing without transformation)
-			var rawData = this.parseLASData(arrayBuffer);
+			// Step 11) Parse ONLY the header on the main thread (fast — just reads header bytes)
+			var headerData = this.parseLASHeader(arrayBuffer);
 
 			// Step 12) Detect coordinate system from bounds
-			var isWGS84 = this.detectCoordinateSystem(rawData.header);
+			var isWGS84 = this.detectCoordinateSystem(headerData.header);
 
-			// Step 13) Prompt user for import configuration
+			// Step 13) Prompt user for import configuration (needs DOM)
 			var config = await this.promptForImportConfiguration(file.name, isWGS84);
 
 			if (config.cancelled) {
 				return { success: false, message: "Import cancelled by user" };
 			}
 
-			// Step 14) Apply coordinate transformations if needed
-			if (config.transform) {
-				rawData = await this.applyCoordinateTransformation(rawData, config);
+			// Step 14) If transform needed, resolve EPSG definition on main thread (needs proj4 registry)
+			if (config.transform && config.epsgCode) {
+				try {
+					var epsgDef = proj4.defs("EPSG:" + config.epsgCode);
+					if (epsgDef) {
+						config.epsgDef = typeof epsgDef === "string" ? epsgDef : proj4.defs("EPSG:" + config.epsgCode);
+					}
+				} catch (e) {
+					// Worker will handle registration via epsgDef
+				}
+				// Pass the proj4 definition string to the worker
+				if (typeof config.epsgDef === "object" && config.epsgDef !== null) {
+					// proj4 defs returns an object, need to pass the raw proj4 string
+					config.proj4Source = config.proj4Source || proj4.defs("EPSG:" + config.epsgCode);
+				}
 			}
 
-			// Step 15) Apply master RL offset if specified
-			// if (config.masterRLX !== 0 || config.masterRLY !== 0) {
-			// 	rawData = this.applyMasterRLOffset(rawData, config.masterRLX, config.masterRLY);
-			// }
+			// Step 15) Delegate heavy computation to Web Worker
+			console.log("LAS import: sending " + headerData.header.numberOfPoints + " point records to worker...");
+			var workerResult = await this.processInWorker(arrayBuffer, headerData.header, config);
 
-			// Step 16) Convert to kadDrawingsMap format for Kirra compatibility
-			if (config.importType === "surface") {
-				// Create triangulated surface
-				var surfaceResult = await this.createTriangulatedSurface(rawData.points, config);
+			// Step 16) Process worker result
+			if (workerResult.resultType === "surface_typed") {
+				// Surface — reconstruct from typed arrays (Transferable, no structured clone OOM)
+				var px = workerResult.pointsX;
+				var py = workerResult.pointsY;
+				var pz = workerResult.pointsZ;
+				var triIdx = workerResult.triangleIndices;
+				var nPts = workerResult.pointCount;
+				var nTris = workerResult.triangleCount;
+
+				// Rebuild points array
+				var surfPoints = new Array(nPts);
+				for (var pi = 0; pi < nPts; pi++) {
+					surfPoints[pi] = { x: px[pi], y: py[pi], z: pz[pi] };
+				}
+
+				// Rebuild triangles array
+				var surfTriangles = new Array(nTris);
+				for (var ti = 0; ti < nTris; ti++) {
+					var i0 = triIdx[ti * 3], i1 = triIdx[ti * 3 + 1], i2 = triIdx[ti * 3 + 2];
+					surfTriangles[ti] = {
+						vertices: [surfPoints[i0], surfPoints[i1], surfPoints[i2]]
+					};
+				}
+
+				var surfaceId = workerResult.surfaceId;
+				var surface = {
+					id: surfaceId,
+					name: workerResult.surfaceName,
+					type: "delaunay",
+					points: surfPoints,
+					triangles: surfTriangles,
+					meshBounds: workerResult.meshBounds,
+					visible: true,
+					gradient: workerResult.surfaceStyle,
+					hasVertexColors: false,
+					transparency: 1.0,
+					metadata: workerResult.metadata
+				};
+
+				console.log("LAS surface: " + nPts + " points, " + nTris + " triangles");
 				return {
-					...surfaceResult,
+					surfaces: new Map([[surfaceId, surface]]),
+					dataType: "surfaces",
 					config: config,
 					success: true
 				};
-			} else {
-				// Point cloud behavior with decimation/deduplication
-				var points = rawData.points;
-				var originalCount = points.length;
-
-				// Apply decimation if maxPoints specified
-				if (config.maxPoints > 0 && points.length > config.maxPoints) {
-					points = decimatePoints(points, config.maxPoints);
-					console.log("LAS point cloud decimated: " + originalCount + " -> " + points.length + " points");
-				}
-
-				// Apply deduplication if tolerance specified
-				if (config.pcXyTolerance > 0) {
-					var dedupResult = deduplicatePoints(points, config.pcXyTolerance);
-					console.log("LAS point cloud deduplicated: " + dedupResult.originalCount + " -> " + dedupResult.uniqueCount + " points");
-					points = dedupResult.uniquePoints;
-				}
-
-				rawData.kadDrawingsMap = this.convertToKadFormat(points, rawData.header, config.pcPreserveColors);
+			} else if (workerResult.resultType === "pointcloud_typed") {
+				// Large point cloud — typed arrays transferred directly from worker
+				var ta = workerResult.typedArrays;
+				console.log("LAS import: received typed array point cloud with " + ta.count + " points");
 				return {
-					...rawData,
+					header: workerResult.header || headerData.header,
+					statistics: workerResult.statistics,
+					typedPointCloud: ta,
+					config: config,
+					dataType: "pointcloud_typed",
+					success: true,
+					originalPointCount: workerResult.originalPointCount,
+					processedPointCount: workerResult.processedPointCount
+				};
+			} else {
+				// Point cloud — reconstruct kadDrawingsMap from serialized entries
+				var kadDrawingsMap = new Map();
+				if (workerResult.kadEntries) {
+					for (var i = 0; i < workerResult.kadEntries.length; i++) {
+						var entry = workerResult.kadEntries[i];
+						kadDrawingsMap.set(entry.key, entry.value);
+					}
+				}
+				return {
+					header: workerResult.header || headerData.header,
+					statistics: workerResult.statistics,
+					kadDrawingsMap: kadDrawingsMap,
 					config: config,
 					dataType: "pointcloud",
 					success: true,
-					originalPointCount: originalCount,
-					processedPointCount: points.length
+					originalPointCount: workerResult.originalPointCount,
+					processedPointCount: workerResult.processedPointCount
 				};
 			}
-
-			// Step 17) Return final processed data
-			return {
-				...rawData,
-				config: config,
-				dataType: "pointcloud",
-				success: true
-			};
 		} catch (error) {
 			console.error("LAS parse error:", error);
 			throw error;
 		}
+	}
+
+	// Step 9b) Send heavy computation to Web Worker
+	processInWorker(arrayBuffer, header, config) {
+		var progressDialog = showWorkerProgressDialog("Importing LAS File", {
+			initialMessage: "Parsing " + (header.numberOfPoints || 0).toLocaleString() + " point records..."
+		});
+
+		return new Promise(function(resolve, reject) {
+			var worker = new Worker(
+				new URL("../../workers/lasImportWorker.js", import.meta.url),
+				{ type: "module" }
+			);
+
+			function handler(e) {
+				var msg = e.data;
+				if (msg.type === "progress") {
+					progressDialog.update(msg.percent, msg.message);
+				} else if (msg.type === "result") {
+					worker.removeEventListener("message", handler);
+					worker.removeEventListener("error", errHandler);
+					worker.terminate();
+					progressDialog.complete("LAS import complete!");
+					resolve(msg.data);
+				} else if (msg.type === "error") {
+					worker.removeEventListener("message", handler);
+					worker.removeEventListener("error", errHandler);
+					worker.terminate();
+					progressDialog.fail("LAS import failed: " + msg.message);
+					reject(new Error(msg.message));
+				}
+			}
+
+			function errHandler(err) {
+				worker.removeEventListener("message", handler);
+				worker.removeEventListener("error", errHandler);
+				worker.terminate();
+				progressDialog.fail("LAS worker error");
+				reject(new Error("LAS Worker error: " + (err.message || String(err))));
+			}
+
+			worker.addEventListener("message", handler);
+			worker.addEventListener("error", errHandler);
+
+			// Transfer the ArrayBuffer (zero-copy)
+			worker.postMessage(
+				{ type: "parsePoints", payload: { arrayBuffer: arrayBuffer, header: header, config: config } },
+				[arrayBuffer]
+			);
+		});
 	}
 
 	// Step 12) Read file as ArrayBuffer
@@ -149,55 +212,25 @@ class LASParser extends BaseParser {
 		});
 	}
 
-	// Step 13) Parse LAS data from ArrayBuffer
-	parseLASData(arrayBuffer) {
+	// Step 12b) Parse ONLY the LAS header (fast — no point records)
+	parseLASHeader(arrayBuffer) {
 		var dataView = new DataView(arrayBuffer);
-		var offset = 0;
-
-		try {
-			// Step 14) Parse and validate file signature
-			var signature = this.readString(dataView, offset, 4);
-			if (signature !== "LASF") {
-				throw new Error("Invalid LAS file: File signature must be 'LASF', got '" + signature + "'");
-			}
-			offset += 4;
-
-			// Step 15) Parse Public Header Block
-			var header = this.parsePublicHeader(dataView);
-
-			console.log("LAS Version: " + header.versionMajor + "." + header.versionMinor);
-			console.log("Point Data Format: " + header.pointDataFormatID);
-			console.log("Number of Points: " + header.numberOfPoints);
-
-			// Step 16) Parse Variable Length Records (VLRs) if present
-			var vlrs = [];
-			if (header.numberOfVLRs > 0) {
-				vlrs = this.parseVLRs(dataView, header);
-			}
-
-			// Step 17) Parse Point Data Records
-			var points = this.parsePointRecords(dataView, header);
-
-			// Step 18) Calculate statistics
-			var stats = this.calculateStatistics(points, header);
-
-			// Step 19) Return parsed data (without KAD conversion - done later)
-			return {
-				header: header,
-				vlrs: vlrs,
-				points: points,
-				statistics: stats,
-				successCount: points.length,
-				errorCount: 0,
-				centroidX: stats.centroidX,
-				centroidY: stats.centroidY,
-				centroidZ: stats.centroidZ
-			};
-		} catch (error) {
-			console.error("Error parsing LAS file:", error);
-			throw new Error("Error parsing LAS file: " + error.message);
+		var signature = this.readString(dataView, 0, 4);
+		if (signature !== "LASF") {
+			throw new Error("Invalid LAS file: File signature must be 'LASF', got '" + signature + "'");
 		}
+		var header = this.parsePublicHeader(dataView);
+		var vlrs = [];
+		if (header.numberOfVLRs > 0) {
+			vlrs = this.parseVLRs(dataView, header);
+		}
+		console.log("LAS Version: " + header.versionMajor + "." + header.versionMinor +
+			", Format: " + header.pointDataFormatID +
+			", Points: " + header.numberOfPoints);
+		return { header: header, vlrs: vlrs };
 	}
+
+	// parseLASData — point parsing now handled by lasImportWorker.js
 
 	// Step 21) Parse Public Header Block
 	parsePublicHeader(dataView) {
@@ -446,326 +479,9 @@ class LASParser extends BaseParser {
 		return keys;
 	}
 
-	// Step 25) Parse Point Data Records
-	parsePointRecords(dataView, header) {
-		var points = [];
-		var offset = header.offsetToPointData;
-		var recordLength = header.pointDataRecordLength;
-		var formatID = header.pointDataFormatID;
-		var numPoints = Number(header.numberOfPoints);
+	// parsePointRecords + parsePointRecord — now handled by lasImportWorker.js
 
-		// Limit for performance - can be adjusted
-		var maxPoints = this.options.maxPoints || Infinity;
-		var pointsToRead = Math.min(numPoints, maxPoints);
-
-		console.log("Reading " + pointsToRead + " of " + numPoints + " points");
-
-		for (var i = 0; i < pointsToRead; i++) {
-			try {
-				var point = this.parsePointRecord(dataView, offset, formatID, header);
-				point.pointID = i;
-				points.push(point);
-			} catch (e) {
-				console.warn("Error parsing point " + i + ": " + e.message);
-			}
-			offset += recordLength;
-		}
-
-		return points;
-	}
-
-	// Step 26) Parse individual point record based on format
-	parsePointRecord(dataView, offset, formatID, header) {
-		var point = {};
-		var startOffset = offset;
-
-		// Step 27) Core point data (common to all formats)
-		// X, Y, Z as signed 32-bit integers
-		var xRaw = dataView.getInt32(offset, this.littleEndian);
-		offset += 4;
-		var yRaw = dataView.getInt32(offset, this.littleEndian);
-		offset += 4;
-		var zRaw = dataView.getInt32(offset, this.littleEndian);
-		offset += 4;
-
-		// Apply scale and offset to get actual coordinates
-		point.x = xRaw * header.xScaleFactor + header.xOffset;
-		point.y = yRaw * header.yScaleFactor + header.yOffset;
-		point.z = zRaw * header.zScaleFactor + header.zOffset;
-
-		// Store raw values too
-		point.xRaw = xRaw;
-		point.yRaw = yRaw;
-		point.zRaw = zRaw;
-
-		// Intensity - 2 bytes (unsigned short)
-		point.intensity = dataView.getUint16(offset, this.littleEndian);
-		offset += 2;
-
-		// Step 28) Format-specific parsing
-		if (formatID <= 5) {
-			// Legacy formats (0-5)
-			// Return Number (3 bits), Number of Returns (3 bits),
-			// Scan Direction Flag (1 bit), Edge of Flight Line (1 bit) - 1 byte
-			var flagByte = dataView.getUint8(offset);
-			offset += 1;
-
-			point.returnNumber = flagByte & 0x07; // bits 0-2
-			point.numberOfReturns = (flagByte >> 3) & 0x07; // bits 3-5
-			point.scanDirectionFlag = (flagByte >> 6) & 0x01; // bit 6
-			point.edgeOfFlightLine = (flagByte >> 7) & 0x01; // bit 7
-
-			// Classification - 1 byte
-			var classificationByte = dataView.getUint8(offset);
-			offset += 1;
-
-			point.classification = classificationByte & 0x1f; // bits 0-4
-			point.synthetic = (classificationByte >> 5) & 0x01; // bit 5
-			point.keyPoint = (classificationByte >> 6) & 0x01; // bit 6
-			point.withheld = (classificationByte >> 7) & 0x01; // bit 7
-			point.classificationName = LAS_CLASSIFICATIONS[point.classification] || "Reserved";
-
-			// Scan Angle Rank - 1 byte (signed char, -90 to +90)
-			point.scanAngleRank = dataView.getInt8(offset);
-			offset += 1;
-
-			// User Data - 1 byte
-			point.userData = dataView.getUint8(offset);
-			offset += 1;
-
-			// Point Source ID - 2 bytes
-			point.pointSourceID = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-		} else {
-			// New formats (6-10) - LAS 1.4
-			// Return Number (4 bits), Number of Returns (4 bits) - 1 byte
-			var returnByte = dataView.getUint8(offset);
-			offset += 1;
-
-			point.returnNumber = returnByte & 0x0f; // bits 0-3
-			point.numberOfReturns = (returnByte >> 4) & 0x0f; // bits 4-7
-
-			// Classification Flags and Scanner Channel - 1 byte
-			var flagsByte = dataView.getUint8(offset);
-			offset += 1;
-
-			point.classificationFlags = flagsByte & 0x0f; // bits 0-3
-			point.scannerChannel = (flagsByte >> 4) & 0x03; // bits 4-5
-			point.scanDirectionFlag = (flagsByte >> 6) & 0x01; // bit 6
-			point.edgeOfFlightLine = (flagsByte >> 7) & 0x01; // bit 7
-
-			// Classification - 1 byte (full byte in 1.4)
-			point.classification = dataView.getUint8(offset);
-			point.classificationName = LAS_CLASSIFICATIONS[point.classification] || "Reserved";
-			offset += 1;
-
-			// User Data - 1 byte
-			point.userData = dataView.getUint8(offset);
-			offset += 1;
-
-			// Scan Angle - 2 bytes (scaled by 0.006 degrees)
-			var scanAngleRaw = dataView.getInt16(offset, this.littleEndian);
-			point.scanAngle = scanAngleRaw * 0.006;
-			offset += 2;
-
-			// Point Source ID - 2 bytes
-			point.pointSourceID = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-		}
-
-		// Step 29) GPS Time (formats 1, 3, 4, 5, 6, 7, 8, 9, 10)
-		if (formatID === 1 || formatID === 3 || formatID === 4 || formatID === 5 || formatID >= 6) {
-			point.gpsTime = dataView.getFloat64(offset, this.littleEndian);
-			offset += 8;
-		}
-
-		// Step 30) RGB Color (formats 2, 3, 5, 7, 8, 10)
-		if (formatID === 2 || formatID === 3 || formatID === 5 || formatID === 7 || formatID === 8 || formatID === 10) {
-			point.red = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-			point.green = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-			point.blue = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-
-			// Convert 16-bit color to hex string for Kirra
-			point.color = this.rgb16ToHex(point.red, point.green, point.blue);
-			point.hasRgbColor = true; // Flag: this color came from actual RGB data
-		} else {
-			// No RGB in this format - will use elevation color in convertToKadFormat
-			point.color = null;
-			point.hasRgbColor = false;
-		}
-
-		// Step 31) NIR (formats 8, 10)
-		if (formatID === 8 || formatID === 10) {
-			point.nir = dataView.getUint16(offset, this.littleEndian);
-			offset += 2;
-		}
-
-		// Step 32) Wave Packet info (formats 4, 5, 9, 10)
-		if (formatID === 4 || formatID === 5 || formatID === 9 || formatID === 10) {
-			point.wavePacketDescriptorIndex = dataView.getUint8(offset);
-			offset += 1;
-			point.byteOffsetToWaveformData = this.readUint64(dataView, offset);
-			offset += 8;
-			point.waveformPacketSizeInBytes = dataView.getUint32(offset, this.littleEndian);
-			offset += 4;
-			point.returnPointWaveformLocation = dataView.getFloat32(offset, this.littleEndian);
-			offset += 4;
-			point.xt = dataView.getFloat32(offset, this.littleEndian);
-			offset += 4;
-			point.yt = dataView.getFloat32(offset, this.littleEndian);
-			offset += 4;
-			point.zt = dataView.getFloat32(offset, this.littleEndian);
-			offset += 4;
-		}
-
-		return point;
-	}
-
-	// Step 33) Convert to Kirra kadDrawingsMap format
-	convertToKadFormat(points, header, preserveColors) {
-		var kadDrawingsMap = new Map();
-		var entityName = "LAS_Points";
-		var self = this;
-
-		// Default to true if not specified
-		if (preserveColors === undefined) preserveColors = true;
-
-		// Get Z range for elevation-based fallback colors
-		var minZ = header.minZ;
-		var maxZ = header.maxZ;
-
-		// Group points by classification for different layers
-		var pointsByClass = new Map();
-
-		for (var i = 0; i < points.length; i++) {
-			var point = points[i];
-			var classKey = "Class_" + point.classification + "_" + (point.classificationName || "Unknown").replace(/[^a-zA-Z0-9]/g, "_");
-
-			if (!pointsByClass.has(classKey)) {
-				pointsByClass.set(classKey, []);
-			}
-			pointsByClass.get(classKey).push(point);
-		}
-
-		// Convert each classification group to a KAD entity
-		for (var [className, classPoints] of pointsByClass) {
-			var kadData = [];
-
-			for (var j = 0; j < classPoints.length; j++) {
-				var pt = classPoints[j];
-				// Use LAS RGB color if available and preserveColors is true, otherwise use elevation-based color
-				var pointColor;
-				if (preserveColors && pt.hasRgbColor && pt.color) {
-					pointColor = pt.color;
-				} else {
-					// Fallback to elevation-based color (blue->cyan->green->yellow->red)
-					pointColor = self.getElevationColor(pt.z, minZ, maxZ);
-				}
-				kadData.push({
-					entityName: className,
-					entityType: "point",
-					pointID: pt.pointID,
-					pointXLocation: pt.x,
-					pointYLocation: pt.y,
-					pointZLocation: pt.z,
-					lineWidth: 1,
-					color: pointColor,
-					intensity: pt.intensity,
-					classification: pt.classification,
-					returnNumber: pt.returnNumber,
-					numberOfReturns: pt.numberOfReturns,
-					gpsTime: pt.gpsTime,
-					connected: false,
-					closed: false
-				});
-			}
-
-			kadDrawingsMap.set(className, {
-				entityName: className,
-				entityType: "point",
-				data: kadData
-			});
-		}
-
-		return kadDrawingsMap;
-	}
-
-	// Step 33b) Get elevation-based color (blue->cyan->green->yellow->red spectrum)
-	getElevationColor(z, minZ, maxZ) {
-		var range = maxZ - minZ;
-		if (range < 0.001) {
-			return "#FFA500"; // Orange for flat data
-		}
-
-		var ratio = (z - minZ) / range;
-		ratio = Math.max(0, Math.min(1, ratio)); // Clamp to 0-1
-
-		var r, g, b;
-		if (ratio < 0.25) {
-			// Blue to Cyan
-			r = 0;
-			g = Math.floor(ratio * 4 * 255);
-			b = 255;
-		} else if (ratio < 0.5) {
-			// Cyan to Green
-			r = 0;
-			g = 255;
-			b = Math.floor(255 - (ratio - 0.25) * 4 * 255);
-		} else if (ratio < 0.75) {
-			// Green to Yellow
-			r = Math.floor((ratio - 0.5) * 4 * 255);
-			g = 255;
-			b = 0;
-		} else {
-			// Yellow to Red
-			r = 255;
-			g = Math.floor(255 - (ratio - 0.75) * 4 * 255);
-			b = 0;
-		}
-
-		return "#" + r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0");
-	}
-
-	// Step 34) Calculate statistics
-	calculateStatistics(points, header) {
-		var stats = {
-			totalPoints: points.length,
-			minX: header.minX,
-			maxX: header.maxX,
-			minY: header.minY,
-			maxY: header.maxY,
-			minZ: header.minZ,
-			maxZ: header.maxZ,
-			centroidX: (header.minX + header.maxX) / 2,
-			centroidY: (header.minY + header.maxY) / 2,
-			centroidZ: (header.minZ + header.maxZ) / 2,
-			classifications: {},
-			returnNumbers: {}
-		};
-
-		// Count by classification and return number
-		for (var i = 0; i < points.length; i++) {
-			var pt = points[i];
-
-			if (!stats.classifications[pt.classification]) {
-				stats.classifications[pt.classification] = {
-					count: 0,
-					name: pt.classificationName
-				};
-			}
-			stats.classifications[pt.classification].count++;
-
-			if (!stats.returnNumbers[pt.returnNumber]) {
-				stats.returnNumbers[pt.returnNumber] = 0;
-			}
-			stats.returnNumbers[pt.returnNumber]++;
-		}
-
-		return stats;
-	}
+	// convertToKadFormat, getElevationColor, calculateStatistics — now handled by lasImportWorker.js
 
 	// Step 35) Helper: Read string from DataView
 	readString(dataView, offset, length) {
@@ -788,250 +504,9 @@ class LASParser extends BaseParser {
 		return high * 0x100000000 + low;
 	}
 
-	// Step 37) Helper: Convert 16-bit RGB to hex color string
-	rgb16ToHex(r, g, b) {
-		// Convert from 16-bit (0-65535) to 8-bit (0-255)
-		var r8 = Math.round(r / 256);
-		var g8 = Math.round(g / 256);
-		var b8 = Math.round(b / 256);
+	// rgb16ToHex — now handled by lasImportWorker.js
 
-		// Clamp values
-		r8 = Math.min(255, Math.max(0, r8));
-		g8 = Math.min(255, Math.max(0, g8));
-		b8 = Math.min(255, Math.max(0, b8));
-
-		return "#" + r8.toString(16).padStart(2, "0") + g8.toString(16).padStart(2, "0") + b8.toString(16).padStart(2, "0");
-	}
-
-	async createTriangulatedSurface(points, config) {
-		// Step 1) Get triangulation options from config
-		var maxEdgeLength = config.maxEdgeLength || 0;
-		var consider3DLength = config.consider3DLength || false;
-		var minAngle = config.minAngle || 0;
-		var consider3DAngle = config.consider3DAngle || false;
-		var surfaceName = config.surfaceName || "LAS_Surface";
-		var surfaceStyle = config.surfaceStyle || "default";
-		var xyzTolerance = config.xyzTolerance || 0.001;
-		var maxSurfacePoints = config.maxSurfacePoints || 0;
-		var useLasColors = surfaceStyle === "lasColors";
-
-		// Get Z range for elevation color fallback
-		var minZ = Infinity, maxZ = -Infinity;
-		for (var i = 0; i < points.length; i++) {
-			var z = parseFloat(points[i].z);
-			if (z < minZ) minZ = z;
-			if (z > maxZ) maxZ = z;
-		}
-		var self = this;
-
-		// Step 2) Prepare points for triangulation (preserve colors if using lasColors)
-		var vertices = points.map(function(pt) {
-			var vertex = {
-				x: parseFloat(pt.x),
-				y: parseFloat(pt.y),
-				z: parseFloat(pt.z)
-			};
-			// Preserve LAS RGB color if using lasColors gradient, otherwise use elevation color
-			if (useLasColors) {
-				if (pt.hasRgbColor && pt.color) {
-					vertex.color = pt.color;
-				} else {
-					// Fallback to elevation-based color
-					vertex.color = self.getElevationColor(vertex.z, minZ, maxZ);
-				}
-			}
-			return vertex;
-		});
-
-		// Step 2.5) Decimate if maxSurfacePoints is set (before dedup for performance)
-		if (maxSurfacePoints > 0 && vertices.length > maxSurfacePoints) {
-			var originalCount = vertices.length;
-			vertices = decimatePoints(vertices, maxSurfacePoints);
-			if (window.developerModeEnabled) {
-				console.log("Decimated: " + originalCount + " -> " + vertices.length + " points (target: " + maxSurfacePoints + ")");
-			}
-		}
-
-		// Step 2.6) Deduplicate points by XY distance within tolerance
-		if (xyzTolerance > 0) {
-			var dedupResult = deduplicatePoints(vertices, xyzTolerance);
-			if (window.developerModeEnabled) {
-				console.log("Deduplication: " + dedupResult.originalCount + " -> " + dedupResult.uniqueCount + " points (tolerance: " + xyzTolerance + ")");
-			}
-			vertices = dedupResult.uniquePoints;
-		}
-
-		// Step 3) Check minimum points for triangulation
-		if (vertices.length < 3) {
-			throw new Error("Insufficient points for triangulation: " + vertices.length + " (minimum 3 required)");
-		}
-
-		// Step 4a) Debug logging (only in developer mode)
-		if (window.developerModeEnabled) {
-			console.log("Creating Delaunay triangulation from " + vertices.length + " LAS points");
-			console.log("Options: maxEdgeLength=" + maxEdgeLength + ", minAngle=" + minAngle + ", 3DLength=" + consider3DLength + ", 3DAngle=" + consider3DAngle);
-		}
-
-		// Step 4) Create Delaunay triangulation directly using d3-delaunay
-		var delaunay = Delaunay.from(
-			vertices,
-			function(d) {
-				return d.x;
-			},
-			function(d) {
-				return d.y;
-			}
-		);
-		var triangleIndices = delaunay.triangles;
-
-		// Step 5) Helper function to calculate distance
-		function distanceSquared(p1, p2, use3D) {
-			var dx = p2.x - p1.x;
-			var dy = p2.y - p1.y;
-			if (use3D) {
-				var dz = p2.z - p1.z;
-				return dx * dx + dy * dy + dz * dz;
-			}
-			return dx * dx + dy * dy;
-		}
-
-		// Step 6) Convert to triangle format with culling
-		// Format: { vertices: [{ x, y, z }, { x, y, z }, { x, y, z }] }
-		var resultTriangles = [];
-		var culledByEdge = 0;
-		var culledByAngle = 0;
-
-		for (var i = 0; i < triangleIndices.length; i += 3) {
-			var aIdx = triangleIndices[i];
-			var bIdx = triangleIndices[i + 1];
-			var cIdx = triangleIndices[i + 2];
-
-			var p1 = vertices[aIdx];
-			var p2 = vertices[bIdx];
-			var p3 = vertices[cIdx];
-
-			// Step 6a) Edge length culling
-			if (maxEdgeLength > 0) {
-				var edge1Sq = distanceSquared(p1, p2, consider3DLength);
-				var edge2Sq = distanceSquared(p2, p3, consider3DLength);
-				var edge3Sq = distanceSquared(p3, p1, consider3DLength);
-				var maxEdgeSq = maxEdgeLength * maxEdgeLength;
-
-				if (edge1Sq > maxEdgeSq || edge2Sq > maxEdgeSq || edge3Sq > maxEdgeSq) {
-					culledByEdge++;
-					continue; // Skip this triangle
-				}
-			}
-
-			// Step 6b) Minimum angle culling
-			if (minAngle > 0) {
-				var edge1 = Math.sqrt(distanceSquared(p1, p2, consider3DAngle));
-				var edge2 = Math.sqrt(distanceSquared(p2, p3, consider3DAngle));
-				var edge3 = Math.sqrt(distanceSquared(p3, p1, consider3DAngle));
-
-				// Calculate angles using law of cosines
-				var angle1 = Math.acos(Math.max(-1, Math.min(1, (edge2 * edge2 + edge3 * edge3 - edge1 * edge1) / (2 * edge2 * edge3)))) * (180 / Math.PI);
-				var angle2 = Math.acos(Math.max(-1, Math.min(1, (edge1 * edge1 + edge3 * edge3 - edge2 * edge2) / (2 * edge1 * edge3)))) * (180 / Math.PI);
-				var angle3 = Math.acos(Math.max(-1, Math.min(1, (edge1 * edge1 + edge2 * edge2 - edge3 * edge3) / (2 * edge1 * edge2)))) * (180 / Math.PI);
-
-				var minTriAngle = Math.min(angle1, angle2, angle3);
-
-				if (minTriAngle < minAngle) {
-					culledByAngle++;
-					continue; // Skip this triangle
-				}
-			}
-
-			// Step 6c) Add triangle in correct format
-			resultTriangles.push({
-				vertices: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }, { x: p3.x, y: p3.y, z: p3.z }]
-			});
-		}
-
-		// Step 6d) Debug logging (only in developer mode)
-		if (window.developerModeEnabled) {
-			console.log("✅ Generated " + resultTriangles.length + " triangles from LAS point cloud");
-			console.log("🔺 Culled: " + culledByEdge + " by edge length, " + culledByAngle + " by angle");
-		}
-
-		// Step 6e) Calculate meshBounds from vertices for centroid calculation
-		// CRITICAL: Without meshBounds, centroid calculation cannot use this surface data
-		var minX = Infinity, maxX = -Infinity;
-		var minY = Infinity, maxY = -Infinity;
-		var minZ = Infinity, maxZ = -Infinity;
-		for (var j = 0; j < vertices.length; j++) {
-			var v = vertices[j];
-			if (v.x < minX) minX = v.x;
-			if (v.x > maxX) maxX = v.x;
-			if (v.y < minY) minY = v.y;
-			if (v.y > maxY) maxY = v.y;
-			if (v.z < minZ) minZ = v.z;
-			if (v.z > maxZ) maxZ = v.z;
-		}
-		var meshBounds = { minX: minX, maxX: maxX, minY: minY, maxY: maxY, minZ: minZ, maxZ: maxZ };
-
-		if (window.developerModeEnabled) {
-			console.log("📐 LAS meshBounds calculated: X[" + minX.toFixed(2) + "," + maxX.toFixed(2) + "] Y[" + minY.toFixed(2) + "," + maxY.toFixed(2) + "] Z[" + minZ.toFixed(2) + "," + maxZ.toFixed(2) + "]");
-		}
-
-		// Step 7) Create the surface object with gradient
-		var surfaceId = surfaceName.replace(/\s+/g, "_") + "_" + Date.now();
-		var hasVertexColors = useLasColors && vertices.some(function(v) { return v.color; });
-		var surface = {
-			id: surfaceId,
-			name: surfaceName,
-			type: "delaunay",
-			points: vertices,
-			triangles: resultTriangles,
-			meshBounds: meshBounds, // CRITICAL: Add meshBounds for centroid calculation
-			visible: true,
-			gradient: surfaceStyle, // Uses selected gradient style (including "lasColors")
-			hasVertexColors: hasVertexColors, // Flag for renderer to use vertex colors
-			transparency: 1.0,
-			metadata: {
-				source: "LAS_import",
-				pointCount: vertices.length,
-				triangleCount: resultTriangles.length,
-				culledByEdge: culledByEdge,
-				culledByAngle: culledByAngle,
-				maxEdgeLength: maxEdgeLength,
-				minAngle: minAngle,
-				useLasColors: useLasColors
-			}
-		};
-
-		// Step 8) Return in surfaces format expected by import system
-		return {
-			surfaces: new Map([[surfaceId, surface]]),
-			dataType: "surfaces"
-		};
-	}
-	// Step 38) Helper: Get default color for classification
-	getClassificationColor(classification) {
-		var colors = {
-			0: "#000000", // Never classified - Black
-			1: "#CCCCCC", // Unclassified - Gray
-			2: "#8B4513", // Ground - Brown
-			3: "#228B22", // Low Vegetation - Forest Green
-			4: "#6B8E23", // Medium Vegetation - Olive
-			5: "#00FF7F", // High Vegetation - Spring Green
-			6: "#FFD700", // Building - Gold
-			7: "#FFA500", // Low Point (noise) - Orange
-			8: "#9370DB", // Model Key-point - Medium Purple
-			9: "#0000FF", // Water - Blue
-			10: "#800080", // Rail - Purple
-			11: "#696969", // Road Surface - Dim Gray
-			12: "#A9A9A9", // Overlap - Dark Gray
-			13: "#FFFF00", // Wire Guard - Yellow
-			14: "#FFFFE0", // Wire Conductor - Light Yellow
-			15: "#90EE90", // Transmission Tower - Light Green
-			16: "#FF00FF", // Wire Connector - Magenta
-			17: "#ADD8E6", // Bridge Deck - Light Blue
-			18: "#FF0000" // High Noise - Red
-		};
-
-		return colors[classification] || "#808080"; // Default gray
-	}
+	// createTriangulatedSurface, getClassificationColor — now handled by lasImportWorker.js
 
 	// Step 39) Detect coordinate system from LAS header bounds
 	detectCoordinateSystem(header) {
@@ -1350,59 +825,7 @@ class LASParser extends BaseParser {
 		});
 	}
 
-	// Step 48) Apply coordinate transformation to points
-	async applyCoordinateTransformation(data, config) {
-		if (!config.transform) {
-			return data;
-		}
-
-		console.log("Transforming LAS coordinates from WGS84 to projected system...");
-
-		var sourceDef = "+proj=longlat +datum=WGS84 +no_defs";
-		var targetDef = config.proj4Source || "EPSG:" + config.epsgCode;
-
-		// Transform each point
-		for (var i = 0; i < data.points.length; i++) {
-			var point = data.points[i];
-			var transformed = proj4(sourceDef, targetDef, [point.x, point.y]);
-
-			point.x = transformed[0];
-			point.y = transformed[1];
-			// Z coordinate typically stays the same (elevation)
-		}
-
-		// Update header bounds
-		var stats = this.calculateStatistics(data.points, data.header);
-		data.header.minX = stats.minX;
-		data.header.maxX = stats.maxX;
-		data.header.minY = stats.minY;
-		data.header.maxY = stats.maxY;
-
-		return data;
-	}
-
-	// Step 49) Apply master RL offset NOT NEEDED
-	// applyMasterRLOffset(data, offsetX, offsetY) {
-	// 	if (offsetX === 0 && offsetY === 0) {
-	// 		return data;
-	// 	}
-
-	// 	console.log("Applying master RL offset:", offsetX, offsetY);
-
-	// 	for (var i = 0; i < data.points.length; i++) {
-	// 		data.points[i].x += offsetX;
-	// 		data.points[i].y += offsetY;
-	// 	}
-
-	// 	// Update header bounds
-	// 	var stats = this.calculateStatistics(data.points, data.header);
-	// 	data.header.minX = stats.minX;
-	// 	data.header.maxX = stats.maxX;
-	// 	data.header.minY = stats.minY;
-	// 	data.header.maxY = stats.maxY;
-
-	// 	return data;
-	// }
+	// applyCoordinateTransformation — now handled by lasImportWorker.js
 }
 
 export default LASParser;

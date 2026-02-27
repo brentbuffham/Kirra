@@ -356,6 +356,86 @@ function passesAngleCull(v0, v1, v2, cosEndAngle) {
 }
 
 /**
+ * Extract per-hole flyrock data for Web Worker grid computation.
+ * This runs on the main thread (needs window.loadedCharging) and returns
+ * the holeData array that the worker uses for the heavy grid computation.
+ *
+ * @param {Array} holes - Blast holes
+ * @param {Object} params - Algorithm parameters from dialog
+ * @returns {Object} - { holeData: [...], skippedNoCharging, error? }
+ */
+export function extractHoleFlyrockData(holes, params) {
+	if (!holes || holes.length === 0) {
+		return { holeData: [], skippedNoCharging: 0 };
+	}
+
+	params = params || {};
+	var algorithm = params.algorithm || "richardsMoore";
+	var holeData = [];
+	var skippedNoCharging = 0;
+
+	for (var h = 0; h < holes.length; h++) {
+		var hole = holes[h];
+		var cx = hole.startXLocation || 0;
+		var cy = hole.startYLocation || 0;
+		var cz = hole.startZLocation || 0;
+
+		var holeParams = getHoleFlyrockParams(hole, params);
+		if (!holeParams) {
+			skippedNoCharging++;
+			continue;
+		}
+
+		var maxDistance;
+		var maxVelocity;
+
+		switch (algorithm) {
+			case "lundborg":
+				var lundResult = lundborg(holeParams);
+				maxDistance = lundResult.clearance;
+				maxVelocity = Math.sqrt(lundResult.rangeMax * GRAVITY);
+				break;
+
+			case "mckenzie":
+				var mckResult = mckenzie(holeParams);
+				maxDistance = mckResult.clearance;
+				maxVelocity = mckResult.v0 || Math.sqrt(mckResult.rangeMax * GRAVITY);
+				break;
+
+			case "richardsMoore":
+			default:
+				var rmResult = richardsMoore(holeParams);
+				maxDistance = rmResult.maxDistance;
+				maxVelocity = rmResult.maxVelocity;
+				break;
+		}
+
+		// Scale velocity for FoS
+		var fos = params.factorOfSafety || 2;
+		if (fos > 1) {
+			maxVelocity = maxVelocity * Math.sqrt(fos);
+		}
+
+		if (maxDistance <= 0 || maxVelocity <= 0) continue;
+
+		holeData.push({
+			cx: cx,
+			cy: cy,
+			cz: cz,
+			maxDistance: maxDistance,
+			maxVelocity: maxVelocity,
+			holeID: hole.entityName + ":" + hole.holeID
+		});
+	}
+
+	if (holeData.length === 0 && skippedNoCharging > 0) {
+		return { error: "NO_CHARGING", skipped: skippedNoCharging, total: holes.length, holeData: [] };
+	}
+
+	return { holeData: holeData, skippedNoCharging: skippedNoCharging };
+}
+
+/**
  * Extract flyrock-relevant parameters from a hole, deriving values from
  * hole geometry and charging data. Returns null if charging data is missing.
  *

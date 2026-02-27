@@ -47,6 +47,48 @@ import {
 } from "./MeshRepairHelper.js";
 
 // ────────────────────────────────────────────────────────
+// Web Worker communication
+// ────────────────────────────────────────────────────────
+
+function runBooleanWorker(messageType, payload) {
+	return new Promise(function(resolve, reject) {
+		var worker = new Worker(
+			new URL("../workers/surfaceBooleanWorker.js", import.meta.url),
+			{ type: "module" }
+		);
+
+		function handler(e) {
+			var msg = e.data;
+			if (msg.type === "progress") {
+				console.log("SurfaceBoolean Worker: [" + msg.percent + "%] " + msg.message);
+			} else if (msg.type === "result") {
+				worker.removeEventListener("message", handler);
+				worker.removeEventListener("error", errHandler);
+				worker.terminate();
+				resolve(msg.data);
+			} else if (msg.type === "error") {
+				worker.removeEventListener("message", handler);
+				worker.removeEventListener("error", errHandler);
+				worker.terminate();
+				reject(new Error(msg.message));
+			}
+		}
+
+		function errHandler(err) {
+			worker.removeEventListener("message", handler);
+			worker.removeEventListener("error", errHandler);
+			worker.terminate();
+			reject(new Error("Worker error: " + (err.message || String(err))));
+		}
+
+		worker.addEventListener("message", handler);
+		worker.addEventListener("error", errHandler);
+
+		worker.postMessage({ type: messageType, payload: payload });
+	});
+}
+
+// ────────────────────────────────────────────────────────
 // Vertex/edge key helpers
 // ────────────────────────────────────────────────────────
 
@@ -632,7 +674,7 @@ function buildNoIntersectionResult(trisA, trisB, surfaceIdA, surfaceIdB, surface
  * @param {string} surfaceIdB - Second surface ID
  * @returns {Object|null} { splits, surfaceIdA, surfaceIdB, taggedSegments }
  */
-export function computeSplits(surfaceIdA, surfaceIdB) {
+export async function computeSplits(surfaceIdA, surfaceIdB) {
 	var surfaceA = window.loadedSurfaces ? window.loadedSurfaces.get(surfaceIdA) : null;
 	var surfaceB = window.loadedSurfaces ? window.loadedSurfaces.get(surfaceIdB) : null;
 
@@ -641,145 +683,25 @@ export function computeSplits(surfaceIdA, surfaceIdB) {
 		return null;
 	}
 
-	// Step 1) Extract triangles
-	var trisA = ixExtractTriangles(surfaceA);
-	var trisB = ixExtractTriangles(surfaceB);
+	console.log("Surface Boolean: delegating to worker...");
 
-	if (trisA.length === 0 || trisB.length === 0) {
-		console.error("SurfaceBooleanHelper: One or both surfaces have no triangles");
+	try {
+		var result = await runBooleanWorker("computeSplits", {
+			surfaceA: { id: surfaceIdA, name: surfaceA.name || surfaceIdA, points: surfaceA.points, triangles: surfaceA.triangles },
+			surfaceB: { id: surfaceIdB, name: surfaceB.name || surfaceIdB, points: surfaceB.points, triangles: surfaceB.triangles }
+		});
+
+		if (result.error) {
+			console.error("SurfaceBooleanHelper: " + result.error);
+			return null;
+		}
+
+		console.log("Surface Boolean: worker returned " + (result.splits ? result.splits.length : 0) + " split groups");
+		return result;
+	} catch (err) {
+		console.error("SurfaceBooleanHelper: Worker error:", err);
 		return null;
 	}
-
-	console.log("Surface Boolean: A=" + trisA.length + " tris, B=" + trisB.length + " tris");
-
-	// Step 2) Get tagged intersection segments
-	var taggedSegments = intersectSurfacePairTagged(trisA, trisB);
-	console.log("Surface Boolean: " + taggedSegments.length + " intersection segments found");
-
-	if (taggedSegments.length === 0) {
-		console.warn("SurfaceBooleanHelper: No intersection found — returning each surface as whole group");
-		return buildNoIntersectionResult(trisA, trisB, surfaceIdA, surfaceIdB, surfaceA, surfaceB);
-	}
-
-	// Step 3) Build crossed triangle sets from tagged segments
-	var crossedSetA = {};
-	var crossedSetB = {};
-	for (var s = 0; s < taggedSegments.length; s++) {
-		var seg = taggedSegments[s];
-		if (!crossedSetA[seg.idxA]) crossedSetA[seg.idxA] = [];
-		crossedSetA[seg.idxA].push(seg);
-		if (!crossedSetB[seg.idxB]) crossedSetB[seg.idxB] = [];
-		crossedSetB[seg.idxB].push(seg);
-	}
-
-	var crossedCountA = Object.keys(crossedSetA).length;
-	var crossedCountB = Object.keys(crossedSetB).length;
-	console.log("Surface Boolean: crossed A=" + crossedCountA + ", crossed B=" + crossedCountB);
-
-	// Step 4) Build spatial grids for multi-axis ray-cast classification
-	//   3 grids per surface: XY (Z-ray), YZ (X-ray), XZ (Y-ray)
-	var avgEdgeA = estimateAvgEdge(trisA);
-	var avgEdgeB = estimateAvgEdge(trisB);
-	var cellSizeA = Math.max(avgEdgeA * 2, 0.1);
-	var cellSizeB = Math.max(avgEdgeB * 2, 0.1);
-
-	var gridsA = {
-		xy: { grid: buildSpatialGrid(trisA, cellSizeA), cellSize: cellSizeA },
-		yz: { grid: buildSpatialGridOnAxes(trisA, cellSizeA, function(v) { return v.y; }, function(v) { return v.z; }), cellSize: cellSizeA },
-		xz: { grid: buildSpatialGridOnAxes(trisA, cellSizeA, function(v) { return v.x; }, function(v) { return v.z; }), cellSize: cellSizeA }
-	};
-	var gridsB = {
-		xy: { grid: buildSpatialGrid(trisB, cellSizeB), cellSize: cellSizeB },
-		yz: { grid: buildSpatialGridOnAxes(trisB, cellSizeB, function(v) { return v.y; }, function(v) { return v.z; }), cellSize: cellSizeB },
-		xz: { grid: buildSpatialGridOnAxes(trisB, cellSizeB, function(v) { return v.x; }, function(v) { return v.z; }), cellSize: cellSizeB }
-	};
-
-	// Step 5) Flood-fill classify: each connected non-crossed region gets one seed.
-	// Seed classification uses majority vote across all 3 axes (+Z, +X, +Y) —
-	// handles any wall angle without thresholds.
-	var classA = classifyByFloodFill(trisA, crossedSetA, trisB, gridsB);
-	var classB = classifyByFloodFill(trisB, crossedSetB, trisA, gridsA);
-
-	// Step 6) Split straddling triangles and classify sub-triangles.
-	// Sub-triangles inherit classification from adjacent non-crossed triangles
-	// via vertex adjacency (no ray-casting at the boundary).
-	var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridsB);
-	var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridsA);
-
-	console.log("Surface Boolean: A inside=" + groupsA.inside.length + " outside=" + groupsA.outside.length +
-		", B inside=" + groupsB.inside.length + " outside=" + groupsB.outside.length);
-
-	// Step 7) Deduplicate seam vertices
-	if (groupsA.inside.length > 0) groupsA.inside = deduplicateSeamVertices(groupsA.inside, 1e-4);
-	if (groupsA.outside.length > 0) groupsA.outside = deduplicateSeamVertices(groupsA.outside, 1e-4);
-	if (groupsB.inside.length > 0) groupsB.inside = deduplicateSeamVertices(groupsB.inside, 1e-4);
-	if (groupsB.outside.length > 0) groupsB.outside = deduplicateSeamVertices(groupsB.outside, 1e-4);
-
-	// Step 8) Propagate normals for consistent winding
-	if (groupsA.inside.length > 0) groupsA.inside = propagateNormals(groupsA.inside);
-	if (groupsA.outside.length > 0) groupsA.outside = propagateNormals(groupsA.outside);
-	if (groupsB.inside.length > 0) groupsB.inside = propagateNormals(groupsB.inside);
-	if (groupsB.outside.length > 0) groupsB.outside = propagateNormals(groupsB.outside);
-
-	// Step 9) Build split groups
-	var splits = [];
-	var nameA = surfaceA.name || surfaceIdA;
-	var nameB = surfaceB.name || surfaceIdB;
-
-	if (groupsA.inside.length > 0) {
-		splits.push({
-			id: "A_inside",
-			surfaceId: surfaceIdA,
-			label: nameA + " [inside]",
-			triangles: groupsA.inside,
-			color: "#FF0000",
-			kept: true
-		});
-	}
-	if (groupsA.outside.length > 0) {
-		splits.push({
-			id: "A_outside",
-			surfaceId: surfaceIdA,
-			label: nameA + " [outside]",
-			triangles: groupsA.outside,
-			color: "#FF8800",
-			kept: true
-		});
-	}
-	if (groupsB.inside.length > 0) {
-		splits.push({
-			id: "B_inside",
-			surfaceId: surfaceIdB,
-			label: nameB + " [inside]",
-			triangles: groupsB.inside,
-			color: "#00FF00",
-			kept: true
-		});
-	}
-	if (groupsB.outside.length > 0) {
-		splits.push({
-			id: "B_outside",
-			surfaceId: surfaceIdB,
-			label: nameB + " [outside]",
-			triangles: groupsB.outside,
-			color: "#00CCFF",
-			kept: true
-		});
-	}
-
-	if (splits.length === 0) {
-		console.warn("SurfaceBooleanHelper: No split groups created");
-		return null;
-	}
-
-	console.log("Surface Boolean: " + splits.length + " split groups created");
-
-	return {
-		splits: splits,
-		surfaceIdA: surfaceIdA,
-		surfaceIdB: surfaceIdB,
-		taggedSegments: taggedSegments
-	};
 }
 
 // ────────────────────────────────────────────────────────
@@ -1362,241 +1284,83 @@ export function updateSplitMeshAppearance(mesh, kept) {
 /**
  * Merge kept splits into a new surface and store it.
  */
-export function applyMerge(splits, config) {
+export async function applyMerge(splits, config) {
 	// Abort if WebGL context already lost
 	if (window.threeRenderer && window.threeRenderer.contextLost) {
 		console.error("SurfaceBooleanHelper: WebGL context lost — aborting merge");
 		return null;
 	}
 
-	var closeMode = config.closeMode || "none";
-	var snapTol = config.snapTolerance || 0;
+	console.log("SurfaceBooleanHelper: delegating merge to worker...");
 
-	// ── Step 1: Collect kept triangles ──
-	var keptTriangles = [];
-	for (var s = 0; s < splits.length; s++) {
-		if (splits[s].kept) {
-			for (var t = 0; t < splits[s].triangles.length; t++) {
-				keptTriangles.push(splits[s].triangles[t]);
-			}
+	try {
+		// Delegate heavy mesh repair to worker
+		var result = await runBooleanWorker("mergeSplits", { splits: splits, config: config });
+
+		if (result.error) {
+			console.warn("SurfaceBooleanHelper: " + result.error);
+			return null;
 		}
-	}
 
-	if (keptTriangles.length === 0) {
-		console.warn("SurfaceBooleanHelper: No triangles kept");
+		var worldPoints = result.worldPoints;
+		var triangles = result.triangles;
+		var bounds = result.meshBounds;
+
+		// Store result surface on main thread (needs window state)
+		var shortId = Math.random().toString(36).substring(2, 6);
+		var surfaceId = "BOOL_SURFACE_" + shortId;
+		var layerId = getOrCreateSurfaceLayer("Surface Booleans");
+
+		var surface = {
+			id: surfaceId,
+			name: surfaceId,
+			layerId: layerId,
+			type: "triangulated",
+			points: worldPoints,
+			triangles: triangles,
+			visible: true,
+			gradient: config.gradient || "default",
+			transparency: 1.0,
+			meshBounds: bounds,
+			isTexturedMesh: false
+		};
+
+		// Store and persist
+		window.loadedSurfaces.set(surfaceId, surface);
+
+		// Add to layer
+		var layer = window.allSurfaceLayers ? window.allSurfaceLayers.get(layerId) : null;
+		if (layer && layer.entities) layer.entities.add(surfaceId);
+
+		if (typeof window.saveSurfaceToDB === "function") {
+			window.saveSurfaceToDB(surfaceId).catch(function (err) {
+				console.error("Failed to save boolean surface:", err);
+			});
+		}
+
+		// Undo support
+		if (window.undoManager) {
+			var action = new AddSurfaceAction(surface);
+			window.undoManager.pushAction(action);
+		}
+
+		// Trigger redraw
+		window.threeKADNeedsRebuild = true;
+		if (window.threeRenderer && window.threeRenderer.contextLost) {
+			console.warn("SurfaceBooleanHelper: WebGL context lost during operation — surface saved but 3D render skipped");
+		} else if (typeof window.drawData === "function") {
+			window.drawData(window.allBlastHoles, window.selectedHole);
+		}
+		if (typeof window.debouncedUpdateTreeView === "function") {
+			window.debouncedUpdateTreeView();
+		}
+
+		console.log("SurfaceBooleanHelper: applied " + surfaceId + " (" + triangles.length + " triangles)");
+		return surfaceId;
+	} catch (err) {
+		console.error("SurfaceBooleanHelper: Merge worker error:", err);
 		return null;
 	}
-
-	// Cleanup settings (all optional, defaults to off)
-	var removeDegenerate = config.removeDegenerate !== false; // default on
-	var removeSlivers = !!config.removeSlivers; // default off
-	var cleanCrossings = !!config.cleanCrossings; // default off
-	var sliverRatio = config.sliverRatio || 0.01;
-	var minArea = config.minArea || 1e-6;
-
-	console.log("SurfaceBooleanHelper: applyMerge — " + keptTriangles.length +
-		" kept tris, closeMode=" + closeMode + ", snapTol=" + snapTol +
-		", removeDegenerate=" + removeDegenerate + ", removeSlivers=" + removeSlivers +
-		", cleanCrossings=" + cleanCrossings + ", sliverRatio=" + sliverRatio);
-
-	// ── Step 1b: Deduplicate seam vertices (skip for "raw" mode = tear at seam) ──
-	var soup;
-	if (closeMode === "raw") {
-		soup = keptTriangles;
-	} else {
-		soup = deduplicateSeamVertices(keptTriangles, 1e-4);
-	}
-
-	// ── Step 2: Weld vertices (user snap tolerance) ──
-	var welded = weldVertices(soup, snapTol);
-	console.log("SurfaceBooleanHelper: welded " + soup.length * 3 + " vertices → " +
-		welded.points.length + " unique points (tol=" + snapTol + "m)");
-
-	// Convert back to soup for subsequent operations
-	soup = weldedToSoup(welded.triangles);
-
-	// ── Step 3: Remove degenerate / sliver triangles (if enabled) ──
-	if (removeDegenerate || removeSlivers) {
-		var effectiveSliver = removeSlivers ? sliverRatio : 0;
-		soup = removeDegenerateTriangles(soup, minArea, effectiveSliver);
-	}
-
-	// ── Step 4: Clean crossing triangles (if enabled, iterative) ──
-	if (cleanCrossings) {
-		var prevLen = soup.length + 1;
-		var cleanPass = 0;
-		while (soup.length < prevLen && cleanPass < 5) {
-			prevLen = soup.length;
-			soup = cleanCrossingTriangles(soup);
-			if (removeDegenerate || removeSlivers) {
-				var effectiveSliver2 = removeSlivers ? sliverRatio : 0;
-				soup = removeDegenerateTriangles(soup, minArea, effectiveSliver2);
-			}
-			cleanPass++;
-		}
-		if (cleanPass > 1) {
-			console.log("SurfaceBooleanHelper: iterative clean took " + cleanPass + " passes");
-		}
-	}
-
-	// ── Step 4b: Remove overlapping triangles / internal walls (if enabled) ──
-	if (config.removeOverlapping) {
-		var overlapTol = config.overlapTolerance || 0.5;
-		soup = removeOverlappingTriangles(soup, overlapTol);
-	}
-
-	// ── Step 5: Stitch boundary edges by proximity (if mode = "stitch") ──
-	if (closeMode === "stitch") {
-		var stitchTol = config.stitchTolerance || 1.0;
-		var stitchTris = stitchByProximity(soup, stitchTol);
-		if (stitchTris.length > 0) {
-			for (var st = 0; st < stitchTris.length; st++) {
-				soup.push(stitchTris[st]);
-			}
-			console.log("SurfaceBooleanHelper: stitchByProximity added " + stitchTris.length + " triangles");
-		}
-	}
-
-	// ── Step 6: Final weld ──
-	var finalWelded = weldVertices(soup, snapTol);
-	var worldPoints = finalWelded.points;
-	var triangles = finalWelded.triangles;
-
-	console.log("SurfaceBooleanHelper: final weld → " + worldPoints.length +
-		" points, " + triangles.length + " triangles");
-
-	// ── Step 6b: Post-weld sequential capping (stitch mode only) ──
-	if (closeMode === "stitch") {
-		var postSoup = weldedToSoup(triangles);
-
-		// Use sequential capping: cap one loop at a time with non-manifold
-		// cleanup before each pass (Fix 2 + Fix 3)
-		postSoup = capBoundaryLoopsSequential(postSoup, snapTol, 3);
-
-		// Update final output with capped result
-		var cappedWeld = weldVertices(postSoup, snapTol);
-		worldPoints = cappedWeld.points;
-		triangles = cappedWeld.triangles;
-
-		console.log("SurfaceBooleanHelper: after sequential capping → " +
-			worldPoints.length + " points, " + triangles.length + " triangles");
-	}
-
-	// ── Step 6c: Post-cap cleanup (stitch mode only) ──
-	if (closeMode === "stitch") {
-		var postCapSoup = weldedToSoup(triangles);
-		var postCapChanged = false;
-
-		// Check for non-manifold edges introduced by capping
-		var postCapStats = countOpenEdges(postCapSoup);
-		if (postCapStats.overShared > 0) {
-			console.log("SurfaceBooleanHelper: post-cap cleanup — " + postCapStats.overShared + " non-manifold edges, cleaning crossings");
-			postCapSoup = cleanCrossingTriangles(postCapSoup);
-			postCapChanged = true;
-		}
-
-		// Remove overlapping triangles (catches stitch+cap duplicates)
-		if (config.removeOverlapping) {
-			var postCapOverlapTol = config.overlapTolerance || 0.5;
-			var preOverlapCount = postCapSoup.length;
-			postCapSoup = removeOverlappingTriangles(postCapSoup, postCapOverlapTol);
-			if (postCapSoup.length < preOverlapCount) postCapChanged = true;
-		}
-
-		// Remove degenerates if enabled
-		if (removeDegenerate || removeSlivers) {
-			var effectiveSliver3 = removeSlivers ? sliverRatio : 0;
-			var preDegenCount = postCapSoup.length;
-			postCapSoup = removeDegenerateTriangles(postCapSoup, minArea, effectiveSliver3);
-			if (postCapSoup.length < preDegenCount) postCapChanged = true;
-		}
-
-		// Re-weld if anything was cleaned
-		if (postCapChanged) {
-			var postCapWeld = weldVertices(postCapSoup, snapTol);
-			worldPoints = postCapWeld.points;
-			triangles = postCapWeld.triangles;
-			console.log("SurfaceBooleanHelper: post-cap cleanup → " +
-				worldPoints.length + " points, " + triangles.length + " triangles");
-		}
-	}
-
-	// ── Step 6d: Safety net — forceCloseIndexedMesh if still open ──
-	if (closeMode === "stitch") {
-		var safetyCheckSoup = weldedToSoup(triangles);
-		var safetyStats = countOpenEdges(safetyCheckSoup);
-		if (safetyStats.openEdges > 0) {
-			console.log("SurfaceBooleanHelper: safety net — " + safetyStats.openEdges +
-				" open edges remain, running forceCloseIndexedMesh");
-			var forceClosed = forceCloseIndexedMesh(worldPoints, triangles);
-			worldPoints = forceClosed.points;
-			triangles = forceClosed.triangles;
-			console.log("SurfaceBooleanHelper: after forceClose → " +
-				worldPoints.length + " points, " + triangles.length + " triangles");
-		}
-	}
-
-	// ── Step 7: Log boundary stats ──
-	var finalSoup = weldedToSoup(triangles);
-	logBoundaryStats(finalSoup, closeMode);
-
-	// ── Step 8b: Open-edge diagnostic via countOpenEdges ──
-	var edgeStats = countOpenEdges(finalSoup);
-	console.log("SurfaceBooleanHelper: result — " + edgeStats.openEdges + " open edges, " + edgeStats.overShared + " non-manifold");
-
-	// ── Step 9: Store result surface ──
-	var bounds = computeBounds(worldPoints);
-
-	var shortId = Math.random().toString(36).substring(2, 6);
-	var surfaceId = "BOOL_SURFACE_" + shortId;
-	var layerId = getOrCreateSurfaceLayer("Surface Booleans");
-
-	var surface = {
-		id: surfaceId,
-		name: surfaceId,
-		layerId: layerId,
-		type: "triangulated",
-		points: worldPoints,
-		triangles: triangles,
-		visible: true,
-		gradient: config.gradient || "default",
-		transparency: 1.0,
-		meshBounds: bounds,
-		isTexturedMesh: false
-	};
-
-	// Store and persist
-	window.loadedSurfaces.set(surfaceId, surface);
-
-	// Add to layer
-	var layer = window.allSurfaceLayers ? window.allSurfaceLayers.get(layerId) : null;
-	if (layer && layer.entities) layer.entities.add(surfaceId);
-
-	if (typeof window.saveSurfaceToDB === "function") {
-		window.saveSurfaceToDB(surfaceId).catch(function (err) {
-			console.error("Failed to save boolean surface:", err);
-		});
-	}
-
-	// Undo support
-	if (window.undoManager) {
-		var action = new AddSurfaceAction(surface);
-		window.undoManager.pushAction(action);
-	}
-
-	// Trigger redraw (skip 3D render if WebGL context was lost during operation)
-	window.threeKADNeedsRebuild = true;
-	if (window.threeRenderer && window.threeRenderer.contextLost) {
-		console.warn("SurfaceBooleanHelper: WebGL context lost during operation — surface saved but 3D render skipped");
-	} else if (typeof window.drawData === "function") {
-		window.drawData(window.allBlastHoles, window.selectedHole);
-	}
-	if (typeof window.debouncedUpdateTreeView === "function") {
-		window.debouncedUpdateTreeView();
-	}
-
-	console.log("SurfaceBooleanHelper: applied " + surfaceId + " (" + triangles.length + " triangles)");
-	return surfaceId;
 }
 
 

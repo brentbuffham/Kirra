@@ -26,6 +26,7 @@ import pdfFonts from "pdfmake/build/vfs_fonts";
 import { evaluate } from "mathjs";
 import { deduplicatePoints, decimatePoints } from "./helpers/PointDeduplication.js";
 import { triangulate as workerTriangulate, triangulateBasic as workerTriangulateBasic, terminateWorker as terminateTriangulationWorker } from "./helpers/TriangulationService.js";
+import { showWorkerProgressDialog } from "./dialog/popups/generic/WorkerProgressDialog.js";
 import { BlastHole } from "./models/BlastHole.js";
 //=================================================
 // Undo/Redo System
@@ -12175,6 +12176,91 @@ document.querySelectorAll(".las-input-btn").forEach(function (button) {
 							);
 
 							console.log("LAS import completed: " + result.successCount + " points");
+
+							} else if (result.dataType === "pointcloud_typed" && result.typedPointCloud) {
+								// Large point cloud — stored as typed arrays for memory efficiency
+								var tpc = result.typedPointCloud;
+								var pcId = "LAS_" + file.name.replace(/[^a-zA-Z0-9]/g, "_") + "_" + Date.now();
+
+								// Store typed arrays in a dedicated point cloud map
+								if (!window.loadedPointClouds) window.loadedPointClouds = new Map();
+								window.loadedPointClouds.set(pcId, {
+									id: pcId,
+									name: file.name,
+									count: tpc.count,
+									x: tpc.x,
+									y: tpc.y,
+									z: tpc.z,
+									classification: tpc.classification,
+									intensity: tpc.intensity,
+									returnNumber: tpc.returnNumber,
+									numberOfReturns: tpc.numberOfReturns,
+									hasRgb: tpc.hasRgb,
+									r: tpc.r,
+									g: tpc.g,
+									b: tpc.b,
+									statistics: result.statistics,
+									visible: true
+								});
+
+								// Create decimated KAD preview for 2D/3D rendering
+								var previewMax = 500000;
+								var previewStride = Math.max(1, Math.floor(tpc.count / previewMax));
+								var previewEntityName = "LAS_" + file.name.replace(/\.[^.]+$/, "");
+								var previewData = [];
+								var st = result.statistics;
+								var zRange = st.maxZ - st.minZ;
+
+								for (var pi = 0; pi < tpc.count; pi += previewStride) {
+									var pColor;
+									if (tpc.hasRgb && (tpc.r[pi] || tpc.g[pi] || tpc.b[pi])) {
+										pColor = "#" + tpc.r[pi].toString(16).padStart(2, "0") + tpc.g[pi].toString(16).padStart(2, "0") + tpc.b[pi].toString(16).padStart(2, "0");
+									} else {
+										var ratio = zRange > 0.001 ? Math.max(0, Math.min(1, (tpc.z[pi] - st.minZ) / zRange)) : 0.5;
+										var cr, cg, cb;
+										if (ratio < 0.25) { cr = 0; cg = Math.floor(ratio * 4 * 255); cb = 255; }
+										else if (ratio < 0.5) { cr = 0; cg = 255; cb = Math.floor(255 - (ratio - 0.25) * 4 * 255); }
+										else if (ratio < 0.75) { cr = Math.floor((ratio - 0.5) * 4 * 255); cg = 255; cb = 0; }
+										else { cr = 255; cg = Math.floor(255 - (ratio - 0.75) * 4 * 255); cb = 0; }
+										pColor = "#" + cr.toString(16).padStart(2, "0") + cg.toString(16).padStart(2, "0") + cb.toString(16).padStart(2, "0");
+									}
+									previewData.push({
+										entityName: previewEntityName,
+										entityType: "point",
+										pointID: pi,
+										pointXLocation: tpc.x[pi],
+										pointYLocation: tpc.y[pi],
+										pointZLocation: tpc.z[pi],
+										lineWidth: 1,
+										color: pColor,
+										connected: false,
+										closed: false,
+										visible: true
+									});
+								}
+
+								// Add preview as KAD entity
+								var lasLayer = window.getOrCreateLayerForImport("drawing", file.name);
+								var lasLayerId = lasLayer ? lasLayer.layerId : null;
+								var previewEntity = { entityName: previewEntityName, entityType: "point", data: previewData, layerId: lasLayerId, pointCloudId: pcId };
+								window.allKADDrawingsMap.set(previewEntityName, previewEntity);
+								if (lasLayer) lasLayer.entities.add(previewEntityName);
+
+								updateCentroids();
+								window.threeDataNeedsRebuild = true;
+								window.drawData(window.allBlastHoles, window.selectedHole);
+
+								if (typeof debouncedSaveKAD === "function") debouncedSaveKAD();
+								if (window.debouncedSaveLayers) window.debouncedSaveLayers();
+								if (window.debouncedUpdateTreeView) window.debouncedUpdateTreeView();
+
+								showModalMessage(
+									"Import Successful",
+									"Imported " + tpc.count.toLocaleString() + " points from " + file.name + " (Preview: " + previewData.length.toLocaleString() + " points)",
+									"success"
+								);
+								console.log("LAS typed array import: " + tpc.count + " points, preview: " + previewData.length);
+
 						} else {
 							showModalMessage("Import Error", "Unexpected data format from LAS parser", "error");
 						}
@@ -33170,6 +33256,12 @@ function isSurfaceClosed(surface) {
 		return false;
 	}
 
+	// Skip for very large surfaces — Map cannot hold >16M entries and
+	// LAS/point-cloud surfaces are never closed anyway
+	if (surface.triangles.length > 5000000) {
+		return false;
+	}
+
 	// Build edge count map
 	// Edge key is created by sorting vertex indices to handle both directions
 	var edgeCount = new Map();
@@ -33225,8 +33317,13 @@ function debugSurfaceClosed(surfaceId) {
 	var surface = window.loadedSurfaces.get(surfaceId);
 	if (!surface) { console.error("Surface not found: " + surfaceId); return; }
 
-	var edgeCount = new Map();
 	var tris = surface.triangles || [];
+	if (tris.length > 5000000) {
+		console.warn("debugSurfaceClosed: surface has " + tris.length + " triangles — too large for edge analysis");
+		return { isClosed: false, reason: "too_large", triangleCount: tris.length };
+	}
+
+	var edgeCount = new Map();
 
 	function vk(v) { return v.x.toFixed(6) + "," + v.y.toFixed(6) + "," + v.z.toFixed(6); }
 	function ek(a, b) { return a < b ? a + "|" + b : b + "|" + a; }
@@ -35284,8 +35381,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				var { showSurfaceIntersectionDialog } = await import("./dialog/popups/surface/SurfaceIntersectionDialog.js");
 				var { computeSurfaceIntersections } = await import("./helpers/SurfaceIntersectionHelper.js");
 
-				showSurfaceIntersectionDialog(function(config) {
-					computeSurfaceIntersections(config);
+				showSurfaceIntersectionDialog(async function(config) {
+					await computeSurfaceIntersections(config);
 				});
 			} catch (error) {
 				console.error("Failed to load Surface Intersection:", error);
@@ -44986,7 +45083,7 @@ function showPointCloudImportDialog(points, fileName) {
 					updateStatusMessage("Imported " + finalPoints.length + " points as KAD entities");
 				} else {
 					// Surface import with triangulation options
-					createSurfaceFromPointsWithOptions(processedPoints, config);
+					await createSurfaceFromPointsWithOptions(processedPoints, config);
 				}
 
 			} catch (error) {
@@ -45045,171 +45142,104 @@ function showDecimationWarning(points, fileName) {
 }
 
 // Create Surface from Points with Triangulation Options (edge/angle culling)
-function createSurfaceFromPointsWithOptions(points, config) {
+// Delegates heavy computation (decimation, dedup, triangulation, culling) to a Web Worker.
+async function createSurfaceFromPointsWithOptions(points, config) {
 	var surfaceName = config.surfaceName || "surface_" + Date.now();
-	var maxEdgeLength = config.maxEdgeLength || 0;
-	var consider3DLength = config.consider3DLength || false;
-	var minAngle = config.minAngle || 0;
-	var consider3DAngle = config.consider3DAngle || false;
 	var surfaceStyle = config.surfaceStyle || "default";
-	var xyzTolerance = config.xyzTolerance || 0.001;
-	var maxSurfacePoints = config.maxSurfacePoints || 0;
 
-	// Step 0.5) Decimate if maxSurfacePoints is set (before dedup for performance)
-	if (maxSurfacePoints > 0 && points.length > maxSurfacePoints) {
-		var originalCount = points.length;
-		points = decimatePoints(points, maxSurfacePoints);
-		if (developerModeEnabled) {
-			console.log("Decimated: " + originalCount + " -> " + points.length + " points (target: " + maxSurfacePoints + ")");
-		}
-	}
+	var progressDialog = showWorkerProgressDialog("Creating Surface", {
+		initialMessage: "Triangulating " + points.length.toLocaleString() + " points..."
+	});
 
-	// Step 0.6) Deduplicate points by XY distance within tolerance
-	if (xyzTolerance > 0) {
-		var dedupResult = deduplicatePoints(points, xyzTolerance);
-		if (developerModeEnabled) {
-			console.log("Deduplication: " + dedupResult.originalCount + " -> " + dedupResult.uniqueCount + " points (tolerance: " + xyzTolerance + ")");
-		}
-		points = dedupResult.uniquePoints;
-	}
+	try {
+		var workerResult = await new Promise(function (resolve, reject) {
+			var worker = new Worker(
+				new URL("./workers/pointCloudMeshWorker.js", import.meta.url),
+				{ type: "module" }
+			);
 
-	// Debug logging (only in developer mode)
-	if (developerModeEnabled) {
-		console.log("Creating surface: " + surfaceName);
-		console.log("Options: maxEdgeLength=" + maxEdgeLength + ", minAngle=" + minAngle);
-	}
+			worker.onmessage = function (e) {
+				var msg = e.data;
+				if (msg.type === "progress") {
+					progressDialog.update(msg.percent, msg.message);
+				} else if (msg.type === "result") {
+					worker.terminate();
+					resolve(msg.data);
+				} else if (msg.type === "error") {
+					worker.terminate();
+					reject(new Error(msg.message));
+				}
+			};
 
-	// Check minimum points after dedup/decimation
-	if (points.length < 3) {
-		updateStatusMessage("Insufficient points for triangulation after deduplication: " + points.length);
-		return;
-	}
+			worker.onerror = function (err) {
+				worker.terminate();
+				reject(err);
+			};
 
-	// Step 1) Create triangles using Delaunator
-	var coords = points.flatMap(function (p) { return [p.x, p.y]; });
-	var delaunay = new Delaunator(coords);
-
-	// Step 2) Helper function to calculate distance
-	function distanceSquared(p1, p2, use3D) {
-		var dx = p2.x - p1.x;
-		var dy = p2.y - p1.y;
-		if (use3D) {
-			var dz = p2.z - p1.z;
-			return dx * dx + dy * dy + dz * dz;
-		}
-		return dx * dx + dy * dy;
-	}
-
-	// Step 3) Convert to triangles with culling
-	var triangles = [];
-	var culledByEdge = 0;
-	var culledByAngle = 0;
-
-	for (var i = 0; i < delaunay.triangles.length; i += 3) {
-		var p1 = points[delaunay.triangles[i]];
-		var p2 = points[delaunay.triangles[i + 1]];
-		var p3 = points[delaunay.triangles[i + 2]];
-
-		// Step 3a) Edge length culling
-		if (maxEdgeLength > 0) {
-			var edge1Sq = distanceSquared(p1, p2, consider3DLength);
-			var edge2Sq = distanceSquared(p2, p3, consider3DLength);
-			var edge3Sq = distanceSquared(p3, p1, consider3DLength);
-			var maxEdgeSq = maxEdgeLength * maxEdgeLength;
-
-			if (edge1Sq > maxEdgeSq || edge2Sq > maxEdgeSq || edge3Sq > maxEdgeSq) {
-				culledByEdge++;
-				continue;
-			}
-		}
-
-		// Step 3b) Minimum angle culling
-		if (minAngle > 0) {
-			var edge1 = Math.sqrt(distanceSquared(p1, p2, consider3DAngle));
-			var edge2 = Math.sqrt(distanceSquared(p2, p3, consider3DAngle));
-			var edge3 = Math.sqrt(distanceSquared(p3, p1, consider3DAngle));
-
-			// Calculate angles using law of cosines
-			var angle1 = Math.acos(Math.max(-1, Math.min(1, (edge2 * edge2 + edge3 * edge3 - edge1 * edge1) / (2 * edge2 * edge3)))) * (180 / Math.PI);
-			var angle2 = Math.acos(Math.max(-1, Math.min(1, (edge1 * edge1 + edge3 * edge3 - edge2 * edge2) / (2 * edge1 * edge3)))) * (180 / Math.PI);
-			var angle3 = Math.acos(Math.max(-1, Math.min(1, (edge1 * edge1 + edge2 * edge2 - edge3 * edge3) / (2 * edge1 * edge2)))) * (180 / Math.PI);
-
-			var minTriAngle = Math.min(angle1, angle2, angle3);
-
-			if (minTriAngle < minAngle) {
-				culledByAngle++;
-				continue;
-			}
-		}
-
-		// Step 3c) Add triangle
-		triangles.push({
-			vertices: [p1, p2, p3],
-			minZ: Math.min(p1.z, p2.z, p3.z),
-			maxZ: Math.max(p1.z, p2.z, p3.z)
+			worker.postMessage({
+				type: "meshFromPoints",
+				payload: {
+					points: points,
+					config: {
+						maxSurfacePoints: config.maxSurfacePoints || 0,
+						xyzTolerance: config.xyzTolerance || 0.001,
+						maxEdgeLength: config.maxEdgeLength || 0,
+						consider3DLength: config.consider3DLength || false,
+						minAngle: config.minAngle || 0,
+						consider3DAngle: config.consider3DAngle || false
+					}
+				}
+			});
 		});
-	}
 
-	// Debug logging (only in developer mode)
-	if (developerModeEnabled) {
-		console.log("Generated " + triangles.length + " triangles");
-		console.log("Culled: " + culledByEdge + " by edge length, " + culledByAngle + " by angle");
-	}
+		var resultPoints = workerResult.points;
+		var triangles = workerResult.triangles;
+		var meshBounds = workerResult.meshBounds;
+		var stats = workerResult.stats;
 
-	// Step 4) Create surface ID
-	var surfaceId = surfaceName.replace(/\s+/g, "_");
-
-	// Step 4a) Calculate meshBounds from points for centroid calculation
-	// CRITICAL: Without meshBounds, centroid calculation cannot use this surface data
-	var minX = Infinity, maxX = -Infinity;
-	var minY = Infinity, maxY = -Infinity;
-	var minZ = Infinity, maxZ = -Infinity;
-	for (var bi = 0; bi < points.length; bi++) {
-		var bp = points[bi];
-		if (bp.x < minX) minX = bp.x;
-		if (bp.x > maxX) maxX = bp.x;
-		if (bp.y < minY) minY = bp.y;
-		if (bp.y > maxY) maxY = bp.y;
-		if (bp.z < minZ) minZ = bp.z;
-		if (bp.z > maxZ) maxZ = bp.z;
-	}
-	var meshBounds = { minX: minX, maxX: maxX, minY: minY, maxY: maxY, minZ: minZ, maxZ: maxZ };
-
-	// Step 5) Add surface to Map
-	loadedSurfaces.set(surfaceId, {
-		id: surfaceId,
-		name: surfaceName,
-		points: points,
-		triangles: triangles,
-		meshBounds: meshBounds, // CRITICAL: Add meshBounds for centroid calculation
-		visible: true,
-		gradient: surfaceStyle,
-		metadata: {
-			source: "pointcloud_import",
-			pointCount: points.length,
-			triangleCount: triangles.length,
-			culledByEdge: culledByEdge,
-			culledByAngle: culledByAngle,
-			maxEdgeLength: maxEdgeLength,
-			minAngle: minAngle
+		if (!triangles || triangles.length === 0) {
+			progressDialog.fail("No triangles generated" + (stats && stats.error ? ": " + stats.error : ""));
+			return;
 		}
-	});
 
-	// Step 6) Update display
-	updateCentroids();
-	drawData(allBlastHoles, selectedHole);
+		// Create surface ID and add to loadedSurfaces (main thread only)
+		var surfaceId = surfaceName.replace(/\s+/g, "_");
 
-	// Step 7) Update TreeView
-	if (typeof debouncedUpdateTreeView === "function") {
-		debouncedUpdateTreeView();
+		loadedSurfaces.set(surfaceId, {
+			id: surfaceId,
+			name: surfaceName,
+			points: resultPoints,
+			triangles: triangles,
+			meshBounds: meshBounds,
+			visible: true,
+			gradient: surfaceStyle,
+			metadata: {
+				source: "pointcloud_import",
+				pointCount: resultPoints.length,
+				triangleCount: triangles.length,
+				culledByEdge: stats.culledByEdge || 0,
+				culledByAngle: stats.culledByAngle || 0,
+				maxEdgeLength: config.maxEdgeLength || 0,
+				minAngle: config.minAngle || 0
+			}
+		});
+
+		updateCentroids();
+		drawData(allBlastHoles, selectedHole);
+
+		if (typeof debouncedUpdateTreeView === "function") {
+			debouncedUpdateTreeView();
+		}
+
+		saveSurfaceToDB(surfaceId).catch(function (err) {
+			console.error("Failed to save surface:", err);
+		});
+
+		progressDialog.complete("Surface created: " + triangles.length.toLocaleString() + " triangles");
+	} catch (err) {
+		console.error("Point cloud mesh worker error:", err);
+		progressDialog.fail("Surface creation failed: " + (err.message || String(err)));
 	}
-
-	// Step 8) Save to IndexedDB
-	saveSurfaceToDB(surfaceId).catch(function (err) {
-		console.error("Failed to save surface:", err);
-	});
-
-	updateStatusMessage("Created surface: " + surfaceName + " with " + triangles.length + " triangles");
 }
 
 function decimatePointCloud(points, targetCount) {
