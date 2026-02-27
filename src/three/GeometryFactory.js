@@ -2346,26 +2346,38 @@ export class GeometryFactory {
 	}
 
 	// Step 13) Create surface from triangle objects (Kirra format)
-	static createSurface(triangles, colorFunction, transparency = 1.0) {
+	static createSurface(triangles, colorFunction, transparency = 1.0, options) {
 		// Step 14) Build geometry from triangles
 		// Each triangle has: { vertices: [{x, y, z}, {x, y, z}, {x, y, z}], minZ, maxZ }
-		const positions = [];
-		const colors = [];
-		
+		// options.originX/originY: world-to-local offset (avoids intermediate .map() copy)
+
 		// Debug logging (only in developer mode)
 		if (window.developerModeEnabled) {
 			console.log("🏗️ [createSurface] Building mesh from " + triangles.length + " triangles");
 		}
 
+		var opts = options || {};
+		var ox = opts.originX || 0;
+		var oy = opts.originY || 0;
+
+		// Pre-allocate typed arrays directly — avoids ~2GB of intermediate JS arrays for large surfaces
+		var maxVerts = triangles.length * 9; // 3 verts * 3 floats
+		var positions = new Float32Array(maxVerts);
+		var colors = colorFunction ? new Float32Array(maxVerts) : null;
+		var writeIdx = 0;
 		var skippedCount = 0;
-		for (let triangle of triangles) {
+
+		for (var ti = 0; ti < triangles.length; ti++) {
+			var triangle = triangles[ti];
 			if (!triangle.vertices || triangle.vertices.length !== 3) {
 				skippedCount++;
 				continue;
 			}
 
-			const [p1, p2, p3] = triangle.vertices;
-			
+			var p1 = triangle.vertices[0];
+			var p2 = triangle.vertices[1];
+			var p3 = triangle.vertices[2];
+
 			// Validate vertices have valid numbers
 			if (isNaN(p1.x) || isNaN(p1.y) || isNaN(p1.z) ||
 			    isNaN(p2.x) || isNaN(p2.y) || isNaN(p2.z) ||
@@ -2374,41 +2386,60 @@ export class GeometryFactory {
 				continue;
 			}
 
-			// Add vertices
-			positions.push(p1.x, p1.y, p1.z);
-			positions.push(p2.x, p2.y, p2.z);
-			positions.push(p3.x, p3.y, p3.z);
+			// Add vertices (apply world-to-local offset inline)
+			positions[writeIdx]     = p1.x - ox;
+			positions[writeIdx + 1] = p1.y - oy;
+			positions[writeIdx + 2] = p1.z;
+			positions[writeIdx + 3] = p2.x - ox;
+			positions[writeIdx + 4] = p2.y - oy;
+			positions[writeIdx + 5] = p2.z;
+			positions[writeIdx + 6] = p3.x - ox;
+			positions[writeIdx + 7] = p3.y - oy;
+			positions[writeIdx + 8] = p3.z;
 
 			// Add colors if colorFunction provided
-			if (colorFunction) {
-				const color1 = colorFunction(p1.z);
-				const color2 = colorFunction(p2.z);
-				const color3 = colorFunction(p3.z);
+			if (colors) {
+				var color1 = colorFunction(p1.z);
+				var color2 = colorFunction(p2.z);
+				var color3 = colorFunction(p3.z);
 
-				colors.push(color1.r, color1.g, color1.b);
-				colors.push(color2.r, color2.g, color2.b);
-				colors.push(color3.r, color3.g, color3.b);
+				colors[writeIdx]     = color1.r;
+				colors[writeIdx + 1] = color1.g;
+				colors[writeIdx + 2] = color1.b;
+				colors[writeIdx + 3] = color2.r;
+				colors[writeIdx + 4] = color2.g;
+				colors[writeIdx + 5] = color2.b;
+				colors[writeIdx + 6] = color3.r;
+				colors[writeIdx + 7] = color3.g;
+				colors[writeIdx + 8] = color3.b;
 			}
+
+			writeIdx += 9;
 		}
-		
+
 		// Debug logging (only in developer mode)
 		if (window.developerModeEnabled) {
-			console.log("🏗️ [createSurface] Built " + (positions.length / 9) + " triangles, skipped " + skippedCount);
+			console.log("🏗️ [createSurface] Built " + (writeIdx / 9) + " triangles, skipped " + skippedCount);
 		}
 
-		if (positions.length === 0) {
+		if (writeIdx === 0) {
 			// Return null if no triangles - don't create empty meshes with empty materials
-			// Empty materials cause WebGL shader compilation errors
 			console.warn("🏗️ [createSurface] No valid positions - returning null");
 			return null;
 		}
 
+		// Trim typed arrays if some triangles were skipped
+		if (writeIdx < maxVerts) {
+			positions = positions.subarray(0, writeIdx);
+			if (colors) colors = colors.subarray(0, writeIdx);
+		}
+
 		// Step 15) Create BufferGeometry
 		const geometry = new THREE.BufferGeometry();
-		geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+		geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
-		if (colors.length > 0) {
-			geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+		if (colors) {
+			geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 		}
 
 		geometry.computeVertexNormals();

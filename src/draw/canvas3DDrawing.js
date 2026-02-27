@@ -1350,36 +1350,15 @@ export function drawSurfaceThreeJS(surfaceId, triangles, minZ, maxZ, gradient, t
 		// Fallback: no GLB, fall through to vertex coloring
 	}
 
-	// Step 9a) Standard surface rendering - Convert triangle vertices from world coordinates to local Three.js coordinates
-	var validTriangleCount = 0;
-	var invalidTriangleCount = 0;
-
-	var localTriangles = triangles.map(function (triangle, idx) {
-		if (!triangle.vertices || triangle.vertices.length !== 3) {
-			invalidTriangleCount++;
-			if (invalidTriangleCount <= 3 && developerModeEnabled) {
-				console.warn("⚠️ Invalid triangle at index " + idx + ":", triangle);
-			}
-			return triangle;
-		}
-
-		var localVertices = triangle.vertices.map(function (v) {
-			var local = window.worldToThreeLocal(v.x, v.y);
-			return { x: local.x, y: local.y, z: v.z }; // Keep elevation as-is
-		});
-
-		validTriangleCount++;
-
-		return Object.assign({}, triangle, { vertices: localVertices });
-	});
+	// Step 9a) Standard surface rendering
+	// World-to-local offset: passed to createSurface so it transforms inline
+	// (avoids creating 13M+ intermediate triangle objects via .map())
+	var originX = window.threeLocalOriginX || 0;
+	var originY = window.threeLocalOriginY || 0;
 
 	// Debug logs - only in developer mode
 	if (developerModeEnabled) {
 		console.log("🔺 [drawSurfaceThreeJS] Processing " + triangles.length + " triangles for " + surfaceId);
-		console.log("🔺 [drawSurfaceThreeJS] Valid triangles: " + validTriangleCount + ", Invalid: " + invalidTriangleCount);
-		if (localTriangles.length > 0 && localTriangles[0].vertices) {
-			console.log("🔺 [drawSurfaceThreeJS] First triangle sample:", JSON.stringify(localTriangles[0].vertices));
-		}
 	}
 
 	// Step 10) Create color function for this surface
@@ -1416,8 +1395,12 @@ export function drawSurfaceThreeJS(surfaceId, triangles, minZ, maxZ, gradient, t
 		return; // CRITICAL: Return here to prevent adding duplicate meshes!
 	}
 
-	// Step 11b) Create mesh with vertex colors (using local coordinates)
-	var surfaceMesh = GeometryFactory.createSurface(localTriangles, colorFunction, transparency);
+	// Step 11b) Create mesh with vertex colors — pass origin offsets so
+	// createSurface transforms world→local inline (no intermediate copy)
+	var surfaceMesh = GeometryFactory.createSurface(triangles, colorFunction, transparency, {
+		originX: originX,
+		originY: originY
+	});
 
 	// Step 11c) Check if mesh creation succeeded (returns null if no valid triangles)
 	if (!surfaceMesh) {
