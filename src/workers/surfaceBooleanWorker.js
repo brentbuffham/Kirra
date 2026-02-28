@@ -304,7 +304,7 @@ function classifyByFloodFill(tris, crossedMap, otherTris, otherGrids) {
  * Crossed (straddling) triangles are split first, then each sub-triangle
  * classified via multi-axis ray casting against the other surface.
  */
-function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris, otherGrids) {
+function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris, otherGrids, avgEdge) {
 	var inside = [];
 	var outside = [];
 
@@ -386,12 +386,34 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris
 			} else {
 				// Fallback: no adjacent non-crossed triangle found for any free vertex.
 				// This can happen when all original vertices of the parent triangle
-				// are shared only by other crossed triangles. Use ray-casting.
-				var cx = (sub.v0.x + sub.v1.x + sub.v2.x) / 3;
-				var cy = (sub.v0.y + sub.v1.y + sub.v2.y) / 3;
-				var cz = (sub.v0.z + sub.v1.z + sub.v2.z) / 3;
+				// are shared only by other crossed triangles (e.g. simple meshes where
+				// every triangle is crossed by the intersection).
+				//
+				// Use a free vertex (original corner, NOT on the intersection line)
+				// as the ray-cast test point. Free vertices are far from the
+				// intersection and give clean ray-cast parity, unlike centroids
+				// which sit right on or near the other surface.
+
+				var testPt = null;
+				for (var fv = 0; fv < 3; fv++) {
+					if (!steinerKeys[vKey(subVerts[fv])]) {
+						testPt = subVerts[fv];
+						break;
+					}
+				}
+
+				if (!testPt) {
+					// All 3 vertices are Steiner points (on the intersection line).
+					// Use centroid as last resort.
+					testPt = {
+						x: (sub.v0.x + sub.v1.x + sub.v2.x) / 3,
+						y: (sub.v0.y + sub.v1.y + sub.v2.y) / 3,
+						z: (sub.v0.z + sub.v1.z + sub.v2.z) / 3
+					};
+				}
+
 				foundClass = classifyPointMultiAxis(
-					{ x: cx, y: cy, z: cz },
+					testPt,
 					otherTris, otherGrids
 				);
 				raycastFallbacks++;
@@ -835,8 +857,8 @@ self.onmessage = function(e) {
 			var classB = classifyByFloodFill(trisB, crossedSetB, trisA, gridsA);
 
 			sendProgress(70, "Splitting straddling triangles...");
-			var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridsB);
-			var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridsA);
+			var groupsA = splitStraddlingAndClassify(trisA, classA, crossedSetA, trisB, gridsB, avgEdgeA);
+			var groupsB = splitStraddlingAndClassify(trisB, classB, crossedSetB, trisA, gridsA, avgEdgeB);
 
 			sendProgress(85, "Deduplicating and propagating normals...");
 			if (groupsA.inside.length > 0) groupsA.inside = deduplicateSeamVertices(groupsA.inside, 1e-4);

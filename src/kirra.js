@@ -23921,6 +23921,15 @@ function offsetObjectWithSelectedPoint(map, selectedPoint, direction, offsetAmou
 	}
 }
 
+/**
+ * Remove an entity name from its owning layer's entity set.
+ * Call this whenever an entity is deleted from allKADDrawingsMap.
+ */
+function removeEntityFromLayer(entityName) {
+	var layer = window.layerManager ? window.layerManager.getLayerForEntity(entityName) : null;
+	if (layer && layer.entities) layer.entities.delete(entityName);
+}
+
 function deleteSelectedPoint() {
 	if (selectedPoint && isDeletingKAD) {
 		// Check if the entity containing this point is visible
@@ -23991,6 +24000,7 @@ function deleteSelectedAll() {
 			// Delete only visible entities
 			visibleEntitiesToDelete.forEach((entityName) => {
 				allKADDrawingsMap.delete(entityName);
+				removeEntityFromLayer(entityName);
 			});
 
 			console.log("🗑️ Deleted " + visibleEntitiesToDelete.length + " visible " + entityType + " entities");
@@ -34448,8 +34458,7 @@ function endKadTools(forceEnd = false) {
 					if (valResult.pointCount === 0) {
 						// 0 points — discard silently, no dialog needed
 						allKADDrawingsMap.delete(finEntityName);
-						var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(finEntityName) : null;
-						if (delLayer && delLayer.entities) delLayer.entities.delete(finEntityName);
+						removeEntityFromLayer(finEntityName);
 					} else {
 						// Show dialog: Accept (auto-convert) or Discard
 						validationHandled = true;
@@ -34485,8 +34494,7 @@ function endKadTools(forceEnd = false) {
 					if (feResult.pointCount === 0) {
 						// 0 points — discard silently
 						allKADDrawingsMap.delete(feEntityName);
-						var feDelLayer = window.layerManager ? window.layerManager.getLayerForEntity(feEntityName) : null;
-						if (feDelLayer && feDelLayer.entities) feDelLayer.entities.delete(feEntityName);
+						removeEntityFromLayer(feEntityName);
 					} else {
 						// Show dialog: Accept (auto-convert) or Discard
 						showKADValidationDialog(feEntityName, feEntity, feResult, true);
@@ -34566,8 +34574,7 @@ function showKADValidationDialog(entityName, entity, valResult, isForceEnd) {
 		function () {
 			// Discard entity
 			allKADDrawingsMap.delete(entityName);
-			var delLayer = window.layerManager ? window.layerManager.getLayerForEntity(entityName) : null;
-			if (delLayer && delLayer.entities) delLayer.entities.delete(entityName);
+			removeEntityFromLayer(entityName);
 			updateStatusMessage("Entity discarded");
 			setTimeout(function () { updateStatusMessage(""); }, 2000);
 			debouncedSaveKAD();
@@ -34857,6 +34864,7 @@ window.onload = function () {
 									// Delete entity if empty
 									if (entity.data.length === 0) {
 										allKADDrawingsMap.delete(selectedKADObject.entityName);
+										removeEntityFromLayer(selectedKADObject.entityName);
 										console.log("❌🔑 [DELETE KEY] Entity empty - deleted:", selectedKADObject.entityName);
 									} else if (typeof renumberEntityPoints === "function") {
 										renumberEntityPoints(entity);
@@ -34883,6 +34891,7 @@ window.onload = function () {
 
 									// Delete entire entity
 									allKADDrawingsMap.delete(deletedEntityName);
+									removeEntityFromLayer(deletedEntityName);
 									console.log("❌🔑 [DELETE KEY] Deleted entity:", deletedEntityName);
 
 									// Step #) Create undo action for deleted entity
@@ -34926,6 +34935,7 @@ window.onload = function () {
 						).then(function (confirmed) {
 							if (confirmed) {
 								allKADDrawingsMap.delete(entityNameForUndo);
+								removeEntityFromLayer(entityNameForUndo);
 								console.log("❌🔑 [DELETE KEY] Deleted entity:", entityNameForUndo);
 
 								// Step #) Create undo action for deleted entity
@@ -34954,10 +34964,14 @@ window.onload = function () {
 				else if (selectedMultipleKADObjects && selectedMultipleKADObjects.length > 0) {
 					const count = selectedMultipleKADObjects.length;
 
-					// Step #) Capture all entity data for undo BEFORE showing dialog
+					// Step #) Deduplicate by entityName and capture data for undo BEFORE showing dialog
+					var seenNames = {};
+					var uniqueEntityNames = [];
 					var entitiesToDeleteForUndo = [];
 					selectedMultipleKADObjects.forEach(function (kadObj) {
-						if (allKADDrawingsMap.has(kadObj.entityName)) {
+						if (!seenNames[kadObj.entityName] && allKADDrawingsMap.has(kadObj.entityName)) {
+							seenNames[kadObj.entityName] = true;
+							uniqueEntityNames.push(kadObj.entityName);
 							var entityData = allKADDrawingsMap.get(kadObj.entityName);
 							entitiesToDeleteForUndo.push({
 								entityName: kadObj.entityName,
@@ -34965,25 +34979,25 @@ window.onload = function () {
 							});
 						}
 					});
+					var uniqueCount = uniqueEntityNames.length;
 
 					showConfirmationDialog(
 						"Delete Confirmation",
-						"Are you sure you want to delete " + count + " KAD entities?",
+						"Are you sure you want to delete " + uniqueCount + " KAD entities?",
 						"Delete All",
 						"Cancel"
 					).then(function (confirmed) {
 						if (confirmed) {
 							// Step #) Begin batch for multiple deletions
 							if (undoManager) {
-								undoManager.beginBatch("Delete " + count + " KAD entities");
+								undoManager.beginBatch("Delete " + uniqueCount + " KAD entities");
 							}
 
-							selectedMultipleKADObjects.forEach(function (kadObj) {
-								if (allKADDrawingsMap.has(kadObj.entityName)) {
-									allKADDrawingsMap.delete(kadObj.entityName);
-								}
+							uniqueEntityNames.forEach(function (entityName) {
+								allKADDrawingsMap.delete(entityName);
+								removeEntityFromLayer(entityName);
 							});
-							console.log("❌🔑 [DELETE KEY] Deleted", count, "entities");
+							console.log("❌🔑 [DELETE KEY] Deleted", uniqueCount, "entities");
 
 							// Step #) Create undo actions for each deleted entity
 							if (undoManager) {
@@ -35004,7 +35018,7 @@ window.onload = function () {
 							drawData(allBlastHoles, selectedHole);
 							syncCanvasToTreeView();
 							updateTreeView();
-							updateStatusMessage("Deleted " + count + " KAD entities");
+							updateStatusMessage("Deleted " + uniqueCount + " KAD entities");
 							setTimeout(function () { updateStatusMessage(""); }, 2000);
 						}
 					});

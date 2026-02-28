@@ -52,8 +52,13 @@ export function kadBoolean(config) {
 		entities.push(entity);
 	}
 
-	// Step 2) Convert to ClipperLib paths
+	// Step 2) Convert to ClipperLib paths and normalise winding (CCW = outer)
 	var paths = entities.map(function (e) { return entityToClipperPath(e); });
+	for (var i = 0; i < paths.length; i++) {
+		if (!ClipperLib.Clipper.Orientation(paths[i])) {
+			paths[i].reverse();
+		}
+	}
 
 	// Step 3) Compute average Z from all polygons
 	var avgZ = computeAverageZ(entities);
@@ -71,21 +76,50 @@ export function kadBoolean(config) {
 	}
 
 	// Step 5) Execute ClipperLib boolean
-	// For all operations: first path is subject, rest are clips.
-	// This is the standard ClipperLib pattern for N-polygon booleans.
-	var cpr = new ClipperLib.Clipper();
-	cpr.AddPath(paths[0], ClipperLib.PolyType.ptSubject, true);
-	for (var i = 1; i < paths.length; i++) {
-		cpr.AddPath(paths[i], ClipperLib.PolyType.ptClip, true);
-	}
+	var solution;
+	var succeeded;
 
-	var solution = new ClipperLib.Paths();
-	var succeeded = cpr.Execute(
-		clipType,
-		solution,
-		ClipperLib.PolyFillType.pftEvenOdd,
-		ClipperLib.PolyFillType.pftEvenOdd
-	);
+	if (config.operation === "union" && paths.length > 2) {
+		// N-polygon union: iterative pairwise union.
+		// Adding multiple clips with EvenOdd cancels overlapping clip regions.
+		// Pairwise avoids this by only ever unioning 2 polygons per step.
+		solution = [paths[0]];
+		succeeded = true;
+		for (var i = 1; i < paths.length; i++) {
+			var stepCpr = new ClipperLib.Clipper();
+			for (var r = 0; r < solution.length; r++) {
+				stepCpr.AddPath(solution[r], ClipperLib.PolyType.ptSubject, true);
+			}
+			stepCpr.AddPath(paths[i], ClipperLib.PolyType.ptClip, true);
+			var stepResult = new ClipperLib.Paths();
+			var stepOk = stepCpr.Execute(
+				ClipperLib.ClipType.ctUnion,
+				stepResult,
+				ClipperLib.PolyFillType.pftEvenOdd,
+				ClipperLib.PolyFillType.pftEvenOdd
+			);
+			if (stepOk && stepResult.length > 0) {
+				solution = stepResult;
+			} else {
+				succeeded = false;
+				break;
+			}
+		}
+	} else {
+		// 2-polygon union, intersect, difference, xor: standard subject+clip
+		var cpr = new ClipperLib.Clipper();
+		cpr.AddPath(paths[0], ClipperLib.PolyType.ptSubject, true);
+		for (var i = 1; i < paths.length; i++) {
+			cpr.AddPath(paths[i], ClipperLib.PolyType.ptClip, true);
+		}
+		solution = new ClipperLib.Paths();
+		succeeded = cpr.Execute(
+			clipType,
+			solution,
+			ClipperLib.PolyFillType.pftEvenOdd,
+			ClipperLib.PolyFillType.pftEvenOdd
+		);
+	}
 
 	if (!succeeded || solution.length === 0) {
 		console.warn("KADBooleanHelper: Operation returned no results");
