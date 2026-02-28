@@ -819,6 +819,7 @@ export function cleanCrossingTriangles(tris) {
 	}
 
 	var removeSet = {};
+
 	var overSharedEdgeCount = 0;
 
 	for (var ek in edgeToTris) {
@@ -832,6 +833,7 @@ export function cleanCrossingTriangles(tris) {
 		}
 	}
 
+	// Also remove exact duplicate triangles (same 3 vertex keys)
 	var seenFingerprints = {};
 	var dupCount = 0;
 

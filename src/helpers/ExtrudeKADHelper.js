@@ -12,6 +12,8 @@
  */
 
 import * as THREE from "three";
+import Delaunator from "delaunator";
+import Constrainautor from "@kninnug/constrainautor";
 import { AddSurfaceAction } from "../tools/UndoActions.js";
 import { getOrCreateSurfaceLayer } from "./LayerHelper.js";
 
@@ -76,12 +78,8 @@ export function buildExtrudeGeometry(entity, params) {
 	var signedDepth = params.depth !== undefined && params.depth !== null ? params.depth : -10;
 	var steps = Math.max(1, parseInt(params.steps) || 1);
 
-	// Step 4) Triangulate the polygon face using THREE.ShapeUtils
-	var contour = [];
-	for (var i = 0; i < n; i++) {
-		contour.push(new THREE.Vector2(verts[i].x, verts[i].y));
-	}
-	var faceIndices = THREE.ShapeUtils.triangulateShape(contour, []);
+	// Step 4) Triangulate the polygon face using Constrained Delaunay
+	var faceIndices = delaunayTriangulatePolygon(verts);
 
 	if (!faceIndices || faceIndices.length === 0) {
 		console.error("ExtrudeKADHelper: Triangulation failed");
@@ -341,6 +339,100 @@ export function applyExtrusion(entity, params) {
 // ────────────────────────────────────────────────────────
 // Internal utilities
 // ────────────────────────────────────────────────────────
+
+/**
+ * Triangulate a closed polygon using Constrained Delaunay Triangulation.
+ * Produces well-shaped triangles (no slivers) compared to ear-clipping.
+ *
+ * @param {Array} verts - Array of {x, y, z} polygon vertices (CCW order)
+ * @returns {Array} Array of [a, b, c] index triplets, or null on failure
+ */
+function delaunayTriangulatePolygon(verts) {
+	var n = verts.length;
+	if (n < 3) return null;
+
+	// Build flat coords array for Delaunator (XY only)
+	var coords = new Float64Array(n * 2);
+	for (var i = 0; i < n; i++) {
+		coords[i * 2] = verts[i].x;
+		coords[i * 2 + 1] = verts[i].y;
+	}
+
+	var del;
+	try {
+		del = new Delaunator(coords);
+	} catch (e) {
+		console.warn("ExtrudeKADHelper: Delaunator failed, falling back to ear-clip:", e.message);
+		return delaunayFallback(verts);
+	}
+
+	// Constrain the polygon boundary edges
+	try {
+		var con = new Constrainautor(del);
+		for (var i = 0; i < n; i++) {
+			var j = (i + 1) % n;
+			try { con.constrainOne(i, j); } catch (ce) { /* skip */ }
+		}
+	} catch (ce) {
+		// Constrainautor init failed — unconstrained Delaunator still usable
+	}
+
+	// Filter triangles: keep only those whose centroid is inside the polygon
+	var result = [];
+	var tris = del.triangles;
+	for (var k = 0; k < tris.length; k += 3) {
+		var a = tris[k], b = tris[k + 1], c = tris[k + 2];
+
+		// Centroid
+		var cx = (coords[a * 2] + coords[b * 2] + coords[c * 2]) / 3;
+		var cy = (coords[a * 2 + 1] + coords[b * 2 + 1] + coords[c * 2 + 1]) / 3;
+
+		if (pointInPolygon(cx, cy, coords, n)) {
+			result.push([a, b, c]);
+		}
+	}
+
+	if (result.length === 0) {
+		console.warn("ExtrudeKADHelper: CDT produced no interior triangles, falling back");
+		return delaunayFallback(verts);
+	}
+
+	return result;
+}
+
+/**
+ * Fallback to THREE.ShapeUtils ear-clipping if Delaunay fails.
+ */
+function delaunayFallback(verts) {
+	var contour = [];
+	for (var i = 0; i < verts.length; i++) {
+		contour.push(new THREE.Vector2(verts[i].x, verts[i].y));
+	}
+	var indices = THREE.ShapeUtils.triangulateShape(contour, []);
+	return indices && indices.length > 0 ? indices : null;
+}
+
+/**
+ * Ray-casting point-in-polygon test (2D, XY plane).
+ * @param {number} px - Test point X
+ * @param {number} py - Test point Y
+ * @param {Float64Array} coords - Flat [x0,y0,x1,y1,...] polygon vertices
+ * @param {number} n - Number of vertices
+ * @returns {boolean}
+ */
+function pointInPolygon(px, py, coords, n) {
+	var inside = false;
+	for (var i = 0, j = n - 1; i < n; j = i++) {
+		var xi = coords[i * 2], yi = coords[i * 2 + 1];
+		var xj = coords[j * 2], yj = coords[j * 2 + 1];
+
+		if (((yi > py) !== (yj > py)) &&
+			(px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+			inside = !inside;
+		}
+	}
+	return inside;
+}
 
 /**
  * Check if a 2D polygon is counter-clockwise (positive signed area).

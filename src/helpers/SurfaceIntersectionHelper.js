@@ -83,21 +83,45 @@ export async function computeSurfaceIntersections(config) {
  */
 function computeInWorker(surfaces, config, progressDialog) {
     return new Promise(function(resolve, reject) {
-        var worker = new Worker(
-            new URL("../workers/surfaceIntersectionWorker.js", import.meta.url),
-            { type: "module" }
-        );
+        console.log("[SurfaceIntersection] Creating worker...");
+        var t0 = performance.now();
+        var worker;
+        try {
+            worker = new Worker(
+                new URL("../workers/surfaceIntersectionWorker.js", import.meta.url),
+                { type: "module" }
+            );
+        } catch (e) {
+            console.error("[SurfaceIntersection] Worker creation failed:", e);
+            reject(new Error("Worker creation failed: " + e.message));
+            return;
+        }
+        console.log("[SurfaceIntersection] Worker created in " + (performance.now() - t0).toFixed(1) + "ms");
+
+        // Safety timeout — if worker doesn't respond within 60s, reject
+        var timeoutId = setTimeout(function() {
+            console.error("[SurfaceIntersection] Worker timed out after 60s — no response received");
+            worker.removeEventListener("message", handler);
+            worker.removeEventListener("error", errHandler);
+            worker.terminate();
+            reject(new Error("Worker timed out — no response after 60s"));
+        }, 60000);
 
         function handler(e) {
             var msg = e.data;
             if (msg.type === "progress") {
+                console.log("[SurfaceIntersection] [" + msg.percent + "%] " + msg.message);
                 if (progressDialog) progressDialog.update(msg.percent, msg.message);
             } else if (msg.type === "result") {
+                clearTimeout(timeoutId);
+                console.log("[SurfaceIntersection] Result received in " + (performance.now() - t0).toFixed(1) + "ms");
                 worker.removeEventListener("message", handler);
                 worker.removeEventListener("error", errHandler);
                 worker.terminate();
                 resolve(msg.data);
             } else if (msg.type === "error") {
+                clearTimeout(timeoutId);
+                console.error("[SurfaceIntersection] Worker error:", msg.message);
                 worker.removeEventListener("message", handler);
                 worker.removeEventListener("error", errHandler);
                 worker.terminate();
@@ -106,6 +130,8 @@ function computeInWorker(surfaces, config, progressDialog) {
         }
 
         function errHandler(err) {
+            clearTimeout(timeoutId);
+            console.error("[SurfaceIntersection] Worker onerror:", err);
             worker.removeEventListener("message", handler);
             worker.removeEventListener("error", errHandler);
             worker.terminate();
@@ -115,10 +141,19 @@ function computeInWorker(surfaces, config, progressDialog) {
         worker.addEventListener("message", handler);
         worker.addEventListener("error", errHandler);
 
-        worker.postMessage({
-            type: "intersect",
-            payload: { surfaces: surfaces, config: { vertexSpacing: config.vertexSpacing || 0 } }
-        });
+        console.log("[SurfaceIntersection] Posting message with " + surfaces.length + " surfaces...");
+        try {
+            worker.postMessage({
+                type: "intersect",
+                payload: { surfaces: surfaces, config: { vertexSpacing: config.vertexSpacing || 0 } }
+            });
+            console.log("[SurfaceIntersection] Message posted, waiting for response...");
+        } catch (postErr) {
+            clearTimeout(timeoutId);
+            console.error("[SurfaceIntersection] postMessage failed (data not cloneable?):", postErr);
+            worker.terminate();
+            reject(new Error("postMessage failed: " + postErr.message));
+        }
     });
 }
 

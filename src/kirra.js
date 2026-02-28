@@ -47,6 +47,7 @@ import {
 	DeleteMultipleKADEntitiesAction,
 	AddKADVertexAction,
 	DeleteKADVertexAction,
+	DeleteMultipleKADVerticesAction,
 	MoveKADVertexAction,
 	MoveMultipleKADVerticesAction,
 	EditKADPropsAction
@@ -24476,8 +24477,9 @@ let deleteKeyCount = 0;
 function handleDrawingKeyEvents(event) {
 	// Check for Delete or Backspace keys
 	if (event.key === "Delete" || event.key === "Backspace") {
-		// Step 0) Skip delete if any dialog is open (prevent accidental deletions)
-		if (window.isAnyDialogOpen && window.isAnyDialogOpen()) {
+		// Step 0) Skip delete if any key-blocking dialog is open (prevent accidental deletions)
+		// Passthrough dialogs (e.g. Section Plane) allow canvas key events through
+		if (window.isAnyBlockingDialogOpen && window.isAnyBlockingDialogOpen()) {
 			return; // Let dialog handle the key or ignore it
 		}
 
@@ -30702,7 +30704,17 @@ function drawData(allBlastHoles, selectedHole) {
 			var usedSuperBatchCircles = false;
 			var superBatchedLineEntities = new Map(); //Track which line/poly entities were actually superbatched.
 
-			if (use3DSimplification && allKADDrawingsMap.size > 50) {
+			// Count total KAD data points to decide batching (entity count alone misses
+			// single large entities like LAS point clouds with 500k+ points)
+			var totalKADDataPoints = 0;
+			if (use3DSimplification) {
+				for (var [_eName, _ent] of allKADDrawingsMap.entries()) {
+					if (_ent.data) totalKADDataPoints += _ent.data.length;
+					if (totalKADDataPoints > 1000) break; // early exit once threshold met
+				}
+			}
+
+			if (use3DSimplification && (allKADDrawingsMap.size > 50 || totalKADDataPoints > 1000)) {
 				// Step 3.1a) Collect all visible entities by type for super-batch
 				for (var [entityName, entity] of allKADDrawingsMap.entries()) {
 					if (entity.visible === false) continue;
@@ -32201,7 +32213,9 @@ function debouncedSaveKAD() {
 		// Only save if DB is initialized
 		if (db) {
 			// Silently fix any invalid entities before persisting
-			var saveValResult = validateAllKADEntities(allKADDrawingsMap);
+			// Skip the entity currently being drawn to avoid converting
+			// in-progress polygons (< 3 points) to points/lines
+			var saveValResult = validateAllKADEntities(allKADDrawingsMap, currentDrawingEntityName);
 			if (saveValResult.fixed > 0 || saveValResult.removed > 0) {
 				console.log("KAD save validation: fixed " + saveValResult.fixed + ", removed " + saveValResult.removed + " invalid entities");
 			}
@@ -34453,8 +34467,7 @@ function endKadTools(forceEnd = false) {
 			deleteKeyCount = 0;
 
 			if (!validationHandled) {
-				updateStatusMessage("Entity finished. Click to start new " + (isDrawingLine ? "line" : isDrawingPoly ? "polygon" : isDrawingCircle ? "circle" : isDrawingPoint ? "point" : "text"));
-				setTimeout(function () { updateStatusMessage(""); }, 2000);
+				showStatusMessage("Entity finished. Click to start new " + (isDrawingLine ? "line" : isDrawingPoly ? "polygon" : isDrawingCircle ? "circle" : isDrawingPoint ? "point" : "text"), 2000);
 			}
 			drawData(allBlastHoles, selectedHole);
 			setTimeout(() => { drawData(allBlastHoles, selectedHole); }, 10);
@@ -34506,8 +34519,7 @@ function endKadTools(forceEnd = false) {
 			isDrawingPoly = false;
 			isDrawingText = false;
 			clearCurrentDrawingEntity();
-			updateStatusMessage("Drawing tools cancelled");
-			setTimeout(function () { updateStatusMessage(""); }, 1500);
+			showStatusMessage("Drawing tools cancelled", 1500);
 			drawData(allBlastHoles, selectedHole);
 			setTimeout(() => { drawData(allBlastHoles, selectedHole); }, 10);
 			clearKADLeadingLineThreeJSV2();
@@ -34518,10 +34530,7 @@ function endKadTools(forceEnd = false) {
 	if (isPolygonSelectionActive) {
 		polyPointsX = [];
 		polyPointsY = [];
-		updateStatusMessage("Polygon selection cancelled");
-		setTimeout(function () {
-			updateStatusMessage("");
-		}, 1500);
+		showStatusMessage("Polygon selection cancelled", 1500);
 		drawData(allBlastHoles, selectedHole);
 	}
 
@@ -34799,8 +34808,9 @@ window.onload = function () {
 
 		// Delete Key for selected KAD objects/vertices
 		if ((event.key === "Delete" || event.key === "Backspace") && !event.target.matches('input, textarea, [contenteditable="true"]')) {
-			// Step 0) Skip delete if any dialog is open (prevent accidental deletions)
-			if (window.isAnyDialogOpen && window.isAnyDialogOpen()) {
+			// Step 0) Skip delete if any key-blocking dialog is open (prevent accidental deletions)
+			// Passthrough dialogs (e.g. Section Plane) allow canvas key events through
+			if (window.isAnyBlockingDialogOpen && window.isAnyBlockingDialogOpen()) {
 				return; // Let dialog handle the key or ignore it
 			}
 
@@ -35009,61 +35019,65 @@ window.onload = function () {
 				showConfirmationDialog(
 					"Delete Vertices",
 					"Are you sure you want to delete " + vertexCount + " selected vertices?\n\nThis is useful for cleaning stray points from point clouds.",
-					"Delete Vertices",
+					"Delete",
 					"Cancel"
 				).then(function (confirmed) {
 					if (confirmed) {
-						// Group deletions by entity for efficiency
-						var deletionsByEntity = new Map();
-						window.selectedMultiplePoints.forEach(function (vp) {
-							if (!deletionsByEntity.has(vp.entityName)) {
-								deletionsByEntity.set(vp.entityName, []);
-							}
-							deletionsByEntity.get(vp.entityName).push(vp.pointIndex);
-						});
+						var t0 = performance.now();
 
-						// Begin undo batch
-						if (undoManager) {
-							undoManager.beginBatch("Delete " + vertexCount + " vertices");
+						// Phase 1: Group by entity and sort indices descending
+						var deletionsByEntity = new Map();
+						for (var vi = 0; vi < window.selectedMultiplePoints.length; vi++) {
+							var vp = window.selectedMultiplePoints[vi];
+							var bucket = deletionsByEntity.get(vp.entityName);
+							if (!bucket) {
+								bucket = { indices: [], vertices: [] };
+								deletionsByEntity.set(vp.entityName, bucket);
+							}
+							bucket.indices.push(vp.pointIndex);
 						}
 
+						// Phase 2: For each entity, sort descending, capture vertex data, then filter
 						var totalDeleted = 0;
-						for (var [entityName, indices] of deletionsByEntity.entries()) {
+						for (var [entityName, bucket] of deletionsByEntity.entries()) {
 							var entity = allKADDrawingsMap.get(entityName);
 							if (!entity || !entity.data) continue;
 
-							// Sort indices descending to delete from end first (maintains correct indices)
-							indices.sort(function (a, b) { return b - a; });
+							// Sort descending (needed for undo re-insertion order)
+							bucket.indices.sort(function (a, b) { return b - a; });
 
-							for (var idx of indices) {
+							// Capture vertex data for undo (one shallow copy per vertex, no JSON stringify)
+							bucket.vertices = [];
+							for (var bi = 0; bi < bucket.indices.length; bi++) {
+								var idx = bucket.indices[bi];
 								if (idx >= 0 && idx < entity.data.length) {
-									// Capture for undo
-									var vertexDataForUndo = JSON.parse(JSON.stringify(entity.data[idx]));
-									if (undoManager) {
-										var deleteVertexAction = new DeleteKADVertexAction(entityName, vertexDataForUndo, idx);
-										undoManager.pushAction(deleteVertexAction);
-									}
-									entity.data.splice(idx, 1);
-									totalDeleted++;
+									bucket.vertices.push(Object.assign({}, entity.data[idx]));
 								}
 							}
 
-							// Delete entity if empty
+							// Filter in one pass using Set — O(n) instead of O(n*m) splices
+							var removeSet = new Set(bucket.indices);
+							var originalLen = entity.data.length;
+							entity.data = entity.data.filter(function (_, i) { return !removeSet.has(i); });
+							totalDeleted += originalLen - entity.data.length;
+
 							if (entity.data.length === 0) {
 								allKADDrawingsMap.delete(entityName);
-								console.log("Entity empty after vertex deletion - removed:", entityName);
 							} else if (typeof renumberEntityPoints === "function") {
 								renumberEntityPoints(entity);
 							}
 						}
 
+						// Phase 3: Single undo action for ALL deletions
 						if (undoManager) {
-							undoManager.endBatch();
+							var bulkAction = new DeleteMultipleKADVerticesAction(deletionsByEntity, totalDeleted);
+							undoManager.pushAction(bulkAction);
 						}
 
-						console.log("Deleted " + totalDeleted + " vertices from " + deletionsByEntity.size + " entities");
+						var t1 = performance.now();
+						console.log("Deleted " + totalDeleted + " vertices from " + deletionsByEntity.size + " entities in " + (t1 - t0).toFixed(0) + "ms");
 
-						// Clear vertex selection (both local and window variables)
+						// Clear vertex selection
 						selectedMultiplePoints = [];
 						window.selectedMultiplePoints = selectedMultiplePoints;
 						selectedPoint = null;

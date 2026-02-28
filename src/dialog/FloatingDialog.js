@@ -413,6 +413,15 @@ class FloatingDialog {
 		return openDialogsSet.size > 0;
 	}
 
+	// Step 23a.1) Static method to check if any KEY-BLOCKING dialog is open
+	// Dialogs with passthroughKeys: true (e.g. Section Plane) don't block canvas key events
+	static isAnyBlockingDialogOpen() {
+		for (var dialog of openDialogsSet) {
+			if (!dialog.options.passthroughKeys) return true;
+		}
+		return false;
+	}
+
 	// Step 23b) Static method to get count of open dialogs
 	static getOpenDialogCount() {
 		return openDialogsSet.size;
@@ -1378,17 +1387,21 @@ function showModalMessage(title, message, type = "info", callback = null) {
 //===========================================
 
 // Also make available globally in the browser for backwards compatibility:
-window.FloatingDialog = FloatingDialog;
-window.createFormContent = createFormContent;
-window.createEnhancedFormContent = createEnhancedFormContent;
-window.getFormData = getFormData;
-window.showConfirmationDialog = showConfirmationDialog;
-window.showConfirmationDialogWithInput = showConfirmationDialogWithInput;
-window.showConfirmationDialogWithInputAndBeforeAfter = showConfirmationDialogWithInputAndBeforeAfter;
-window.showConfirmationThreeDialog = showConfirmationThreeDialog;
-window.showModalMessage = showModalMessage;
-// Step 0b) Shortcut for checking if any dialog is open (for disabling Delete key etc.)
-window.isAnyDialogOpen = function() { return FloatingDialog.isAnyDialogOpen(); };
+// Guard against Web Worker context where `window` is not defined
+if (typeof window !== "undefined") {
+	window.FloatingDialog = FloatingDialog;
+	window.createFormContent = createFormContent;
+	window.createEnhancedFormContent = createEnhancedFormContent;
+	window.getFormData = getFormData;
+	window.showConfirmationDialog = showConfirmationDialog;
+	window.showConfirmationDialogWithInput = showConfirmationDialogWithInput;
+	window.showConfirmationDialogWithInputAndBeforeAfter = showConfirmationDialogWithInputAndBeforeAfter;
+	window.showConfirmationThreeDialog = showConfirmationThreeDialog;
+	window.showModalMessage = showModalMessage;
+	// Step 0b) Shortcut for checking if any dialog is open (for disabling Delete key etc.)
+	window.isAnyDialogOpen = function() { return FloatingDialog.isAnyDialogOpen(); };
+	window.isAnyBlockingDialogOpen = function() { return FloatingDialog.isAnyBlockingDialogOpen(); };
+}
 
 // Step 1) Export for ES6 modules (kirra.js uses ES6 imports at line 77)
 // Step 2) Also expose via window.functionName for backward compatibility

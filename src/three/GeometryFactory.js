@@ -1030,11 +1030,10 @@ export class GeometryFactory {
 	// One draw call for thousands of points!
 	static createSuperBatchedPoints(allPointEntities, worldToThreeLocal) {
 		if (!allPointEntities || allPointEntities.length === 0) return null;
-		
+
 		// Step 1) Count total points to pre-allocate arrays
 		var totalPoints = 0;
-		var entityMetadata = []; // Store entity info for selection
-		
+
 		for (var i = 0; i < allPointEntities.length; i++) {
 			var entity = allPointEntities[i];
 			if (!entity.data) continue;
@@ -1044,39 +1043,43 @@ export class GeometryFactory {
 				}
 			}
 		}
-		
+
 		if (totalPoints === 0) return null;
-		
+
 		// Step 2) Pre-allocate typed arrays (3 floats per position, 3 per color, 1 per size)
 		var positions = new Float32Array(totalPoints * 3);
 		var colors = new Float32Array(totalPoints * 3);
 		var sizes = new Float32Array(totalPoints);
-		
+
 		// Step 3) Default color parsing
 		var defaultR = 1.0, defaultG = 0.0, defaultB = 0.0; // Red default
-		
-		// Step 4) Fill arrays
+
+		// Step 4) Use range-based entity metadata instead of per-point objects
+		// Saves ~500k object allocations for large point clouds
+		var entityRanges = []; // [{entityName, startIndex, endIndex}]
+
+		// Step 5) Fill arrays
 		var posIdx = 0;
 		var colorIdx = 0;
 		var sizeIdx = 0;
-		var pointIndex = 0; // Global index for selection
-		
+		var pointIndex = 0;
+
 		for (var i = 0; i < allPointEntities.length; i++) {
 			var entity = allPointEntities[i];
 			if (!entity.data) continue;
-			
+
 			var entityStartIndex = pointIndex;
-			
+
 			for (var j = 0; j < entity.data.length; j++) {
 				var pt = entity.data[j];
 				if (pt.visible === false) continue;
-				
+
 				// Position
 				var local = worldToThreeLocal(pt.pointXLocation, pt.pointYLocation);
 				positions[posIdx++] = local.x;
 				positions[posIdx++] = local.y;
 				positions[posIdx++] = pt.pointZLocation || 0;
-				
+
 				// Color - parse hex inline for speed
 				var r = defaultR, g = defaultG, b = defaultB;
 				var col = pt.color;
@@ -1089,19 +1092,21 @@ export class GeometryFactory {
 				colors[colorIdx++] = r;
 				colors[colorIdx++] = g;
 				colors[colorIdx++] = b;
-				
+
 				// Size - convert lineWidth to pixel size
 				var size = ((pt.lineWidth || 2) / 2) * 5; // Scale factor for visibility
 				sizes[sizeIdx++] = size;
-				
-				// Store metadata for this point
-				entityMetadata.push({
-					entityName: entity.entityName,
-					vertexIndex: j,
-					kadId: entity.entityName + ":::" + j
-				});
-				
+
 				pointIndex++;
+			}
+
+			// Store range for this entity (for selection lookup)
+			if (pointIndex > entityStartIndex) {
+				entityRanges.push({
+					entityName: entity.entityName,
+					startIndex: entityStartIndex,
+					endIndex: pointIndex - 1
+				});
 			}
 		}
 		
@@ -1138,11 +1143,11 @@ export class GeometryFactory {
 		points.name = "kad-super-batch-points";
 		points.userData = {
 			type: "kadSuperBatchPoints",
-			entityMetadata: entityMetadata,
+			entityRanges: entityRanges,
 			totalPoints: totalPoints
 		};
-		
-		return { points: points, entityMetadata: entityMetadata, totalPoints: totalPoints };
+
+		return { points: points, entityRanges: entityRanges, totalPoints: totalPoints };
 	}
 
 	// Step 9.6) SUPER-BATCH: Create a single geometry for ALL KAD circles
@@ -3533,6 +3538,7 @@ export class GeometryFactory {
 			side: THREE.DoubleSide,
 			depthTest: true, // Respect depth for proper 3D visualization
 			depthWrite: false, // But don't block other transparent objects
+			clippingPlanes: [], // Exempt from global clipping planes — cursor must always be visible
 		});
 
 		// Step 20.9c) Create sphere to represent snap radius zone (no billboarding needed!)

@@ -447,6 +447,20 @@ export class PolygonSelection3D {
     // 3D-to-Screen Projection and Selection
     //=================================================
 
+    // Step 17.5) Check if a point in Three.js local space is clipped by active clipping planes
+    isPointClipped(localX, localY, worldZ) {
+        var clippingPlanes = this.threeRenderer.renderer
+            ? this.threeRenderer.renderer.clippingPlanes
+            : null;
+        if (!clippingPlanes || clippingPlanes.length === 0) return false;
+        for (var i = 0; i < clippingPlanes.length; i++) {
+            if (clippingPlanes[i].distanceToPoint(new THREE.Vector3(localX, localY, worldZ)) < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Step 18) Project 3D world position to screen coordinates
     projectToScreen(worldX, worldY, worldZ) {
         // Step 18a) Convert world coordinates to Three.js local coordinates
@@ -534,6 +548,10 @@ export class PolygonSelection3D {
                 const worldX = hole.startXLocation;
                 const worldY = hole.startYLocation;
                 const worldZ = hole.startZLocation || 0;
+
+                // Skip if clipped by active clipping planes
+                const localCoords0 = window.worldToThreeLocal ? window.worldToThreeLocal(worldX, worldY) : { x: worldX, y: worldY };
+                if (this.isPointClipped(localCoords0.x, localCoords0.y, worldZ)) return;
 
                 // Project to screen
                 const { screenX, screenY } = this.projectToScreen(worldX, worldY, worldZ);
@@ -624,6 +642,10 @@ export class PolygonSelection3D {
                     const worldX = point.pointXLocation;
                     const worldY = point.pointYLocation;
                     const worldZ = point.pointZLocation || 0;
+
+                    // Skip if clipped by active clipping planes
+                    const lc = window.worldToThreeLocal ? window.worldToThreeLocal(worldX, worldY) : { x: worldX, y: worldY };
+                    if (this.isPointClipped(lc.x, lc.y, worldZ)) continue;
 
                     // Project to screen
                     const { screenX, screenY } = this.projectToScreen(worldX, worldY, worldZ);
@@ -837,6 +859,10 @@ export class PolygonSelection3D {
                 const worldX = point.pointXLocation;
                 const worldY = point.pointYLocation;
                 const worldZ = point.pointZLocation || 0;
+
+                // Skip if clipped by active clipping planes
+                const lc = window.worldToThreeLocal ? window.worldToThreeLocal(worldX, worldY) : { x: worldX, y: worldY };
+                if (this.isPointClipped(lc.x, lc.y, worldZ)) continue;
 
                 const { screenX, screenY } = this.projectToScreen(worldX, worldY, worldZ);
 

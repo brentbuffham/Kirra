@@ -107,12 +107,13 @@ export function fixKADEntity(entityData, convertTo) {
  * @param {Map} kadMap - The allKADDrawingsMap
  * @returns {Object} { fixed: number, removed: number }
  */
-export function validateAllKADEntities(kadMap) {
+export function validateAllKADEntities(kadMap, skipEntityName) {
 	var fixed = 0;
 	var removed = 0;
 	var toRemove = [];
 
 	kadMap.forEach(function (entity, entityName) {
+		if (skipEntityName && entityName === skipEntityName) return;
 		var result = validateKADEntity(entity);
 		if (result.status === "invalid") {
 			if (result.convertTo === null) {

@@ -322,6 +322,7 @@ function _showDialog() {
 		height: 300,
 		draggable: true,
 		resizable: false,
+		passthroughKeys: true, // Allow canvas key events (Delete, etc.) while this dialog is open
 		showConfirm: true,
 		confirmText: "Reset",
 		showCancel: true,

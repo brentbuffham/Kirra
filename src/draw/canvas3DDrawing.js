@@ -686,7 +686,7 @@ export function drawHoleTextsAndConnectorsThreeJS(hole, displayOptions) {
 // KAD Drawing Functions (3D)
 //=================================================
 
-// Step 7) Draw KAD point in Three.js
+// Step 7) Draw KAD point in Three.js (single point — use drawKADBatchedPointsThreeJS for bulk)
 export function drawKADPointThreeJS(worldX, worldY, worldZ, size, color, kadId) {
 	if (!window.threeInitialized || !window.threeRenderer) return;
 
@@ -708,6 +708,7 @@ export function drawKADPointThreeJS(worldX, worldY, worldZ, size, color, kadId) 
 
 	window.threeRenderer.kadGroup.add(pointMesh);
 }
+
 
 // Step 8) Draw KAD line segment in Three.js
 // Matches 2D drawKADLines() - draws a single segment with its own attributes
@@ -2285,7 +2286,8 @@ export function drawPlumbLineThreeJS(fromWorldX, fromWorldY, fromWorldZ, toWorld
 		transparent: true,
 		opacity: 0.8, // Slightly higher opacity for better visibility
 		depthTest: false,
-		depthWrite: false
+		depthWrite: false,
+		clippingPlanes: [], // Exempt from global clipping planes — UI element must always be visible
 	});
 
 	const line = new THREE.Line(geometry, material);

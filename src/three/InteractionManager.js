@@ -88,9 +88,24 @@ export class InteractionManager {
 		const scene = this.threeRenderer.scene;
 		const intersects = this.raycaster.intersectObjects(scene.children, true);
 
-		// Debug: Log raycast details
-		if (intersects.length > 0) {
-			//if (developerModeEnabled) {console.log("🔍 Raycast hit", intersects.length, "objects. First:", intersects[0].object.userData, "distance:", intersects[0].distance.toFixed(2));}
+		// Step 4c) Filter out intersections that fall on the clipped side of active clipping planes.
+		// The GPU clips rendered pixels but the raycaster still hits the full geometry,
+		// so we must manually reject intersection points behind any clipping plane.
+		var clippingPlanes = this.threeRenderer.renderer.clippingPlanes;
+		if (clippingPlanes && clippingPlanes.length > 0) {
+			var filtered = [];
+			for (var ci = 0; ci < intersects.length; ci++) {
+				var pt = intersects[ci].point;
+				var clipped = false;
+				for (var pi = 0; pi < clippingPlanes.length; pi++) {
+					if (clippingPlanes[pi].distanceToPoint(pt) < 0) {
+						clipped = true;
+						break;
+					}
+				}
+				if (!clipped) filtered.push(intersects[ci]);
+			}
+			return filtered;
 		}
 
 		return intersects;
@@ -118,6 +133,9 @@ export class InteractionManager {
 						for (var j = 0; j < allBlastHoles.length; j++) {
 							var h = allBlastHoles[j];
 							if (h.entityName + ":::" + h.holeID === holeId) {
+								// Skip hidden holes
+								if (h.visible === false) continue;
+								if (window.isHoleVisible && !window.isHoleVisible(h)) continue;
 								if (developerModeEnabled) {
 									console.log("🎯 Clicked instanced hole:", h.holeID, "in", h.entityName, "instanceId:", intersect.instanceId);
 								}
@@ -131,6 +149,9 @@ export class InteractionManager {
 					// Step 5a.6) Get hole data from ThreeRenderer's old mapping
 					var holeData = this.threeRenderer.getHoleByInstanceId ? this.threeRenderer.getHoleByInstanceId(intersect.instanceId) : null;
 					if (holeData) {
+						// Skip hidden holes
+						if (holeData.visible === false) continue;
+						if (window.isHoleVisible && !window.isHoleVisible(holeData)) continue;
 						if (developerModeEnabled) {
 							console.log("🎯 Clicked instanced hole (old system):", holeData.holeID, "in", holeData.entityName, "instanceId:", intersect.instanceId);
 						}
@@ -164,6 +185,9 @@ export class InteractionManager {
 					}
 				}
 				if (hole) {
+					// Skip hidden holes
+					if (hole.visible === false) continue;
+					if (window.isHoleVisible && !window.isHoleVisible(hole)) continue;
 					if (developerModeEnabled) {
 						console.log("🎯 Clicked hole:", hole.holeID, "in", hole.entityName, "at distance:", intersect.distance.toFixed(2));
 					}
@@ -186,6 +210,9 @@ export class InteractionManager {
 					}
 				}
 				if (toeHole) {
+					// Skip hidden holes
+					if (toeHole.visible === false) continue;
+					if (window.isHoleVisible && !window.isHoleVisible(toeHole)) continue;
 					if (developerModeEnabled) {
 						console.log("🎯 Clicked hole toe:", toeHole.holeID);
 					}
@@ -206,6 +233,9 @@ export class InteractionManager {
 						}
 					}
 					if (parentHole) {
+						// Skip hidden holes
+						if (parentHole.visible === false) continue;
+						if (window.isHoleVisible && !window.isHoleVisible(parentHole)) continue;
 						if (developerModeEnabled) {
 							console.log("🎯 Clicked hole (via parent):", parentHole.holeID, "in", parentHole.entityName);
 						}
@@ -229,6 +259,10 @@ export class InteractionManager {
 			if (userData && userData.type && userData.type.startsWith("kad")) {
 				const kadId = userData.kadId;
 				if (kadId) {
+					// Skip hidden KAD entities
+					// kadId format is "entityName:::index" — extract entity name
+					var entityName = kadId.indexOf(":::") !== -1 ? kadId.split(":::")[0] : kadId;
+					if (window.isEntityVisible && !window.isEntityVisible(entityName)) continue;
 					if (developerModeEnabled) {
 						console.log("🎯 Clicked KAD object:", userData.type, kadId);
 					}
@@ -261,6 +295,9 @@ export class InteractionManager {
 
 			// Step 6.5b) Check if this object is a surface
 			if (userData && userData.type === "surface" && userData.surfaceId) {
+				// Skip hidden surfaces
+				var surf = window.loadedSurfaces ? window.loadedSurfaces.get(userData.surfaceId) : null;
+				if (surf && surf.visible === false) continue;
 				if (developerModeEnabled) {
 					console.log("🎯 Clicked surface:", userData.surfaceId, "at distance:", intersect.distance.toFixed(2));
 				}
@@ -292,6 +329,9 @@ export class InteractionManager {
 
 			// Step 6.6b) Check if this object is an image
 			if (userData && userData.type === "image" && userData.imageId) {
+				// Skip hidden images
+				var img = window.loadedImages ? window.loadedImages.get(userData.imageId) : null;
+				if (img && img.visible === false) continue;
 				if (developerModeEnabled) {
 					console.log("🎯 Clicked image:", userData.imageId, "at distance:", intersect.distance.toFixed(2));
 				}

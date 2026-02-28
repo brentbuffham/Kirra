@@ -285,30 +285,51 @@ export function highlightSelectedKADThreeJS() {
 	}
 
 	// Step 5) Draw multiple selected vertices (from TreeView multi-select or polygon/shift-click selection)
+	// PERFORMANCE: Super-batch all selected vertices into ONE THREE.Points draw call
 	const selectedMultiplePoints = window.selectedMultiplePoints;
 	if (selectedMultiplePoints && selectedMultiplePoints.length > 0) {
-		selectedMultiplePoints.forEach(function(point) {
+		var positions = new Float32Array(selectedMultiplePoints.length * 3);
+		var writeIdx = 0;
+
+		for (var vi = 0; vi < selectedMultiplePoints.length; vi++) {
+			var point = selectedMultiplePoints[vi];
 			if (point && point.pointXLocation !== undefined && point.pointYLocation !== undefined) {
-				const localPos = worldToThreeLocal(point.pointXLocation, point.pointYLocation);
-				// Step #) Use Z directly WITHOUT subtracting dataCentroidZ - must match entity vertex Z
-				const worldZ = point.pointZLocation || dataCentroidZ || 0;
-
-				// Use factory method for consistency - magenta color, smaller size (0.5 instead of 1.0)
-				const sphere = GeometryFactory.createKADPointHighlight(
-					localPos.x,
-					localPos.y,
-					worldZ,
-					0.5, // radius - 50% of previous size
-					selectedVertexColor // Magenta
-				);
-				sphere.userData.type = "vertexSelectionHighlight";
-				window.threeRenderer.kadGroup.add(sphere);
-
-				if (developerModeEnabled) {
-					console.log("🩷 [3D] Drew magenta sphere for vertex:", point.pointID);
-				}
+				var localPos = worldToThreeLocal(point.pointXLocation, point.pointYLocation);
+				positions[writeIdx]     = localPos.x;
+				positions[writeIdx + 1] = localPos.y;
+				positions[writeIdx + 2] = point.pointZLocation || dataCentroidZ || 0;
+				writeIdx += 3;
 			}
-		});
+		}
+
+		if (writeIdx > 0) {
+			// Trim if some points were skipped
+			var finalPositions = writeIdx < positions.length ? positions.subarray(0, writeIdx) : positions;
+
+			var batchGeometry = new THREE.BufferGeometry();
+			batchGeometry.setAttribute("position", new THREE.BufferAttribute(finalPositions, 3));
+
+			// Parse the selectedVertexColor for material
+			var colorObj = GeometryFactory.parseRGBA(selectedVertexColor);
+			var batchMaterial = new THREE.PointsMaterial({
+				color: new THREE.Color(colorObj.r, colorObj.g, colorObj.b),
+				size: 10, // 0.5 baseRadius * 20 = 10 pixels
+				sizeAttenuation: false,
+				transparent: colorObj.a < 1,
+				opacity: colorObj.a,
+				depthTest: true,
+				depthWrite: false
+			});
+
+			var batchPoints = new THREE.Points(batchGeometry, batchMaterial);
+			batchPoints.userData.type = "vertexSelectionHighlight";
+			batchPoints.renderOrder = 9999;
+			window.threeRenderer.kadGroup.add(batchPoints);
+
+			if (developerModeEnabled) {
+				console.log("Batched " + (writeIdx / 3) + " selected vertex highlights into 1 draw call");
+			}
+		}
 	}
 }
 

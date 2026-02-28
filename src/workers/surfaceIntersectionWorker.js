@@ -27,8 +27,12 @@ import {
 	dist3D
 } from "../helpers/SurfaceIntersectionHelper.js";
 
+console.log("[surfaceIntersectionWorker] Worker module loaded successfully");
+
 self.onmessage = function(e) {
 	var msg = e.data;
+	console.log("[surfaceIntersectionWorker] Received message:", msg.type);
+	var t0 = performance.now();
 
 	function sendProgress(percent, message) {
 		self.postMessage({ type: "progress", percent: percent, message: message });
@@ -121,6 +125,8 @@ self.onmessage = function(e) {
 			self.postMessage({ type: "error", message: "Unknown message type: " + msg.type });
 		}
 	} catch (err) {
+		console.error("[surfaceIntersectionWorker] Error:", err);
 		self.postMessage({ type: "error", message: err.message || String(err) });
 	}
+	console.log("[surfaceIntersectionWorker] Done in " + (performance.now() - t0).toFixed(1) + "ms");
 };

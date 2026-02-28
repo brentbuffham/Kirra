@@ -725,6 +725,83 @@ class DeleteKADVertexAction extends UndoableAction {
     }
 }
 
+// Step 12b) DeleteMultipleKADVerticesAction - Bulk vertex deletion (point cloud cleaning)
+// Stores deleted vertices grouped by entity for efficient undo/redo
+class DeleteMultipleKADVerticesAction extends UndoableAction {
+    /**
+     * @param {Map<string, {indices: number[], vertices: Array}>} deletionsByEntity
+     *   Map of entityName -> { indices: sorted descending, vertices: vertex data at those indices }
+     * @param {number} totalCount - Total vertices deleted
+     */
+    constructor(deletionsByEntity, totalCount) {
+        super(ActionTypes.DELETE_KAD_VERTEX, false, true);
+        this.deletionsByEntity = deletionsByEntity;
+        this.totalCount = totalCount;
+        this.description = "Delete " + totalCount + " vertices";
+    }
+
+    execute() {
+        var allKADDrawingsMap = window.allKADDrawingsMap;
+        if (!allKADDrawingsMap) return;
+
+        for (var [entityName, info] of this.deletionsByEntity.entries()) {
+            var entity = allKADDrawingsMap.get(entityName);
+            if (!entity || !entity.data) continue;
+
+            // Build Set of indices to remove, then filter in one pass — O(n) not O(n*m)
+            var removeSet = new Set(info.indices);
+            entity.data = entity.data.filter(function(_, i) { return !removeSet.has(i); });
+
+            if (entity.data.length === 0) {
+                allKADDrawingsMap.delete(entityName);
+            } else if (window.renumberEntityPoints) {
+                window.renumberEntityPoints(entity);
+            }
+        }
+    }
+
+    undo() {
+        var allKADDrawingsMap = window.allKADDrawingsMap;
+        if (!allKADDrawingsMap) return;
+
+        for (var [entityName, info] of this.deletionsByEntity.entries()) {
+            var entity = allKADDrawingsMap.get(entityName);
+
+            // Recreate entity if it was removed
+            if (!entity) {
+                var sampleVertex = info.vertices[0];
+                entity = {
+                    entityName: entityName,
+                    entityType: sampleVertex ? (sampleVertex.entityType || "point") : "point",
+                    data: [],
+                    visible: true
+                };
+                allKADDrawingsMap.set(entityName, entity);
+            }
+
+            // Re-insert vertices at their original indices (ascending order)
+            // indices are stored descending, so reverse for insertion
+            for (var i = info.indices.length - 1; i >= 0; i--) {
+                var idx = info.indices[i];
+                var vertex = info.vertices[i];
+                if (idx <= entity.data.length) {
+                    entity.data.splice(idx, 0, vertex);
+                } else {
+                    entity.data.push(vertex);
+                }
+            }
+
+            if (window.renumberEntityPoints) {
+                window.renumberEntityPoints(entity);
+            }
+        }
+    }
+
+    redo() {
+        this.execute();
+    }
+}
+
 // Step 13) MoveKADVertexAction - Undo: restore original position, Redo: apply new position
 class MoveKADVertexAction extends UndoableAction {
     constructor(entityName, pointID, originalPosition, newPosition) {
@@ -1128,6 +1205,7 @@ export {
     DeleteMultipleKADEntitiesAction,
     AddKADVertexAction,
     DeleteKADVertexAction,
+    DeleteMultipleKADVerticesAction,
     MoveKADVertexAction,
     MoveMultipleKADVerticesAction,
     EditKADPropsAction,

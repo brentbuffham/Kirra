@@ -1865,7 +1865,16 @@ export class TreeView {
 	}
 
 	handleKeyboard(e) {
-		if (!this.container.style.display === "none") return;
+		// Guard: skip if tree panel is hidden
+		if (this.container.style.display === "none") return;
+
+		// Guard: skip if a dialog is open (e.g. rename dialog — pressing Delete
+		// in the input field must NOT trigger surface deletion)
+		if (typeof window.isAnyDialogOpen === "function" && window.isAnyDialogOpen()) return;
+
+		// Guard: skip if focus is inside an input/textarea (e.g. search box)
+		var tag = document.activeElement ? document.activeElement.tagName : "";
+		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
 		switch (e.key) {
 			case "Delete":
