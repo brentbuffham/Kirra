@@ -1450,9 +1450,15 @@ export function capBoundaryLoopsSequential(soup, snapTol, maxPasses) {
  *
  * @param {Array} points - [{x,y,z}, ...]
  * @param {Array} triangles - [{vertices: [{x,y,z},{x,y,z},{x,y,z}]}, ...]
+ * @param {number} [maxDist=0] - Max distance to connect. 0 = no closing attempted.
  * @returns {Object} - { points, triangles } — updated indexed mesh
  */
-export function forceCloseIndexedMesh(points, triangles) {
+export function forceCloseIndexedMesh(points, triangles, maxDist) {
+	if (!maxDist || maxDist <= 0) {
+		console.log("MeshRepairHelper: forceCloseIndexedMesh — skipped (maxDist=" + (maxDist || 0) + ")");
+		return { points: points, triangles: triangles };
+	}
+	var maxDist2 = maxDist * maxDist;
 	var ptIndex = {};
 	for (var pi = 0; pi < points.length; pi++) {
 		var pk = points[pi].x + "," + points[pi].y + "," + points[pi].z;
@@ -1470,7 +1476,7 @@ export function forceCloseIndexedMesh(points, triangles) {
 		}
 	}
 
-	var cellSize = 2.0;
+	var cellSize = Math.max(maxDist * 3, 0.1);
 	var grid = {};
 	for (var gi = 0; gi < points.length; gi++) {
 		var gp = points[gi];
@@ -1543,6 +1549,7 @@ export function forceCloseIndexedMesh(points, triangles) {
 							var ddx = mid.x - cp.x, ddy = mid.y - cp.y, ddz = mid.z - cp.z;
 							var d2 = ddx * ddx + ddy * ddy + ddz * ddz;
 							if (d2 >= bestDist) continue;
+							if (d2 > maxDist2) continue;
 
 							var ek0 = be[0] < cIdx ? be[0] + "|" + cIdx : cIdx + "|" + be[0];
 							var ek1 = be[1] < cIdx ? be[1] + "|" + cIdx : cIdx + "|" + be[1];
@@ -1888,7 +1895,7 @@ export async function repairMesh(soup, config, onProgress) {
 		if (safetyStats.openEdges > 0) {
 			console.log("MeshRepairHelper: safety net — " + safetyStats.openEdges +
 				" open edges remain, running forceCloseIndexedMesh");
-			var forceClosed = forceCloseIndexedMesh(worldPoints, triangles);
+			var forceClosed = forceCloseIndexedMesh(worldPoints, triangles, stitchTol);
 			worldPoints = forceClosed.points;
 			triangles = forceClosed.triangles;
 		}

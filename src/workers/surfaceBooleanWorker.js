@@ -341,9 +341,29 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris
 		}
 	}
 
+	// Step B2: Pre-populate vertexClassMap for zero-component surfaces.
+	// When flood-fill finds 0 components (every triangle is crossed), vertexClassMap
+	// is empty. Ray-cast the ORIGINAL mesh vertices (far from intersection) to seed it.
+	if (Object.keys(vertexClassMap).length === 0) {
+		var seenOrig = {};
+		for (var oi = 0; oi < tris.length; oi++) {
+			var oVerts = [tris[oi].v0, tris[oi].v1, tris[oi].v2];
+			for (var ov = 0; ov < 3; ov++) {
+				var oKey = vKey(oVerts[ov]);
+				if (seenOrig[oKey] || steinerKeys[oKey]) continue;
+				seenOrig[oKey] = true;
+				vertexClassMap[oKey] = classifyPointMultiAxis(oVerts[ov], otherTris, otherGrids);
+			}
+		}
+		console.log("  Pre-populated vertexClassMap with " +
+			Object.keys(vertexClassMap).length +
+			" original vertex classifications (zero-component surface)");
+	}
+
 	// Step C: Process each triangle
 	var adjacencyHits = 0;
 	var raycastFallbacks = 0;
+	var consistencyFlips = 0;
 
 	for (var ti = 0; ti < tris.length; ti++) {
 		if (!crossedMap[ti]) {
@@ -360,75 +380,157 @@ function splitStraddlingAndClassify(tris, classifications, crossedMap, otherTris
 		var segments = crossedMap[ti];
 		var current = retriangulateWithSteinerPoints(tris[ti], segments);
 
-		// Classify each sub-triangle by vertex adjacency:
-		// Find the vertex NOT on the intersection line, then inherit classification
-		// from the adjacent non-crossed triangle that shares that vertex.
+		// === Pass 1: Classify sub-tris by vertex adjacency ===
+		// Find a free vertex (not Steiner) with a known classification
+		var subClasses = new Array(current.length);
+		var unclassified = 0;
 		for (var j = 0; j < current.length; j++) {
 			var sub = current[j];
 			var subVerts = [sub.v0, sub.v1, sub.v2];
-
-			// Look for a "free" vertex (not a Steiner point) that has a
-			// known classification from an adjacent non-crossed triangle
 			var foundClass = 0;
 			for (var sv = 0; sv < 3; sv++) {
 				var svKey = vKey(subVerts[sv]);
-				if (steinerKeys[svKey]) continue; // vertex is ON the intersection line
-
+				if (steinerKeys[svKey]) continue;
 				var adjClass = vertexClassMap[svKey];
 				if (adjClass !== undefined) {
 					foundClass = adjClass;
 					break;
 				}
 			}
-
+			subClasses[j] = foundClass;
 			if (foundClass !== 0) {
 				adjacencyHits++;
 			} else {
-				// Fallback: no adjacent non-crossed triangle found for any free vertex.
-				// This can happen when all original vertices of the parent triangle
-				// are shared only by other crossed triangles (e.g. simple meshes where
-				// every triangle is crossed by the intersection).
-				//
-				// Use a free vertex (original corner, NOT on the intersection line)
-				// as the ray-cast test point. Free vertices are far from the
-				// intersection and give clean ray-cast parity, unlike centroids
-				// which sit right on or near the other surface.
+				unclassified++;
+			}
+		}
 
+		// === Pass 2: Edge adjacency for unclassified sub-tris ===
+		// Propagate classification across shared edges that are NOT
+		// intersection segments. Two sub-tris sharing a non-intersection
+		// edge are on the same side of the cut.
+
+		// Build set of actual intersection segment edge keys
+		var segEdgeKeys = {};
+		for (var si = 0; si < segments.length; si++) {
+			var sk0 = vKey(segments[si].p0);
+			var sk1 = vKey(segments[si].p1);
+			segEdgeKeys[sk0 < sk1 ? sk0 + "|" + sk1 : sk1 + "|" + sk0] = true;
+		}
+
+		// Build edge-to-subtri adjacency
+		var subEdgeAdj = {};
+		for (var ej = 0; ej < current.length; ej++) {
+			var et = current[ej];
+			var ek = [vKey(et.v0), vKey(et.v1), vKey(et.v2)];
+			for (var ee = 0; ee < 3; ee++) {
+				var ene = (ee + 1) % 3;
+				var edgeK = ek[ee] < ek[ene] ? ek[ee] + "|" + ek[ene] : ek[ene] + "|" + ek[ee];
+				if (!subEdgeAdj[edgeK]) subEdgeAdj[edgeK] = [];
+				subEdgeAdj[edgeK].push(ej);
+			}
+		}
+
+		if (unclassified > 0) {
+			// Iteratively propagate across non-intersection edges
+			var edgeChanged = true;
+			while (edgeChanged) {
+				edgeChanged = false;
+				for (var uj = 0; uj < current.length; uj++) {
+					if (subClasses[uj] !== 0) continue;
+					var ut = current[uj];
+					var uk = [vKey(ut.v0), vKey(ut.v1), vKey(ut.v2)];
+					for (var ue = 0; ue < 3; ue++) {
+						var une = (ue + 1) % 3;
+						var uEdgeK = uk[ue] < uk[une] ? uk[ue] + "|" + uk[une] : uk[une] + "|" + uk[ue];
+						// Skip edges that ARE intersection segments — classification flips across those
+						if (segEdgeKeys[uEdgeK]) continue;
+						var uAdj = subEdgeAdj[uEdgeK];
+						if (!uAdj) continue;
+						for (var ua = 0; ua < uAdj.length; ua++) {
+							if (uAdj[ua] === uj) continue;
+							if (subClasses[uAdj[ua]] !== 0) {
+								subClasses[uj] = subClasses[uAdj[ua]];
+								edgeChanged = true;
+								adjacencyHits++;
+								break;
+							}
+						}
+						if (subClasses[uj] !== 0) break;
+					}
+				}
+			}
+		}
+
+		// === Pass 3: Ray-cast fallback for anything still unclassified ===
+		for (var rj = 0; rj < current.length; rj++) {
+			if (subClasses[rj] === 0) {
+				var rsub = current[rj];
+				var rSubVerts = [rsub.v0, rsub.v1, rsub.v2];
 				var testPt = null;
 				for (var fv = 0; fv < 3; fv++) {
-					if (!steinerKeys[vKey(subVerts[fv])]) {
-						testPt = subVerts[fv];
+					if (!steinerKeys[vKey(rSubVerts[fv])]) {
+						testPt = rSubVerts[fv];
 						break;
 					}
 				}
-
 				if (!testPt) {
-					// All 3 vertices are Steiner points (on the intersection line).
-					// Use centroid as last resort.
 					testPt = {
-						x: (sub.v0.x + sub.v1.x + sub.v2.x) / 3,
-						y: (sub.v0.y + sub.v1.y + sub.v2.y) / 3,
-						z: (sub.v0.z + sub.v1.z + sub.v2.z) / 3
+						x: (rsub.v0.x + rsub.v1.x + rsub.v2.x) / 3,
+						y: (rsub.v0.y + rsub.v1.y + rsub.v2.y) / 3,
+						z: (rsub.v0.z + rsub.v1.z + rsub.v2.z) / 3
 					};
 				}
-
-				foundClass = classifyPointMultiAxis(
-					testPt,
-					otherTris, otherGrids
-				);
+				subClasses[rj] = classifyPointMultiAxis(testPt, otherTris, otherGrids);
+				vertexClassMap[vKey(testPt)] = subClasses[rj];
 				raycastFallbacks++;
 			}
+		}
 
-			if (foundClass === 1) {
-				inside.push(sub);
+		// === Pass 4: Edge-neighbor consistency check ===
+		// If a sub-tri disagrees with ALL its non-intersection edge neighbors,
+		// it was likely misclassified by ray-cast. Flip it to match neighbors.
+		{
+			var flipped = 0;
+			for (var cj = 0; cj < current.length; cj++) {
+				var ct = current[cj];
+				var ck = [vKey(ct.v0), vKey(ct.v1), vKey(ct.v2)];
+				var neighborCount = 0;
+				var agreeCount = 0;
+				for (var ce = 0; ce < 3; ce++) {
+					var cne = (ce + 1) % 3;
+					var cEdgeK = ck[ce] < ck[cne] ? ck[ce] + "|" + ck[cne] : ck[cne] + "|" + ck[ce];
+					if (segEdgeKeys[cEdgeK]) continue; // skip intersection edges
+					var cAdj = subEdgeAdj[cEdgeK];
+					if (!cAdj) continue;
+					for (var ca = 0; ca < cAdj.length; ca++) {
+						if (cAdj[ca] === cj) continue;
+						neighborCount++;
+						if (subClasses[cAdj[ca]] === subClasses[cj]) agreeCount++;
+					}
+				}
+				// Flip if has neighbors and ALL disagree
+				if (neighborCount > 0 && agreeCount === 0) {
+					subClasses[cj] = subClasses[cj] === 1 ? -1 : 1;
+					flipped++;
+				}
+			}
+			if (flipped > 0) consistencyFlips += flipped;
+		}
+
+		// Push to inside/outside
+		for (var pj = 0; pj < current.length; pj++) {
+			if (subClasses[pj] === 1) {
+				inside.push(current[pj]);
 			} else {
-				outside.push(sub);
+				outside.push(current[pj]);
 			}
 		}
 	}
 
-	console.log("splitStraddlingAndClassify: " + adjacencyHits + " sub-tris classified by vertex adjacency, " +
-		raycastFallbacks + " by ray-cast fallback");
+	console.log("splitStraddlingAndClassify: " + adjacencyHits + " sub-tris classified by vertex/edge adjacency, " +
+		raycastFallbacks + " by ray-cast fallback" +
+		(consistencyFlips > 0 ? ", " + consistencyFlips + " flipped by neighbor consistency" : ""));
 	return { inside: inside, outside: outside };
 }
 
@@ -627,7 +729,44 @@ function retriangulateWithSteinerPoints(tri, segments) {
 		return [tri];
 	}
 
-	return result;
+	// ── Step 5: Replace all-Steiner sub-triangles with centroid fan ──
+	// A sub-triangle where all 3 vertices are Steiner points (on the intersection
+	// line) is unclassifiable — no free vertex to inherit classification from.
+	// Replace each with 3 fan triangles using the centroid as a new free vertex.
+	var finalResult = [];
+	var fanReplacements = 0;
+
+	for (var ri = 0; ri < result.length; ri++) {
+		var sub = result[ri];
+		var sv0Key = sub.v0.x.toFixed(PREC) + "," + sub.v0.y.toFixed(PREC) + "," + sub.v0.z.toFixed(PREC);
+		var sv1Key = sub.v1.x.toFixed(PREC) + "," + sub.v1.y.toFixed(PREC) + "," + sub.v1.z.toFixed(PREC);
+		var sv2Key = sub.v2.x.toFixed(PREC) + "," + sub.v2.y.toFixed(PREC) + "," + sub.v2.z.toFixed(PREC);
+
+		var isV0Steiner = (sv0Key !== v0Key && sv0Key !== v1Key && sv0Key !== v2Key);
+		var isV1Steiner = (sv1Key !== v0Key && sv1Key !== v1Key && sv1Key !== v2Key);
+		var isV2Steiner = (sv2Key !== v0Key && sv2Key !== v1Key && sv2Key !== v2Key);
+
+		if (isV0Steiner && isV1Steiner && isV2Steiner) {
+			var centroid = {
+				x: (sub.v0.x + sub.v1.x + sub.v2.x) / 3,
+				y: (sub.v0.y + sub.v1.y + sub.v2.y) / 3,
+				z: (sub.v0.z + sub.v1.z + sub.v2.z) / 3
+			};
+			finalResult.push({ v0: sub.v0, v1: sub.v1, v2: centroid });
+			finalResult.push({ v0: sub.v1, v1: sub.v2, v2: centroid });
+			finalResult.push({ v0: sub.v2, v1: sub.v0, v2: centroid });
+			fanReplacements++;
+		} else {
+			finalResult.push(sub);
+		}
+	}
+
+	if (fanReplacements > 0) {
+		console.log("retriangulateWithSteinerPoints: replaced " + fanReplacements +
+			" all-Steiner sub-tris with centroid fans (" + finalResult.length + " total sub-tris)");
+	}
+
+	return finalResult;
 }
 
 // ────────────────────────────────────────────────────────
@@ -1009,7 +1148,7 @@ self.onmessage = function(e) {
 				var safetyCheckSoup = weldedToSoup(triangles);
 				var safetyStats = countOpenEdges(safetyCheckSoup);
 				if (safetyStats.openEdges > 0) {
-					var forceClosed = forceCloseIndexedMesh(worldPoints, triangles);
+					var forceClosed = forceCloseIndexedMesh(worldPoints, triangles, config.stitchTolerance || 1.0);
 					worldPoints = forceClosed.points;
 					triangles = forceClosed.triangles;
 				}
