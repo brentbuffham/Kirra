@@ -154,26 +154,7 @@ export async function showTriangulationPopup() {
 				},
 			],
 		},
-		{
-			label: "Boundary Clipping",
-			name: "clipToBoundary",
-			type: "select",
-			value: selectedPolygon ? "selected" : "none",
-			options: [
-				{
-					text: "No boundary clipping",
-					value: "none",
-				},
-				{
-					text: "Delete triangles outside selected polygon",
-					value: "outside",
-				},
-				{
-					text: "Delete triangles inside selected polygon",
-					value: "inside",
-				},
-			],
-		},
+		// Boundary Clipping is now a custom pick-row section below the form
 		{
 			label: "Search Distance (XYZ duplicates)",
 			name: "xyzTolerance",
@@ -254,18 +235,261 @@ export async function showTriangulationPopup() {
 
 	const formContent = window.createEnhancedFormContent(fields, false, true);
 
-	// Step 4) Add boundary info if polygon is selected
-	if (selectedPolygon) {
-		const boundaryInfo = document.createElement("div");
-		boundaryInfo.style.gridColumn = "1 / -1";
-		boundaryInfo.style.padding = "8px";
-		boundaryInfo.style.backgroundColor = "rgba(50, 255, 100, 0.2)";
-		boundaryInfo.style.border = "1px solid #4caf50";
-		boundaryInfo.style.borderRadius = "4px";
-		boundaryInfo.style.fontSize = "11px";
-		boundaryInfo.innerHTML = "✅ Selected boundary: " + selectedPolygon.entityName;
-		formContent.insertBefore(boundaryInfo, formContent.firstChild);
+	// Step 4) Boundary Clipping section — pick-row with polygon dropdown + screen pick
+	var dark = typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
+	var allPolys = [];
+	if (window.allKADDrawingsMap && window.allKADDrawingsMap.size > 0) {
+		window.allKADDrawingsMap.forEach(function (entity, entityName) {
+			if (entity.entityType === "poly" && entity.data && entity.data.length >= 3) {
+				var firstPt = entity.data[0];
+				if (firstPt && (firstPt.closed === true || firstPt.closed === undefined)) {
+					allPolys.push({ name: entityName, pointCount: entity.data.length });
+				}
+			}
+		});
 	}
+
+	var boundarySection = document.createElement("div");
+	boundarySection.style.gridColumn = "1 / -1";
+	boundarySection.style.padding = "8px";
+	boundarySection.style.borderRadius = "4px";
+	boundarySection.style.display = "flex";
+	boundarySection.style.flexDirection = "column";
+	boundarySection.style.gap = "6px";
+
+	var boundaryTitle = document.createElement("span");
+	boundaryTitle.textContent = "Boundary Clipping";
+	boundaryTitle.style.fontSize = "12px";
+	boundaryTitle.style.fontWeight = "bold";
+	boundarySection.appendChild(boundaryTitle);
+
+	// Clip mode row
+	var clipModeRow = document.createElement("div");
+	clipModeRow.style.display = "flex";
+	clipModeRow.style.alignItems = "center";
+	clipModeRow.style.gap = "8px";
+
+	var clipModeLabel = document.createElement("label");
+	clipModeLabel.textContent = "Mode";
+	clipModeLabel.style.fontSize = "11px";
+	clipModeLabel.style.minWidth = "40px";
+
+	var clipModeSelect = document.createElement("select");
+	clipModeSelect.style.flex = "1";
+	clipModeSelect.style.fontSize = "11px";
+	clipModeSelect.style.padding = "3px 4px";
+	clipModeSelect.style.borderRadius = "3px";
+	var clipOptions = [
+		{ value: "none", text: "No boundary clipping" },
+		{ value: "outside", text: "Delete triangles outside polygon" },
+		{ value: "inside", text: "Delete triangles inside polygon" }
+	];
+	for (var co = 0; co < clipOptions.length; co++) {
+		var opt = document.createElement("option");
+		opt.value = clipOptions[co].value;
+		opt.textContent = clipOptions[co].text;
+		clipModeSelect.appendChild(opt);
+	}
+	if (selectedPolygon) clipModeSelect.value = "outside";
+
+	clipModeRow.appendChild(clipModeLabel);
+	clipModeRow.appendChild(clipModeSelect);
+	boundarySection.appendChild(clipModeRow);
+
+	// Polygon pick row (shown when mode != "none")
+	var polyPickRow = document.createElement("div");
+	polyPickRow.style.display = clipModeSelect.value !== "none" ? "flex" : "none";
+	polyPickRow.style.alignItems = "center";
+	polyPickRow.style.gap = "8px";
+
+	var polyLabel = document.createElement("label");
+	polyLabel.textContent = "Polygon";
+	polyLabel.style.fontSize = "11px";
+	polyLabel.style.minWidth = "40px";
+
+	var polySelect = document.createElement("select");
+	polySelect.style.flex = "1";
+	polySelect.style.fontSize = "11px";
+	polySelect.style.padding = "3px 4px";
+	polySelect.style.borderRadius = "3px";
+
+	// "None" option
+	var noneOpt = document.createElement("option");
+	noneOpt.value = "";
+	noneOpt.textContent = allPolys.length > 0 ? "-- Select polygon --" : "-- No closed polygons available --";
+	polySelect.appendChild(noneOpt);
+
+	for (var p = 0; p < allPolys.length; p++) {
+		var pOpt = document.createElement("option");
+		pOpt.value = allPolys[p].name;
+		pOpt.textContent = allPolys[p].name + " (" + allPolys[p].pointCount + " pts)";
+		polySelect.appendChild(pOpt);
+	}
+
+	// Pre-select if polygon was already selected before opening dialog
+	if (selectedPolygon && selectedPolygon.entityName) {
+		polySelect.value = selectedPolygon.entityName;
+	}
+
+	// Pick button
+	var pickBtn = document.createElement("button");
+	pickBtn.type = "button";
+	pickBtn.title = "Pick a polygon from 3D view";
+	pickBtn.style.width = "28px";
+	pickBtn.style.height = "28px";
+	pickBtn.style.padding = "2px";
+	pickBtn.style.borderRadius = "4px";
+	pickBtn.style.cursor = "pointer";
+	pickBtn.style.flexShrink = "0";
+	pickBtn.style.display = "flex";
+	pickBtn.style.alignItems = "center";
+	pickBtn.style.justifyContent = "center";
+
+	var pickImg = document.createElement("img");
+	pickImg.src = "icons/target-arrow.png";
+	pickImg.style.width = "20px";
+	pickImg.style.height = "20px";
+	pickBtn.appendChild(pickImg);
+
+	// Theme update function — applies dark/light styles to all boundary elements
+	function applyBoundaryTheme() {
+		var d = typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
+		boundarySection.style.background = d ? "rgba(0,0,0,0.15)" : "rgba(240,240,240,0.5)";
+		boundarySection.style.border = d ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.1)";
+		boundaryTitle.style.color = d ? "#ccc" : "#333";
+		clipModeLabel.style.color = d ? "#ccc" : "#333";
+		clipModeSelect.style.background = d ? "#333" : "#fff";
+		clipModeSelect.style.color = d ? "#ccc" : "#333";
+		clipModeSelect.style.border = d ? "1px solid #555" : "1px solid #999";
+		polyLabel.style.color = d ? "#ccc" : "#333";
+		polySelect.style.background = d ? "#333" : "#fff";
+		polySelect.style.color = d ? "#ccc" : "#333";
+		polySelect.style.border = d ? "1px solid #555" : "1px solid #999";
+		pickImg.style.filter = d ? "invert(0.8)" : "invert(0.2)";
+		if (!pickModeActive) {
+			pickBtn.style.background = d ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+			pickBtn.style.border = d ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(0,0,0,0.2)";
+		}
+	}
+	applyBoundaryTheme();
+
+	// Listen for dark mode toggle changes while dialog is open
+	var darkModeToggleEl = document.getElementById("dark-mode-toggle");
+	var onDarkModeChange = function () { applyBoundaryTheme(); };
+	if (darkModeToggleEl) {
+		darkModeToggleEl.addEventListener("change", onDarkModeChange);
+	}
+
+	var pickModeActive = false;
+	var pickPollInterval = null;
+
+	function exitBoundaryPickMode() {
+		if (!pickModeActive) return;
+		pickModeActive = false;
+		if (pickPollInterval) {
+			clearInterval(pickPollInterval);
+			pickPollInterval = null;
+		}
+		var d = typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
+		pickBtn.style.background = d ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+		pickBtn.style.borderColor = d ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)";
+	}
+
+	pickBtn.addEventListener("click", function () {
+		if (pickModeActive) {
+			exitBoundaryPickMode();
+			return;
+		}
+
+		// Activate select pointer tool
+		var selectPointerBtn = document.getElementById("selectPointer");
+		if (selectPointerBtn && !selectPointerBtn.checked) {
+			selectPointerBtn.checked = true;
+			selectPointerBtn.dispatchEvent(new Event("change"));
+		}
+
+		// Activate KAD selection mode via the selectKAD radio button
+		var selectKADRadio = document.getElementById("selectKAD");
+		if (selectKADRadio && !selectKADRadio.checked) {
+			selectKADRadio.checked = true;
+			selectKADRadio.dispatchEvent(new Event("change"));
+		}
+
+		pickModeActive = true;
+		pickBtn.style.background = "rgba(255,60,60,0.4)";
+		pickBtn.style.borderColor = "#FF4444";
+
+		// Poll for selectedKADObject changes — the normal KAD click handler sets it
+		var prevSelectedName = window.selectedKADObject ? window.selectedKADObject.entityName : null;
+		pickPollInterval = setInterval(function () {
+			var current = window.selectedKADObject;
+			if (current && current.entityType === "poly" && current.entityName && current.entityName !== prevSelectedName) {
+				// A new polygon was selected — populate dropdown
+				polySelect.value = current.entityName;
+				if (polySelect.value !== current.entityName) {
+					// Not in dropdown yet — add it
+					var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(current.entityName) : null;
+					var ptCount = entity && entity.data ? entity.data.length : 0;
+					var newOpt = document.createElement("option");
+					newOpt.value = current.entityName;
+					newOpt.textContent = current.entityName + " (" + ptCount + " pts)";
+					polySelect.appendChild(newOpt);
+					polySelect.value = current.entityName;
+				}
+				checkPolygonClosed(current.entityName);
+				exitBoundaryPickMode();
+			}
+		}, 200);
+	});
+
+	polyPickRow.appendChild(polyLabel);
+	polyPickRow.appendChild(pickBtn);
+	polyPickRow.appendChild(polySelect);
+	boundarySection.appendChild(polyPickRow);
+
+	// Warning div for non-closed polygons
+	var polyWarning = document.createElement("div");
+	polyWarning.style.display = "none";
+	polyWarning.style.padding = "4px 8px";
+	polyWarning.style.fontSize = "11px";
+	polyWarning.style.color = "#ff6600";
+	polyWarning.style.background = "rgba(255,102,0,0.1)";
+	polyWarning.style.border = "1px solid rgba(255,102,0,0.3)";
+	polyWarning.style.borderRadius = "3px";
+	polyWarning.textContent = "Warning: Selected polygon is not closed. Clipping may produce unexpected results.";
+	boundarySection.appendChild(polyWarning);
+
+	function checkPolygonClosed(entityName) {
+		if (!entityName) { polyWarning.style.display = "none"; return; }
+		var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
+		if (!entity || !entity.data || entity.data.length < 3) {
+			polyWarning.style.display = "block";
+			polyWarning.textContent = "Warning: Selected polygon has fewer than 3 points.";
+			return;
+		}
+		var firstPt = entity.data[0];
+		var isClosed = firstPt && (firstPt.closed === true || firstPt.closed === undefined);
+		if (!isClosed) {
+			polyWarning.style.display = "block";
+			polyWarning.textContent = "Warning: Selected polygon is not closed. Clipping may produce unexpected results.";
+		} else {
+			polyWarning.style.display = "none";
+		}
+	}
+
+	polySelect.addEventListener("change", function () {
+		checkPolygonClosed(polySelect.value);
+	});
+	// Check initial selection
+	if (polySelect.value) checkPolygonClosed(polySelect.value);
+
+	clipModeSelect.addEventListener("change", function () {
+		polyPickRow.style.display = clipModeSelect.value !== "none" ? "flex" : "none";
+		polyWarning.style.display = clipModeSelect.value === "none" ? "none" : polyWarning.style.display;
+		if (clipModeSelect.value !== "none" && polySelect.value) checkPolygonClosed(polySelect.value);
+	});
+
+	formContent.appendChild(boundarySection);
 
 	// Step 4.1) Add dataset size info box (always show for awareness)
 	var datasetSizeStyle = preEstimatedPoints > SAFE_POINT_LIMIT ? "rgba(255, 150, 50, 0.3)" :
@@ -309,12 +533,18 @@ export async function showTriangulationPopup() {
 		content: formContent,
 		layoutType: "wide",
 		width: 520,
-		height: 570,
+		height: 620,
 		showConfirm: true,
 		showCancel: true,
 		confirmText: "Create",
 		cancelText: "Cancel",
+		onCancel: function () {
+			exitBoundaryPickMode();
+			if (darkModeToggleEl) darkModeToggleEl.removeEventListener("change", onDarkModeChange);
+		},
 		onConfirm: async () => {
+			exitBoundaryPickMode();
+			if (darkModeToggleEl) darkModeToggleEl.removeEventListener("change", onDarkModeChange);
 			const formData = window.getFormData(formContent);
 
 			// Step 6) Validate surface name
@@ -460,23 +690,28 @@ export async function showTriangulationPopup() {
 							if (triLayer && triLayer.entities) triLayer.entities.add(surfaceId);
 						}
 
-						// ✅ Apply boundary clipping if requested
-						if (formData.clipToBoundary && formData.clipToBoundary !== "none") {
-							const selectedPolygon = window.selectedKADObject && window.selectedKADObject.entityType === "poly" ? window.selectedKADObject : null;
-
-							if (selectedPolygon) {
+						// Apply boundary clipping if requested
+						var clipMode = clipModeSelect.value;
+						var chosenPolyName = polySelect.value;
+						if (clipMode && clipMode !== "none" && chosenPolyName) {
+							// Temporarily set selectedKADObject so deleteTrianglesByClippingPolygon can find it
+							var prevSelected = window.selectedKADObject;
+							var chosenEntity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(chosenPolyName) : null;
+							if (chosenEntity) {
+								window.selectedKADObject = { entityType: "poly", entityName: chosenPolyName };
 								await updateProgress(75, "Applying boundary clipping...");
-								console.log("🔪 Applying boundary clipping:", formData.clipToBoundary);
+								console.log("Applying boundary clipping:", clipMode, "polygon:", chosenPolyName);
 
-								const clippingSuccess = window.deleteTrianglesByClippingPolygon(surfaceId, formData.clipToBoundary);
+								const clippingSuccess = window.deleteTrianglesByClippingPolygon(surfaceId, clipMode);
 
 								if (clippingSuccess) {
 									const clippedSurface = window.loadedSurfaces.get(surfaceId);
 									const clippedCount = result.resultTriangles.length - clippedSurface.triangles.length;
-									console.log("✂️ Clipping applied:", clippedCount, "triangles removed,", clippedSurface.triangles.length, "remaining");
+									console.log("Clipping applied:", clippedCount, "triangles removed,", clippedSurface.triangles.length, "remaining");
 								} else {
-									console.warn("⚠️ Boundary clipping failed");
+									console.warn("Boundary clipping failed");
 								}
+								window.selectedKADObject = prevSelected;
 							}
 						}
 

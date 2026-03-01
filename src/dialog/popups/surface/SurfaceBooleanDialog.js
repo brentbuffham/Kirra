@@ -88,6 +88,13 @@ function restoreHiddenSurfaces() {
 // ────────────────────────────────────────────────────────
 
 export function showSurfaceBooleanDialog() {
+	// Step 0) Switch to 3D mode if not already active
+	var dimensionBtn = document.getElementById("dimension2D-3DBtn");
+	if (dimensionBtn && !dimensionBtn.checked) {
+		dimensionBtn.checked = true;
+		dimensionBtn.dispatchEvent(new Event("change"));
+	}
+
 	// Step 1) Collect all surfaces with triangles
 	var surfaceEntries = [];
 	if (window.loadedSurfaces && window.loadedSurfaces.size > 0) {
@@ -516,22 +523,17 @@ function showPhase2(splitResult, gradient) {
 			leftDiv.appendChild(label);
 			leftDiv.appendChild(badge);
 
-			// Right: remove/add icon buttons
+			// Right: toggle visibility + flip/align icon buttons
 			var btnDiv = document.createElement("div");
 			btnDiv.style.display = "flex";
 			btnDiv.style.gap = "4px";
 			btnDiv.style.flexShrink = "0";
 
-			var removeBtn = createIconButton("icons/triangle-minus.png", "Hide / Remove from result", function () {
-				split.kept = false;
-				updateRowAppearance(row, swatch, split);
-				updateSplitPreview(index, false);
-			});
-
-			var addBtn = createIconButton("icons/triangle-plus.png", "Show / Add to result", function () {
-				split.kept = true;
-				updateRowAppearance(row, swatch, split);
-				updateSplitPreview(index, true);
+			var toggleBtn = createVisibilityToggleButton(split.kept, function () {
+				split.kept = !split.kept;
+				updateVisibilityToggle(toggleBtn, split.kept);
+				updateRowAppearance(row, swatch, label, split);
+				updateSplitPreview(index, split.kept);
 			});
 
 			var flipBtn = createIconButton("icons/flip-horizontal.png", "Flip Normals on this region", function () {
@@ -544,8 +546,7 @@ function showPhase2(splitResult, gradient) {
 				updateNormalBadge(badge, split, p2Dark);
 			});
 
-			btnDiv.appendChild(removeBtn);
-			btnDiv.appendChild(addBtn);
+			btnDiv.appendChild(toggleBtn);
 			btnDiv.appendChild(flipBtn);
 			btnDiv.appendChild(alignBtn);
 
@@ -553,7 +554,7 @@ function showPhase2(splitResult, gradient) {
 			row.appendChild(btnDiv);
 			listDiv.appendChild(row);
 
-			splitRows.push({ row: row, swatch: swatch, split: split, index: index });
+			splitRows.push({ row: row, swatch: swatch, label: label, toggleBtn: toggleBtn, split: split, index: index });
 		})(s);
 	}
 
@@ -570,7 +571,8 @@ function showPhase2(splitResult, gradient) {
 		for (var i = 0; i < splitRows.length; i++) {
 			var sr = splitRows[i];
 			sr.split.kept = !sr.split.kept;
-			updateRowAppearance(sr.row, sr.swatch, sr.split);
+			updateVisibilityToggle(sr.toggleBtn, sr.split.kept);
+			updateRowAppearance(sr.row, sr.swatch, sr.label, sr.split);
 			updateSplitPreview(sr.index, sr.split.kept);
 		}
 	});
@@ -730,8 +732,7 @@ function showPhase2(splitResult, gradient) {
 
 	function updateInfoText(mode) {
 		var buttons = "<b>Buttons per region:</b> " +
-			"<span style='opacity:0.7'>&#9651;&#8722;</span> Hide | " +
-			"<span style='opacity:0.7'>&#9651;+</span> Show | " +
+			"<span style='opacity:0.7'>&#128065;</span> Toggle Visibility | " +
 			"<span style='opacity:0.7'>&#8644;</span> Flip Normals | " +
 			"<span style='opacity:0.7'>&#8657;</span> Align Z-Up";
 		if (mode === "stitch") {
@@ -857,6 +858,56 @@ function createIconButton(iconSrc, tooltip, onClick) {
 }
 
 /**
+ * Create a visibility toggle button using eye/eye-closed icons.
+ * Green border+tint when visible, red when hidden.
+ */
+function createVisibilityToggleButton(initiallyVisible, onClick) {
+	var dark = isDarkMode();
+	var btn = document.createElement("button");
+	btn.type = "button";
+	btn.style.width = "26px";
+	btn.style.height = "26px";
+	btn.style.padding = "2px";
+	btn.style.borderRadius = "4px";
+	btn.style.cursor = "pointer";
+	btn.style.display = "flex";
+	btn.style.alignItems = "center";
+	btn.style.justifyContent = "center";
+	btn.style.flexShrink = "0";
+
+	var img = document.createElement("img");
+	img.style.width = "18px";
+	img.style.height = "18px";
+	img.style.filter = dark ? "invert(0.8)" : "invert(0.2)";
+	btn.appendChild(img);
+
+	btn.addEventListener("click", onClick);
+
+	// Store ref to img for updates
+	btn._eyeImg = img;
+	updateVisibilityToggle(btn, initiallyVisible);
+	return btn;
+}
+
+/**
+ * Update a visibility toggle button's icon and color.
+ */
+function updateVisibilityToggle(btn, visible) {
+	var img = btn._eyeImg;
+	if (visible) {
+		img.src = "icons/eye.png";
+		btn.title = "Visible — click to hide";
+		btn.style.border = "1px solid rgba(0,200,0,0.6)";
+		btn.style.background = "rgba(0,200,0,0.15)";
+	} else {
+		img.src = "icons/eye-closed.png";
+		btn.title = "Hidden — click to show";
+		btn.style.border = "1px solid rgba(220,0,0,0.6)";
+		btn.style.background = "rgba(220,0,0,0.15)";
+	}
+}
+
+/**
  * Check dark mode state.
  */
 function isDarkMode() {
@@ -955,13 +1006,15 @@ function updateNormalBadge(badge, split, dark) {
 	}
 }
 
-function updateRowAppearance(row, swatch, split) {
+function updateRowAppearance(row, swatch, label, split) {
 	if (split.kept) {
-		row.style.opacity = "1";
+		swatch.style.opacity = "1";
 		swatch.style.backgroundColor = split.color;
+		label.style.opacity = "1";
 	} else {
-		row.style.opacity = "0.4";
-		swatch.style.backgroundColor = "#444";
+		swatch.style.opacity = "0.5";
+		swatch.style.backgroundColor = split.color;
+		label.style.opacity = "0.4";
 	}
 }
 
