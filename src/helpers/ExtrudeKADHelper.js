@@ -64,6 +64,37 @@ export function buildExtrudeGeometry(entity, params) {
 		n = verts.length;
 	}
 
+	// Step 2b) Remove consecutive duplicate / near-coincident vertices
+	// KAD polygons imported from DXF/shapefiles can have duplicate points
+	// that cause Delaunator to crash.
+	var DEDUP_TOL = 0.001;
+	var cleaned = [verts[0]];
+	for (var di = 1; di < n; di++) {
+		var prev = cleaned[cleaned.length - 1];
+		var cur = verts[di];
+		if (Math.abs(cur.x - prev.x) < DEDUP_TOL &&
+			Math.abs(cur.y - prev.y) < DEDUP_TOL &&
+			Math.abs(cur.z - prev.z) < DEDUP_TOL) {
+			continue; // skip duplicate
+		}
+		cleaned.push(cur);
+	}
+	// Also check that the last cleaned vertex isn't a duplicate of the first
+	if (cleaned.length > 1) {
+		var cl = cleaned[cleaned.length - 1];
+		var cf = cleaned[0];
+		if (Math.abs(cl.x - cf.x) < DEDUP_TOL &&
+			Math.abs(cl.y - cf.y) < DEDUP_TOL &&
+			Math.abs(cl.z - cf.z) < DEDUP_TOL) {
+			cleaned.pop();
+		}
+	}
+	if (cleaned.length !== n) {
+		console.log("ExtrudeKADHelper: deduplicated " + n + " → " + cleaned.length + " vertices");
+	}
+	verts = cleaned;
+	n = verts.length;
+
 	if (n < 3) {
 		console.error("ExtrudeKADHelper: Need at least 3 unique vertices");
 		return null;
