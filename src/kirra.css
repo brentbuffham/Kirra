@@ -1355,53 +1355,7 @@ body.dark-mode .file-import-btn:hover {
     margin: 2px;
 }
 
-/* The side navigation menu */
-.sidenav-Right {
-    height: 100%;
-    width: 0;
-    position: fixed;
-    z-index: 20;
-    top: 0;
-    right: 0;
-    background-color: #cecece;
-    overflow-x: hidden;
-    padding-top: 0px;
-    margin-right: 0px;
-    margin-left: 0px;
-    transition: 0.5s;
-    border: var(--primary-color);
-    border-style: solid;
-    border-width: 1px;
-}
-
-.sidenav-Right.dark-mode {
-    background-color: var(--dark-mode-color);
-    color: #cecece;
-}
-
-/* The navigation menu links */
-.sidenav-Right a {
-    padding: 0px;
-    text-decoration: none;
-    font-size: 14px;
-    color: var(--primary-color);
-    display: block;
-    transition: 0.3s;
-}
-
-/* When you mouse over the navigation links, change their color */
-.sidenav-Right a:hover {
-    color: #ff0000;
-}
-
-/* Position and style the close button (top right corner) */
-.sidenav-Right .closebtnR {
-    position: absolute;
-    top: 0px;
-    left: 20px;
-    font-size: 36px;
-    margin-right: 0px;
-}
+/* sidenavRight styles removed -- panel migrated to floating dialogs */
 
 /* The side navigation menu */
 .sidenav-Left {
@@ -1451,17 +1405,7 @@ body.dark-mode .file-import-btn:hover {
     margin-left: 50px;
 }
 
-.resize-handle-right {
-    width: 5px;
-    height: 100%;
-    background: #555;
-    /* Or any color of your choice */
-    cursor: ew-resize;
-    position: absolute;
-    left: 0;
-    top: 0;
-    z-index: 100 !important;
-}
+/* resize-handle-right removed -- sidenavRight panel removed */
 
 .resize-handle-left {
     width: 5px;

@@ -1524,7 +1524,9 @@
 				</label>
 			</div>
 			<div class="spacer"></div>
-			<div class="labelbig" id="openNavRightBtn">&#9776;</div>
+			<div class="labelbig" id="headerDataExplorerBtn" title="Data Explorer" style="cursor:pointer;display:flex;align-items:center;justify-content:center;">
+				<img src="icons/article.png" alt="Data Explorer" style="width:22px;height:22px;filter:invert(0.85);">
+			</div>
 
 		</div>
 
@@ -2351,265 +2353,67 @@
 				<div id="resizeHandleLeft" class="resize-handle-left"></div>
 			</div>
 			<!--END LEFT HAND SIDE PANEL-->
-			<!--START RIGHT HAND SIDE PANEL-->
-			<div id="sidenavRight" class="sidenav-Right">
-				<div><a href="javascript:void(0)" class="closebtnR" id="closeNavRightBtn">&times;</a>
-				</div><br><br>
-				<!--Connector-->
-				<button class="accordion" id="connectorsAcc">
-					<span>Connectors</span>
-				</button>
-				<div class="panel">
-					<div class="switch-container">
-						<div class="label2" id="singleTie">Tie-in one by one:</div>
-						<label class="switch">
-							<input type="checkbox" id="addConnectorButton" placeholder="connectorSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="multiTie">Tie-in all in a line:</div>
-						<label class="switch">
-							<input type="checkbox" id="addMultiConnectorButton" placeholder="multiconnectorSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-
-					<div class="button-container-2col">
-						<div>
-							<label class="label2" id="delayLabel">Delay:</label>
-							<input type="number2" step="1" min="-1000" max="1000" id="delay" name="delay" value="25" placeholder="Delay Amount">
-						</div>
-						<div class="button-norm" id="connectorColor" name="connectorColor" data-jscolor="{value:'#FF0000'}">
-							Color</div>
-
-					</div>
-					<br>
-					<div class="label2" id="connectLabel">Connect Distance : </div>
-					<input type="range" id="connectSlider" min="0" max="100" value="50" step="1" placeholder="Adjust the Connection Distance">
-				</div>
-				<button class="accordion" id="animateAcc">
-					<span>Animate Firing</span></button>
-				<div class="panel">
-					<button class="button-norm" id="play">PLAY @ 1.0x</button>
-					<button class="button-norm" id="stop">STOP</button>
-					<br>
-					<input type="range" step="1" min="0" max="100" value="50" id="playSpeed" placeholder="Select play speed">
-				</div>
-				<button class="accordion" id="timeWindowAcc">
-					<span>Time Window</span></button>
-				<div class="panel">
-					<div class="chart-container" id="timeChart"></div>
-					<a class="label2" id="timeRangeLabel">Time window : 8 ms</a>
-					<input type="range" min="1" max="250" value="8" step="1" id="timeRange" placeholder="Select time window size">
-					<a class="label2" id="timeOffsetLabel">Time Offset : 0 ms</a>
-					<input type="range" min="0" max="50" value="0" id="timeOffset" placeholder="Select time offset">
-					<div class="radio-button-bar">
-						<label class="label2" for="timeChartMode">Chart Mode:</label>
-						<select id="timeChartMode" style="margin-left:4px; padding:2px 4px; font-size:12px;">
-							<option value="holeCount">Surface Hole Count</option>
-							<option value="measuredMass">Measured Mass</option>
-							<option value="massPerHole">Mass Per Hole</option>
-							<option value="deckCount">Deck Count</option>
-							<option value="massPerDeck">Mass Per Deck</option>
-						</select>
-					</div>
-				</div>
-				<button class="accordion" id="drawingTools">
-					<span>Drawing Tools</span></button>
-				<div class="panel">
-					<div class="switch-container">
-						<div class="label2" id="elevationName">Elevation
-							(z):&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
-						<input type="number3" step="1" min="-10000" max="10000" id="drawingElevation" name="elevation" value="200" placeholder="Elevation (z)">
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="colorLabel" for="drawingColorLabel">
-							Color:&nbsp;&nbsp;&nbsp;&nbsp;</div>
-						<!-- Add a Color picker-->
-						<input type="jscolor" id="drawingColor" name="drawingColor" data-jscolor="{value:'777777'}" title="Drawing Color" placeholder="Drawing Color">&nbsp;&nbsp;&nbsp;
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="lineWidthLabel">Line Width:&nbsp;&nbsp;</div>
-						<!-- Add a Color picker-->
-						<input type="number2" id="drawingLineWidth" name="drawingLineWidth" value="1" placeholder="Object Width">
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="pointDraw">Point Drawing:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
-						<label class="switch">
-							<input type="checkbox" id="addPointDraw" placeholder="addPointSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="lineDraw">Line
-							Drawing:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
-						<label class="switch">
-							<input type="checkbox" id="addLineDraw" placeholder="addLineSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="polyDraw">Polygon Drawing:&nbsp;&nbsp;</div>
-						<label class="switch">
-							<input type="checkbox" id="addPolyDraw" placeholder="addPolySwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="circleDraw">Circle Drawing:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-						</div>
-						<label class="switch">
-							<input type="checkbox" id="addCircleDraw" placeholder="addCircleSwitch">
-							<span class="slider round"></span>
-						</label>
-						<div>
-							<label class="label2" id="drawingRadiusLabel">Radius(m):</label>
-							<!-- Add a radius picker-->
-							<input type="number2" id="drawingRadius" name="drawingRadius" value="10" placeholder="Object Width">
-						</div>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="textDraw">Text
-							Drawing:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-						</div>
-						<label class="switch">
-							<input type="checkbox" id="addTextDraw" placeholder="addTextSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="switch-container">
-						<div class="label2" id="textLabel">Text:&nbsp;</div>
-						<!-- Add a text field-->
-						<input type="text2" id="drawingText" name="drawingText" value="Text" placeholder="Text" maxlength="1000" width="flex">
-					</div>
-					<!-- A list of common JS Math values like PI "=Math.PI" in a label2-->
-					<div class="label2" id="commonMath1">Use "=" at the front of the text to use JS Math or do
-						calculations.
-					</div>
-					<div class="label5" id="commonMath2">
-						Math.PI: Math.E: Math.max(): Math.min(): Math.round(): Math.floor(): Math.ceil():
-						Math.random():
-						Math.sqrt():
-						Math.pow(): Math.abs(): Math.sin(): Math.cos(): Math.tan(): Math.asin(): Math.acos():
-						Math.atan():
-						Math.log(): .toFixed()<br>
-						<br><b>The mass of a charge length can be calculated ie.<br></b><i> =((Math.PI *
-							Math.pow((229/2), 2)*10
-							*
-							1.18) / 1000).toFixed(2)</i>
-					</div>
-					<!-- Create a button and a two textfields, the button is labelled "Create Radii of Holes", the 1st Text field is numeric and is labelled "Radii Steps", the 2nd is labelled Radius(m) -->
-					<!-- Add a Button labelled "Create Radii of Holes"-->
-					<div class="button-norm" id="createRadiiFromBlastHoles">Create Radii from Holes</div>
-
-					<br>
-					<div class="button-container-2col">
-						<div>
-							<label class="label2" id="radiiStepsLabel">Radii Steps:</label>
-							<input type="number2" id="radiiSteps" name="radiiSteps" value="36" placeholder="Radii Steps">
-						</div>
-						<div>
-							<label class="label2" id="drawingPolygonRadiusLabel">Radius(m):</label>
-							<input type="number2" id="drawingPolygonRadius" name="drawingPolygonRadius" value="300" placeholder="Object Width">
-						</div>
-					</div>
-
-					<br>
-				</div>
-				<button class="accordion" id="drawingRemovalAcc">
-					<span>Drawing Removal</span></button>
-				<div class="panel">
-					<div class="switch-container">
-						<div class="label2" id="pointDeleteLabel">Drawing Delete:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-						</div>
-						<label class="switch">
-							<input type="checkbox" id="deleteKADDraw" placeholder="deletKADSwitch">
-							<span class="slider round"></span>
-						</label>
-					</div>
-					<br>
-					<div class="button-container-3col">
-						<div class="button-norm" id="deletePointButton">Point</div>
-						<div class="button-norm" id="deleteObjectButton">Object</button></div>
-						<div class="button-norm-red" id="deleteAllButton">All</div>
-						<br>
-					</div>
-				</div>
-
-				<button class="accordion" id="voronoiOptionsAcc">
-					<span>Voronoi Display Options and Settings</span></button>
-				<div class="panel">
-					<!-- Voronoi Display Options presented in a select dropdown -->
-					<div class="label2" id="voronoiLabel">Voronoi Display Options:</div>
-					<select title="voronoiSelect" id="voronoiSelect" name="voronoiSelect">
-						<option value="powderFactor">PF - Measured (mass/volume)</option>
-						<option value="powderFactorDesigned" selected>PF - Designed (mass/volume)</option>
-						<option value="mass">Measured Mass</option>
-						<option value="designedMass">Designed Mass</option>
-						<option value="volume">Volume</option>
-						<option value="area">Area</option>
-						<option value="measuredLength">Measured Length</option>
-						<option value="designedLength">Designed Length</option>
-						<option value="holeFiringTime">Hole Firing Time</option>
-						<option value="sdob">Scaled Depth of Burial</option>
-						<!-- Add More Here-->
-					</select>
-					<br>
-					<!-- Add Legend adjust.  Either Min-Max Values or Fixed-->
-					<div class="label2" id="voronoiLegendLabel">Voronoi Legend:</div>
-					<select title="voronoiLegendSelect" id="voronoiLegendSelect" name="voronoiLegendSelect">
-						<option value="minmax">Min-Max</option>
-						<option value="fixed">Fixed</option>
-						<!-- Add More Here-->
-					</select>
-					<br>
-					<!-- Add Switch to display Voronoi boundary-->
-					<div class="switch-container">
-						<div class="label2" id="voronoiBoundaryLabel">Use Toe Radii Boundary:</div>
-						<label class="switch">
-							<input type="checkbox" id="voronoiBoundarySwitch" placeholder="voronoiBoundarySwitch">
-							<span class="slider round"></span>
-						</label>
-
-					</div>
-					<br>
-					<br>
-
-					<div class="label2c" id="buymeacoffeelabel">Show support with a cash donation</div><br>
-					<a href="https://www.buymeacoffee.com/BrentBuffham" id="buymeacoffee">
-						<img src="https://img.buymeacoffee.com/button-api/?text=Buy Brent a coffee&emoji=&slug=BrentBuffham&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" />
-					</a>
-
-					<!--END - BUYMEACOFFEE REPORT BUTTON-->
-
-					<!--START - BUG REPORT BUTTON-->
-					<br>
-					<a href="mailto:blastingapps.xyz@gmail.com?subject=Bug%20Report%20or%20Feature%20request&body=Application%20the%20issue%20or%20request%20is%20about:%0D%0A%0D%0A
-              Description%20of%20the%20bug%20or%20feature:%0D%0A%0D%0ASteps%20to%20reproduce%20the%20bug%20or%20create%20the%20feature:%0D%0A%0D%0AExpected%20result:%0D%0A%0D%0AActual%20result:%0D%0A%0D%0A
-                ">
-						<button class="button-bug" id="bugButton">Report Bug / Request Feature</button>
-					</a>
-					<!--END - BUG REPORT BUTTON-->
-
-					<!-- resize handle was here and was invisible moved out of this div-->
-				</div>
-				<div id="resizeHandleRight" class="resize-handle-right"></div>
-				<!--END RIGHT HAND SIDE PANEL-->
+			<!-- Hidden elements preserved from removed sidenavRight panel (referenced by JS) -->
+			<div id="sidenavRightHidden" style="display:none;">
+				<input type="checkbox" id="addConnectorButton">
+				<input type="checkbox" id="addMultiConnectorButton">
+				<input type="number" id="delay" value="25">
+				<div id="connectorColor" data-jscolor="{value:'#FF0000'}"></div>
+				<input type="range" id="connectSlider" min="0" max="100" value="50" step="1">
+				<div id="connectLabel"></div>
+				<button id="play">PLAY</button>
+				<button id="stop">STOP</button>
+				<input type="range" id="playSpeed" min="0" max="100" value="50" step="1">
+				<div id="timeChart"></div>
+				<input type="range" id="timeRange" min="1" max="250" value="8" step="1">
+				<input type="range" id="timeOffset" min="0" max="50" value="0" step="1">
+				<select id="timeChartMode">
+					<option value="holeCount">Surface Hole Count</option>
+					<option value="measuredMass">Measured Mass</option>
+					<option value="massPerHole">Mass Per Hole</option>
+					<option value="deckCount">Deck Count</option>
+					<option value="massPerDeck">Mass Per Deck</option>
+				</select>
+				<input type="number" id="drawingElevation" value="200">
+				<input type="text" id="drawingColor" data-jscolor="{value:'777777'}">
+				<input type="number" id="drawingLineWidth" value="1">
+				<input type="checkbox" id="addPointDraw">
+				<input type="checkbox" id="addLineDraw">
+				<input type="checkbox" id="addPolyDraw">
+				<input type="checkbox" id="addCircleDraw">
+				<input type="checkbox" id="addTextDraw">
+				<input type="number" id="drawingRadius" value="10">
+				<input type="text" id="drawingText" value="Text">
+				<div id="createRadiiFromBlastHoles"></div>
+				<input type="number" id="radiiSteps" value="36">
+				<input type="number" id="drawingPolygonRadius" value="300">
+				<input type="checkbox" id="deleteKADDraw">
+				<button id="deletePointButton"></button>
+				<button id="deleteObjectButton"></button>
+				<button id="deleteAllButton"></button>
+				<select id="voronoiSelect">
+					<option value="powderFactor">PF - Measured (mass/volume)</option>
+					<option value="powderFactorDesigned" selected>PF - Designed (mass/volume)</option>
+					<option value="mass">Measured Mass</option>
+					<option value="designedMass">Designed Mass</option>
+					<option value="volume">Volume</option>
+					<option value="area">Area</option>
+					<option value="measuredLength">Measured Length</option>
+					<option value="designedLength">Designed Length</option>
+					<option value="holeFiringTime">Hole Firing Time</option>
+					<option value="sdob">Scaled Depth of Burial</option>
+				</select>
+				<select id="voronoiLegendSelect">
+					<option value="minmax">Min-Max</option>
+					<option value="fixed">Fixed</option>
+				</select>
+				<input type="checkbox" id="voronoiBoundarySwitch">
 			</div>
 
 		</div>
 		<!--END CANVAS AND MODE DISPLY BUTTONS-->
+		<!-- Hidden showTreeBtn checkbox - toggled by headerDataExplorerBtn -->
+		<input type="checkbox" id="showTreeBtn" name="showTreeBtn" value="showTreeBtn" style="display:none;">
 		<!-- TOOLBAR PANEL - Tree Panel Style with ORIGINAL TOOL IDs -->
 		<!-- ========== TOOLBAR PANELS (7 Workflow-Oriented Panels) ========== -->
 
@@ -2669,16 +2473,12 @@
 						<img src="icons/transition-top.png" alt="Section Plane">
 					</button>
 					<hr class="single">
-					<input type="checkbox" id="showTreeBtn" name="showTreeBtn" value="showTreeBtn">
-					<label for="showTreeBtn" class="toggle-buttons-custom icon-button" title="Show Data Explorer">
-						<img src="icons/article.png" alt="Data Explorer">
-					</label>
 					<input type="checkbox" id="dimension2D-3D-SettingsBtn" name="dimension2D-3D-SettingsBtn" value="dimension2D-3D-SettingsBtn">
 					<label for="dimension2D-3D-SettingsBtn" class="toggle-buttons-custom icon-button" title="3D Settings">
 						<img src="icons/world-cog.png" alt="3D Settings">
 					</label>
 					<input type="checkbox" id="dimension2D-3DBtn" name="dimension2D-3DBtn" value="dimension2D-3DBtn">
-					<label for="dimension2D-3DBtn" class="toggle-buttons-custom icon-button single"  title="Toggle 2D/3D">
+					<label for="dimension2D-3DBtn" class="toggle-buttons-custom icon-button"  title="Toggle 2D/3D">
 						<img src="icons/badge-2d-v2.png" alt="Toggle 2D/3D">
 					</label>
 				</div>
@@ -2734,6 +2534,10 @@
 					<button id="removeChargeRuleBtn" class="toggle-buttons-custom icon-button" title="Remove Charges">
 						<img src="icons/cylinder-off.png" alt="Remove Charge Rule">
 					</button>
+					<hr class="single">
+					<button id="createRadiiFromBlastHolesBtn" class="toggle-buttons-custom icon-button" title="Create Radii from Blast Holes">
+						<img src="icons/circles.png" alt="Create Radii">
+					</button>
 				</div>
 			</div>
 		</div>
@@ -2781,7 +2585,14 @@
 					<button id="flyrockShroudBtn" class="toggle-buttons-custom icon-button" title="Flyrock Shroud Generator">
 						<img src="icons/flyrock-shroud.png" alt="Flyrock Shroud">
 					</button>
-
+					<!-- Blast Animation -->
+					<button id="blastAnimationBtn" class="toggle-buttons-custom icon-button" title="Blast Animation">
+						<img src="icons/player-play.png" alt="Blast Animation">
+					</button>
+					<!-- Time Window -->
+					<button id="timeWindowBtn" class="toggle-buttons-custom icon-button" title="Time Window">
+						<img src="icons/clock-bolt.png" alt="Time Window">
+					</button>
 					<!-- Future: DrawTriangle, ContourSurface -->
 				</div>
 			</div>
@@ -2902,8 +2713,11 @@
 					<label for="tieConnectMultiTool" class="toggle-buttons-custom icon-button" title="Tie Connect Multi">
 						<img src="icons/tieconnectmulti.png" alt="Tie Connect Multi">
 					</label>
+					<input type="number#" step="0.1" min="0" max="100" id="floatingConnectDistance" name="floatingConnectDistance" value="2.0" placeholder="Dist" class="single" title="Connect Distance (m)">
 					<input type="button" id="floatingConnectorColor" name="floatingConnectorColor" data-jscolor="{value:'#FF0000'}" title="Connector Color" class="color-with-input">
 					<input type="number#" step="1" min="-1000" max="1000" id="floatingDelay" name="floatingDelay" value="25" placeholder="Delay" class="input-with-color" title="Delay Amount (ms)">
+					<hr class="single">
+					
 					<!-- Future: Electronic Tie Tools -->
 				</div>
 			</div>

@@ -9,7 +9,7 @@ import { bakeLiveShaderTo2D, removeLiveFlattenedImage } from "../../../helpers/B
  *
  * The slider updates the shader's uDisplayTime uniform in real-time,
  * updating the 3D view. A debounced re-bake updates the 2D canvas view.
- * [Freeze] bakes the current time-slice as a permanent surface.
+ * [Generate] bakes the current time-slice as a permanent surface.
  * [Cancel] removes the live shader and reverts.
  *
  * @param {Object} config - Configuration object
@@ -18,7 +18,7 @@ import { bakeLiveShaderTo2D, removeLiveFlattenedImage } from "../../../helpers/B
  * @param {string} config.modelName - Active model name
  * @param {Object} config.params - Model parameters
  * @param {Object} config.liveConfig - Full config for re-baking ({ model, surfaceId, blastName, planePadding, params })
- * @param {Function} config.onFreeze - Callback when [Freeze] is clicked, receives { surfaceId, timeMs }
+ * @param {Function} config.onFreeze - Callback when [Generate] is clicked, receives { surfaceId, timeMs }
  * @param {Function} config.onClose - Callback when dialog is closed/cancelled
  */
 export function showTimeInteractionDialog(config) {
@@ -52,145 +52,165 @@ export function showTimeInteractionDialog(config) {
 	var sliderMax = Math.ceil(maxFireTime * 1.1);
 	var sliderStep = Math.max(1, Math.round(sliderMax / 500));
 
-	// Track the live flattened image ID for cleanup
-	var liveFlattenedImageId = null;
-
 	// Debounce timer for 2D bake
 	var bakeDebounceTimer = null;
 	var BAKE_DEBOUNCE_MS = 200;
 
-	// Build dialog content
-	var container = document.createElement("div");
-	container.style.padding = "12px";
-	container.style.display = "flex";
-	container.style.flexDirection = "column";
-	container.style.height = "100%";
-	container.style.boxSizing = "border-box";
-
-	// Title label
-	var titleLabel = document.createElement("div");
-	titleLabel.style.fontSize = "12px";
-	titleLabel.style.color = "var(--text-color)";
-	titleLabel.style.marginBottom = "12px";
-	titleLabel.style.flexShrink = "0";
-	titleLabel.textContent = "Drag the slider to view the analysis at different time slices. "
-		+ "Holes appear progressively as their firing time is reached.";
-	container.appendChild(titleLabel);
-
-	// Time slider section — takes up most of the space
-	var sliderSection = document.createElement("div");
-	sliderSection.style.flex = "1";
-	sliderSection.style.display = "flex";
-	sliderSection.style.flexDirection = "column";
-	sliderSection.style.justifyContent = "center";
-
-	// Label + transport controls row
-	var labelRow = document.createElement("div");
-	labelRow.style.display = "flex";
-	labelRow.style.alignItems = "center";
-	labelRow.style.marginBottom = "8px";
-	labelRow.style.gap = "8px";
-
-	var sliderLabel = document.createElement("label");
-	sliderLabel.style.fontSize = "12px";
-	sliderLabel.style.fontWeight = "bold";
-	sliderLabel.style.color = "var(--text-color)";
-	sliderLabel.textContent = "Time Slice:";
-	labelRow.appendChild(sliderLabel);
-
-	// Transport controls: Reset, Play, Pause
-	var transportBtnStyle = "padding: 2px 8px; font-size: 14px; cursor: pointer; " +
-		"background: rgba(77,166,255,0.15); border: 1px solid rgba(77,166,255,0.4); " +
-		"border-radius: 3px; color: var(--text-color); line-height: 1;";
-
-	var resetBtn = document.createElement("button");
-	resetBtn.type = "button";
-	resetBtn.textContent = "\u23EE";
-	resetBtn.title = "Reset to 0";
-	resetBtn.setAttribute("style", transportBtnStyle);
-	labelRow.appendChild(resetBtn);
-
-	var playBtn = document.createElement("button");
-	playBtn.type = "button";
-	playBtn.textContent = "\u25B6";
-	playBtn.title = "Play";
-	playBtn.setAttribute("style", transportBtnStyle);
-	labelRow.appendChild(playBtn);
-
-	var pauseBtn = document.createElement("button");
-	pauseBtn.type = "button";
-	pauseBtn.textContent = "\u23F8";
-	pauseBtn.title = "Pause";
-	pauseBtn.setAttribute("style", transportBtnStyle);
-	labelRow.appendChild(pauseBtn);
-
-	// Speed label
-	var speedLabel = document.createElement("span");
-	speedLabel.style.fontSize = "10px";
-	speedLabel.style.color = "#888";
-	speedLabel.style.marginLeft = "auto";
-	speedLabel.textContent = "1x";
-	labelRow.appendChild(speedLabel);
-
-	sliderSection.appendChild(labelRow);
+	// Detect dark mode
+	var dark = typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
 
 	// Playback state
 	var playAnimId = null;
-	var playSpeed = 1;   // multiplier
+	var playSpeed = 1;
 	var lastFrameTime = 0;
+	var loopEnabled = false;
 
-	function startPlayback() {
-		if (playAnimId) return;  // already playing
-		lastFrameTime = performance.now();
-		function animateStep(now) {
-			var dt = now - lastFrameTime;
-			lastFrameTime = now;
-			var currentVal = parseFloat(slider.value);
-			var advance = dt * playSpeed;   // 1ms of blast time per 1ms wall-clock at 1x
-			var newVal = currentVal + advance;
-			if (newVal >= parseFloat(slider.max)) {
-				newVal = parseFloat(slider.max);
-				slider.value = String(newVal);
-				updateTimeSlice(newVal);
-				stopPlayback();
-				return;
-			}
-			slider.value = String(Math.round(newVal / parseFloat(slider.step)) * parseFloat(slider.step));
-			updateTimeSlice(parseFloat(slider.value));
-			playAnimId = requestAnimationFrame(animateStep);
-		}
-		playAnimId = requestAnimationFrame(animateStep);
+	// ── Icon-button factory (matches BlastAnimationDialog) ──
+	function makeTransportBtn(iconSrc, tooltip, onClick) {
+		var btn = document.createElement("button");
+		btn.type = "button";
+		btn.title = tooltip;
+		btn.style.width = "26px";
+		btn.style.height = "26px";
+		btn.style.padding = "2px";
+		btn.style.border = dark ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(0,0,0,0.2)";
+		btn.style.borderRadius = "4px";
+		btn.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+		btn.style.cursor = "pointer";
+		btn.style.display = "flex";
+		btn.style.alignItems = "center";
+		btn.style.justifyContent = "center";
+		btn.style.flexShrink = "0";
+		var img = document.createElement("img");
+		img.src = iconSrc;
+		img.style.width = "18px";
+		img.style.height = "18px";
+		img.style.filter = dark ? "invert(0.8)" : "invert(0.2)";
+		btn.appendChild(img);
+		btn.addEventListener("click", onClick);
+		return btn;
 	}
 
-	function stopPlayback() {
-		if (playAnimId) {
-			cancelAnimationFrame(playAnimId);
-			playAnimId = null;
-		}
-	}
+	// ── Build dialog content ──
+	var container = document.createElement("div");
+	container.style.display = "flex";
+	container.style.flexDirection = "column";
+	container.style.gap = "8px";
+	container.style.padding = "4px";
 
-	playBtn.addEventListener("click", function() {
-		startPlayback();
-	});
+	// ── Transport row ──
+	var transportRow = document.createElement("div");
+	transportRow.style.display = "flex";
+	transportRow.style.alignItems = "center";
+	transportRow.style.gap = "4px";
+	transportRow.style.justifyContent = "center";
 
-	pauseBtn.addEventListener("click", function() {
-		stopPlayback();
-	});
-
-	resetBtn.addEventListener("click", function() {
+	// Rewind
+	var rewindBtn = makeTransportBtn("icons/player-track-prev.png", "Rewind to start", function () {
 		stopPlayback();
 		slider.value = "0";
 		updateTimeSlice(0);
 	});
+	transportRow.appendChild(rewindBtn);
 
-	// Speed cycling on double-click of play button
-	playBtn.addEventListener("dblclick", function() {
-		if (playSpeed === 1) playSpeed = 2;
-		else if (playSpeed === 2) playSpeed = 5;
-		else playSpeed = 1;
-		speedLabel.textContent = playSpeed + "x";
+	// Step Back
+	var stepBackBtn = makeTransportBtn("icons/player-skip-back.png", "Step -1ms", function () {
+		stopPlayback();
+		var cur = parseFloat(slider.value);
+		var newVal = Math.max(0, cur - parseFloat(slider.step));
+		slider.value = String(newVal);
+		updateTimeSlice(newVal);
+	});
+	transportRow.appendChild(stepBackBtn);
+
+	// Play / Pause toggle
+	var playPauseBtn = makeTransportBtn("icons/player-play.png", "Play", function () {
+		if (playAnimId) {
+			stopPlayback();
+			playPauseBtn.querySelector("img").src = "icons/player-play.png";
+			playPauseBtn.title = "Play";
+		} else {
+			startPlayback();
+			playPauseBtn.querySelector("img").src = "icons/player-pause.png";
+			playPauseBtn.title = "Pause";
+		}
+	});
+	transportRow.appendChild(playPauseBtn);
+
+	// Stop
+	var stopBtn = makeTransportBtn("icons/player-stop.png", "Stop", function () {
+		stopPlayback();
+		slider.value = "0";
+		updateTimeSlice(0);
+		playPauseBtn.querySelector("img").src = "icons/player-play.png";
+		playPauseBtn.title = "Play";
+	});
+	transportRow.appendChild(stopBtn);
+
+	// Step Forward
+	var stepFwdBtn = makeTransportBtn("icons/player-skip-forward.png", "Step +1ms", function () {
+		stopPlayback();
+		var cur = parseFloat(slider.value);
+		var newVal = Math.min(sliderMax, cur + parseFloat(slider.step));
+		slider.value = String(newVal);
+		updateTimeSlice(newVal);
+	});
+	transportRow.appendChild(stepFwdBtn);
+
+	// Forward to end
+	var fwdEndBtn = makeTransportBtn("icons/player-track-next.png", "Forward to end", function () {
+		stopPlayback();
+		slider.value = String(sliderMax);
+		updateTimeSlice(sliderMax);
+	});
+	transportRow.appendChild(fwdEndBtn);
+
+	// Loop toggle
+	var loopBtn = makeTransportBtn("icons/repeat.png", "Loop", function () {
+		loopEnabled = !loopEnabled;
+		if (loopEnabled) {
+			loopBtn.style.border = "1px solid rgba(0,200,0,0.6)";
+			loopBtn.style.background = "rgba(0,200,0,0.15)";
+		} else {
+			loopBtn.style.border = dark ? "1px solid rgba(255,255,255,0.2)" : "1px solid rgba(0,0,0,0.2)";
+			loopBtn.style.background = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+		}
+	});
+	transportRow.appendChild(loopBtn);
+
+	container.appendChild(transportRow);
+
+	// ── Speed row ──
+	var speedRow = document.createElement("div");
+	speedRow.style.display = "flex";
+	speedRow.style.alignItems = "center";
+	speedRow.style.gap = "6px";
+	speedRow.style.padding = "0 4px";
+
+	var speedSlider = document.createElement("input");
+	speedSlider.type = "range";
+	speedSlider.min = "0.1";
+	speedSlider.max = "10";
+	speedSlider.step = "0.1";
+	speedSlider.value = "1";
+	speedSlider.style.flex = "1";
+	speedSlider.title = "Play Speed";
+	speedSlider.addEventListener("input", function () {
+		playSpeed = parseFloat(speedSlider.value);
+		speedLabel.textContent = playSpeed.toFixed(1) + "x";
 	});
 
+	var speedLabel = document.createElement("span");
+	speedLabel.style.fontSize = "11px";
+	speedLabel.style.color = dark ? "#ccc" : "#333";
+	speedLabel.style.minWidth = "40px";
+	speedLabel.textContent = "1.0x";
+
+	speedRow.appendChild(speedSlider);
+	speedRow.appendChild(speedLabel);
+	container.appendChild(speedRow);
+
+	// ── Time slider ──
 	var slider = document.createElement("input");
 	slider.type = "range";
 	slider.min = "0";
@@ -201,20 +221,16 @@ export function showTimeInteractionDialog(config) {
 	slider.style.cursor = "pointer";
 	slider.style.height = "28px";
 	slider.style.margin = "0";
-	sliderSection.appendChild(slider);
+	container.appendChild(slider);
 
-	container.appendChild(sliderSection);
-
-	// Current time display
-	var tiDark = typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
+	// ── Time display ──
 	var timeDisplay = document.createElement("div");
 	timeDisplay.style.textAlign = "center";
 	timeDisplay.style.fontSize = "18px";
 	timeDisplay.style.fontWeight = "bold";
 	timeDisplay.style.color = "#4DA6FF";
-	timeDisplay.style.margin = "12px 0";
-	timeDisplay.style.padding = "10px";
-	timeDisplay.style.background = tiDark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.06)";
+	timeDisplay.style.padding = "8px";
+	timeDisplay.style.background = dark ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.06)";
 	timeDisplay.style.borderRadius = "5px";
 	timeDisplay.style.flexShrink = "0";
 	timeDisplay.textContent = sliderMax.toFixed(1) + " ms";
@@ -231,24 +247,59 @@ export function showTimeInteractionDialog(config) {
 		+ "<span>Max: " + maxFireTime.toFixed(0) + " ms</span>";
 	container.appendChild(rangeInfo);
 
-	// Debounced 2D bake function
+	// ── Playback functions ──
+	function startPlayback() {
+		if (playAnimId) return;
+		lastFrameTime = performance.now();
+		function animateStep(now) {
+			var dt = now - lastFrameTime;
+			lastFrameTime = now;
+			var currentVal = parseFloat(slider.value);
+			var advance = dt * playSpeed;
+			var newVal = currentVal + advance;
+			if (newVal >= sliderMax) {
+				if (loopEnabled) {
+					newVal = 0;
+				} else {
+					slider.value = String(sliderMax);
+					updateTimeSlice(sliderMax);
+					stopPlayback();
+					playPauseBtn.querySelector("img").src = "icons/player-play.png";
+					playPauseBtn.title = "Play";
+					return;
+				}
+			}
+			slider.value = String(Math.round(newVal / parseFloat(slider.step)) * parseFloat(slider.step));
+			updateTimeSlice(parseFloat(slider.value));
+			playAnimId = requestAnimationFrame(animateStep);
+		}
+		playAnimId = requestAnimationFrame(animateStep);
+	}
+
+	function stopPlayback() {
+		if (playAnimId) {
+			cancelAnimationFrame(playAnimId);
+			playAnimId = null;
+		}
+	}
+
+	// ── Debounced 2D bake ──
 	function debouncedBake2D(timeMs) {
 		if (bakeDebounceTimer) clearTimeout(bakeDebounceTimer);
-		bakeDebounceTimer = setTimeout(function() {
+		bakeDebounceTimer = setTimeout(function () {
 			if (config.liveConfig) {
-				// Create a params copy with current displayTime
 				var bakeParams = Object.assign({}, config.liveConfig.params, { displayTime: timeMs });
 				var bakeConfig = Object.assign({}, config.liveConfig, { params: bakeParams });
-				liveFlattenedImageId = bakeLiveShaderTo2D(config.surfaceId, bakeConfig);
+				bakeLiveShaderTo2D(config.surfaceId, bakeConfig);
 			}
 		}, BAKE_DEBOUNCE_MS);
 	}
 
-	// Update function for real-time shader update
+	// ── Update time slice ──
 	function updateTimeSlice(timeMs) {
 		timeDisplay.textContent = timeMs.toFixed(1) + " ms";
 
-		// Update via direct material reference (preferred) — immediate 3D update
+		// Update shader uniform — immediate 3D update
 		if (shaderMat && shaderMat.uniforms && shaderMat.uniforms.uDisplayTime) {
 			shaderMat.uniforms.uDisplayTime.value = timeMs;
 			shaderMat.uniformsNeedUpdate = true;
@@ -265,31 +316,23 @@ export function showTimeInteractionDialog(config) {
 
 	// Wire up slider input event
 	slider.addEventListener("input", function () {
-		var timeMs = parseFloat(this.value);
-		updateTimeSlice(timeMs);
+		updateTimeSlice(parseFloat(this.value));
 	});
 
+	// ── Dialog ──
 	var dialog = new FloatingDialog({
 		title: "Time Interaction — " + (config.modelName || "Analysis"),
 		content: container,
-		width: 480,
-		height: 320,
+		width: 420,
+		height: 280,
 		showConfirm: true,
 		confirmText: "Generate",
 		cancelText: "Cancel",
 		onConfirm: function () {
 			var timeMs = parseFloat(slider.value);
-
-			// Stop playback animation
 			stopPlayback();
-
-			// Clear debounce timer
 			if (bakeDebounceTimer) clearTimeout(bakeDebounceTimer);
-
-			// Cleanup live flattened image
 			removeLiveFlattenedImage(config.surfaceId);
-
-			// Freeze: callback to bake a permanent surface at this time
 			if (config.onFreeze) {
 				config.onFreeze({
 					surfaceId: config.surfaceId,
@@ -300,16 +343,9 @@ export function showTimeInteractionDialog(config) {
 			}
 		},
 		onCancel: function () {
-			// Stop playback animation
 			stopPlayback();
-
-			// Clear debounce timer
 			if (bakeDebounceTimer) clearTimeout(bakeDebounceTimer);
-
-			// Cleanup live flattened image
 			removeLiveFlattenedImage(config.surfaceId);
-
-			// Cleanup — remove live shader surface
 			if (config.onClose) {
 				config.onClose();
 			}

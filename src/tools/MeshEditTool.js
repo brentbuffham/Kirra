@@ -12,6 +12,7 @@
 import * as THREE from "three";
 import { extractTriangles } from "../helpers/SurfaceIntersectionHelper.js";
 import { capBoundaryLoopsSequential } from "../helpers/MeshRepairHelper.js";
+import { drawSurfaceThreeJS } from "../draw/canvas3DDrawing.js";
 import { UndoableAction, ActionTypes } from "./UndoManager.js";
 
 // =============================================================================
@@ -93,6 +94,59 @@ class DeleteTrianglesAction extends UndoableAction {
 			rebuildSoupAndMap();
 			updateSelectionHighlight();
 		}
+	}
+
+	refresh() {
+		// Override base refresh to do a targeted single-surface rebuild
+		// instead of full threeDataNeedsRebuild + drawData (which causes GPU exhaustion)
+		if (typeof window.invalidateSurfaceCache === "function") {
+			window.invalidateSurfaceCache(this.surfaceId);
+		}
+
+		// Remove old mesh and rebuild just this surface
+		var renderer = window.threeRenderer;
+		if (renderer && renderer.surfaceMeshMap) {
+			var oldMesh = renderer.surfaceMeshMap.get(this.surfaceId);
+			if (oldMesh) {
+				if (renderer.surfacesGroup) renderer.surfacesGroup.remove(oldMesh);
+				oldMesh.traverse(function (child) {
+					if (child.geometry) child.geometry.dispose();
+					if (child.material) {
+						if (Array.isArray(child.material)) {
+							child.material.forEach(function (m) { m.dispose(); });
+						} else {
+							child.material.dispose();
+						}
+					}
+				});
+				renderer.surfaceMeshMap.delete(this.surfaceId);
+			}
+		}
+
+		// Rebuild just this surface in 3D
+		var surface = this.surface;
+		if (surface && renderer) {
+			var minZ = surface.meshBounds ? surface.meshBounds.minZ : 0;
+			var maxZ = surface.meshBounds ? surface.meshBounds.maxZ : 100;
+			if (surface.minLimit != null) minZ = surface.minLimit;
+			if (surface.maxLimit != null) maxZ = surface.maxLimit;
+			drawSurfaceThreeJS(this.surfaceId, surface.triangles || [], minZ, maxZ,
+				surface.gradient || "default", surface.transparency || 1.0, surface);
+		}
+
+		// Save to IndexedDB
+		if (window.saveSurfaceToDB) {
+			window.saveSurfaceToDB(this.surfaceId).catch(function (err) {
+				console.warn("Surface save after undo/redo failed:", err);
+			});
+		}
+
+		// Update tree view
+		if (window.debouncedUpdateTreeView) {
+			window.debouncedUpdateTreeView();
+		}
+
+		requestRender();
 	}
 }
 
@@ -668,10 +722,31 @@ function applyMeshChanges() {
 		});
 	}
 
-	// Trigger surface rebuild via drawData
-	window.threeDataNeedsRebuild = true;
-	if (window.drawData) {
-		window.drawData(window.allBlastHoles, window.selectedHole);
+	// Targeted single-surface rebuild — avoids full drawData which triggers
+	// analysis cache invalidation and volume recalculation (GPU exhaustion)
+	var surface = editSurface;
+	if (surface && renderer) {
+		var tris = surface.triangles || [];
+		var minZ = Infinity, maxZ = -Infinity;
+		if (surface.meshBounds) {
+			minZ = surface.meshBounds.minZ;
+			maxZ = surface.meshBounds.maxZ;
+		} else {
+			// Compute bounds from soup
+			for (var bi = 0; bi < editSoup.length; bi++) {
+				var bt = editSoup[bi];
+				var zvals = [bt.v0.z, bt.v1.z, bt.v2.z];
+				for (var bj = 0; bj < 3; bj++) {
+					if (zvals[bj] < minZ) minZ = zvals[bj];
+					if (zvals[bj] > maxZ) maxZ = zvals[bj];
+				}
+			}
+		}
+		if (surface.minLimit != null) minZ = surface.minLimit;
+		if (surface.maxLimit != null) maxZ = surface.maxLimit;
+		var gradient = surface.gradient || "default";
+		var transparency = surface.transparency || 1.0;
+		drawSurfaceThreeJS(editSurfaceId, tris, minZ, maxZ, gradient, transparency, surface);
 	}
 
 	// Re-add highlight group to scene if it was removed
@@ -680,6 +755,9 @@ function applyMeshChanges() {
 			renderer.scene.add(highlightGroup);
 		}
 	}
+
+	// Request render
+	requestRender();
 
 	// Update tree view
 	if (typeof window.debouncedUpdateTreeView === "function") {

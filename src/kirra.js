@@ -257,6 +257,11 @@ import "./dialog/popups/generic/MoveToLayerDialog.js";
 import "./dialog/popups/generic/ExportDialogs.js";
 import "./dialog/popups/generic/KADDialogs.js";
 import "./dialog/popups/generic/SurfaceAssignmentDialogs.js";
+import "./dialog/popups/generic/VoronoiOptionsDialog.js";
+import "./dialog/popups/generic/CreateRadiiDialog.js";
+import "./dialog/popups/analytics/BlastAnimationDialog.js";
+import "./dialog/popups/analytics/TimeWindowDialog.js";
+import "./dialog/popups/kad/KADTextDialog.js";
 //=================================================
 // Charging System
 //=================================================
@@ -569,7 +574,7 @@ if (htmlUIVersion === "1") {
 
 const timeChartObject = document.getElementById("timeChart");
 let statusMessage = "";
-const resizeRight = document.getElementById("resizeHandleRight");
+// resizeRight removed -- sidenavRight panel replaced by floating dialogs
 let isResizingRight = false;
 const resizeLeft = document.getElementById("resizeHandleLeft");
 let isResizingLeft = false;
@@ -893,6 +898,34 @@ function exposeGlobalsToWindow() {
 	window.clearAllPendingTimers = clearAllPendingTimers;
 	window.rebuildTexturedMesh = rebuildTexturedMesh;
 	window.calculateTimes = calculateTimes;
+	window.timeChart = timeChart;
+	window.playSpeedLogScale = playSpeedLogScale;
+	// Two-way binding for mutable animation state shared with dialog modules
+	Object.defineProperty(window, "isPlaying", {
+		get: function () { return isPlaying; },
+		set: function (v) { isPlaying = v; },
+		configurable: true
+	});
+	Object.defineProperty(window, "playSpeed", {
+		get: function () { return playSpeed; },
+		set: function (v) { playSpeed = v; },
+		configurable: true
+	});
+	Object.defineProperty(window, "animationInterval", {
+		get: function () { return animationInterval; },
+		set: function (v) { animationInterval = v; },
+		configurable: true
+	});
+	Object.defineProperty(window, "animationFrameId", {
+		get: function () { return animationFrameId; },
+		set: function (v) { animationFrameId = v; },
+		configurable: true
+	});
+	Object.defineProperty(window, "timingWindowHolesSelected", {
+		get: function () { return timingWindowHolesSelected; },
+		set: function (v) { timingWindowHolesSelected = v; },
+		configurable: true
+	});
 
 	// Step 6f-ii) Expose direct (non-debounced) save functions for KAP import
 	window.saveHolesToDB = saveHolesToDB;
@@ -4684,7 +4717,7 @@ let currentMouseIndicatorZ = 0;
 let allAvailableSurfaces = [];
 let intervalAmount = document.getElementById("intervalSlider").value;
 let firstMovementSize = document.getElementById("firstMovementSlider").value;
-let connectAmount = document.getElementById("connectSlider").value;
+let connectAmount = 2.0;
 let contourLevel = 0;
 let contourUpdatePending = false;
 let clipperUnionWarned = false; // Flag to prevent console spam for Clipper union warnings
@@ -5717,6 +5750,11 @@ function resetFloatingToolbarButtons(excluding) {
 	if (excluding !== "tieConnectTool" && excluding !== "tieConnectMultiTool") {
 		canvas.removeEventListener("click", handleConnectorClick);
 		canvas.removeEventListener("touchstart", handleConnectorClick);
+	}
+
+	// Step #) Close KAD Text dialog when switching away from text tool
+	if (excluding !== "addKADTextTool") {
+		window.closeKADTextDialog();
 	}
 
 	// Force redraw to update button states
@@ -6825,10 +6863,14 @@ addKADTextTool.addEventListener("change", function () {
 		addTextDraw.checked = true;
 		// Trigger the change event to activate the functionality
 		addTextDraw.dispatchEvent(new Event("change"));
+
+		// Step #) Show KAD Text floating dialog (extracted to KADTextDialog.js)
+		window.showKADTextDialog();
 	} else {
 		// Important: Handle unchecked state
 		addTextDraw.checked = false;
 		resetFloatingToolbarButtons("none");
+		window.closeKADTextDialog();
 		// Make sure we redraw the data
 		drawData(allBlastHoles, selectedHole);
 	}
@@ -6900,23 +6942,8 @@ function setMultipleSelectionModeToFalse() {
 	console.log("selectionModeSettings set to false");
 }
 
-//Resizing the Navbar on the right
-resizeRight.addEventListener("mousedown", function (e) {
-	isResizingRight = true;
-	e.preventDefault(); // Prevent text selection during drag
-
-	// Define cleanup function
-	const cleanupResize = function () {
-		isResizingRight = false;
-		document.removeEventListener("mousemove", handleMouseMove);
-		document.removeEventListener("mouseup", cleanupResize);
-		document.removeEventListener("mouseleave", cleanupResize);
-	};
-
-	document.addEventListener("mousemove", handleMouseMove);
-	document.addEventListener("mouseup", cleanupResize);
-	document.addEventListener("mouseleave", cleanupResize); // Handle mouse leaving window
-});
+// Resizing the Navbar on the right -- removed (sidenavRight replaced by floating dialogs)
+// resizeRight is no longer in the DOM
 //Resizing the Navbar on the left
 resizeLeft.addEventListener("mousedown", function (e) {
 	isResizingLeft = true;
@@ -13089,66 +13116,18 @@ document.addEventListener("DOMContentLoaded", function () {
 		localStorage.setItem("snapRadiusPixels", snapRadiusPixels);
 	});
 
-	// Access the slider element and add an event listener to track changes
-	const connectSlider = document.getElementById("connectSlider");
-	connectSlider.addEventListener("input", function () {
-		updateConnectDistance(); // Step 7) Use the new logarithmic update function
-	});
-});
-
-// Connector Distance Log Helper Functions (Base 5)
-function connectDistanceLogScale(sliderValue) {
-	if (sliderValue <= 33.33) {
-		// First third: 0.2m to 1.0m (5^0.43 to 5^0.86 approximately)
-		const normalizedValue = sliderValue / 33.33;
-		const minLog = Math.log(0.2) / Math.log(5); // log5(0.2)
-		const maxLog = Math.log(1.0) / Math.log(5); // log5(1.0)
-		const scale = (maxLog - minLog) * normalizedValue;
-		return Math.pow(5, minLog + scale);
-	} else if (sliderValue <= 66.66) {
-		// Second third: 1.0m to 5.0m (5^0 to 5^1)
-		const normalizedValue = (sliderValue - 33.33) / 33.33;
-		const minLog = Math.log(1.0) / Math.log(5); // log5(1.0) = 0
-		const maxLog = Math.log(5.0) / Math.log(5); // log5(5.0) = 1
-		const scale = (maxLog - minLog) * normalizedValue;
-		return Math.pow(5, minLog + scale);
-	} else {
-		// Last third: 5.0m to 25.0m (5^1 to 5^2)
-		const normalizedValue = (sliderValue - 66.66) / 33.34;
-		const minLog = Math.log(5.0) / Math.log(5); // log5(5.0) = 1
-		const maxLog = Math.log(25.0) / Math.log(5); // log5(25.0) = 2
-		const scale = (maxLog - minLog) * normalizedValue;
-		return Math.pow(5, minLog + scale);
+	// Step #) Connect distance number input on the Connect toolbar
+	var floatingConnectDistInput = document.getElementById("floatingConnectDistance");
+	if (floatingConnectDistInput) {
+		floatingConnectDistInput.value = connectAmount;
+		floatingConnectDistInput.addEventListener("input", function () {
+			var val = parseFloat(floatingConnectDistInput.value);
+			if (!isNaN(val) && val >= 0) {
+				connectAmount = val;
+			}
+		});
 	}
-}
-
-function updateConnectDistance() {
-	const connectSlider = document.getElementById("connectSlider");
-	const sliderValue = parseFloat(connectSlider.value);
-
-	// Step 4) Use logarithmic scaling instead of direct value
-	connectAmount = connectDistanceLogScale(sliderValue);
-
-	// Step 5) Snap to 0.1m increments
-	connectAmount = Math.round(connectAmount * 10) / 10;
-
-	// Step 6) Update label with actual distance
-	const connectLabel = document.getElementById("connectLabel");
-	connectLabel.textContent = "Connect Distance : " + connectAmount.toFixed(1) + "m";
-}
-
-// Step 6) Optional: Add visual markers to show the scale divisions
-function addConnectDistanceMarkers() {
-	const slider = document.getElementById("connectSlider");
-	const container = slider.parentElement;
-
-	// Create scale markers div
-	const markers = document.createElement("div");
-	markers.style.cssText = "display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 2px;";
-	markers.innerHTML = "<span>0.2m</span><span>1m</span><span>5m</span><span>25m</span>";
-	// Insert after the slider
-	container.insertBefore(markers, slider.nextSibling);
-}
+});
 const timeSlider = document.getElementById("timeRange");
 timeSlider.addEventListener("input", function () {
 	const timeRange = document.getElementById("timeRange").value;
@@ -13610,13 +13589,7 @@ function handleMouseMove(event) {
 		lastMouseY = mouseY;
 	}
 
-	if (isResizingRight) {
-		newWidthRight = window.innerWidth - event.clientX;
-		Plotly.relayout("timeChart", {
-			width: newWidthRight - 50,
-		});
-		document.getElementById("sidenavRight").style.width = newWidthRight + "px";
-	}
+	// sidenavRight resize removed -- panel replaced by floating dialogs
 	if (isResizingLeft) {
 		newWidthLeft = event.clientX;
 		document.getElementById("sidenavLeft").style.width = newWidthLeft + "px";
@@ -34579,7 +34552,7 @@ function updateCentroids() {
 const darkModeToggle = document.getElementById("dark-mode-toggle");
 const body = document.body;
 const sidenavLeft = document.getElementById("sidenavLeft");
-const sidenavRight = document.getElementById("sidenavRight");
+const sidenavRight = document.getElementById("sidenavRightHidden");
 // Check if dark mode preference exists in local storage
 const darkModePref = localStorage.getItem("darkMode");
 if (darkModePref === "true") {
@@ -35556,14 +35529,28 @@ if (isMobileQuery.matches) {
 document.addEventListener("DOMContentLoaded", function () {
 	document.getElementById("openNavLeftBtn").addEventListener("click", openNavLeft);
 });
+// Dialogs extracted to separate modules (imported as side-effect imports above):
+// - BlastAnimationDialog.js  -> src/dialog/popups/analytics/BlastAnimationDialog.js
+// - TimeWindowDialog.js      -> src/dialog/popups/analytics/TimeWindowDialog.js
+// - VoronoiOptionsDialog.js  -> src/dialog/popups/generic/VoronoiOptionsDialog.js
+// - CreateRadiiDialog.js     -> src/dialog/popups/generic/CreateRadiiDialog.js
+// - KADTextDialog.js         -> src/dialog/popups/kad/KADTextDialog.js
+
+// Step #) Header Data Explorer button toggles the showTreeBtn hidden checkbox
 document.addEventListener("DOMContentLoaded", function () {
-	document.getElementById("openNavRightBtn").addEventListener("click", openNavRight);
+	var headerDataExplorerBtn = document.getElementById("headerDataExplorerBtn");
+	if (headerDataExplorerBtn) {
+		headerDataExplorerBtn.addEventListener("click", function () {
+			var showTreeBtn = document.getElementById("showTreeBtn");
+			if (showTreeBtn) {
+				showTreeBtn.checked = !showTreeBtn.checked;
+				showTreeBtn.click();
+			}
+		});
+	}
 });
 document.addEventListener("DOMContentLoaded", function () {
 	document.getElementById("closeNavLeftBtn").addEventListener("click", closeNavLeft);
-});
-document.addEventListener("DOMContentLoaded", function () {
-	document.getElementById("closeNavRightBtn").addEventListener("click", closeNavRight);
 });
 
 // Blast Analysis Shader button handler
@@ -35799,52 +35786,7 @@ function closeNavLeft() {
 	// Step #) Update HUD overlay position
 	updateHUDSidebarState(false);
 }
-function openNavRight() {
-	if (isMobile) {
-		const sidenavHeight = 350; // Change this value to match the actual height of the sidenav
-		const screenHeight = window.innerHeight;
-		const margin = screenHeight - sidenavHeight;
-
-		body.style.marginBottom = `${margin}px`;
-		body.style.transition = "0.5s";
-		sidenavRight.style.right = "0px";
-		sidenavRight.style.top = "60%";
-		sidenavRight.style.width = "100%";
-		sidenavRight.style.height = "350px";
-		//resize the timechart
-		Plotly.relayout("timeChart", {
-			width: 280,
-		});
-	} else {
-		body.style.marginRight = "315px"; // Push body to the left
-		body.style.transition = "0.5s";
-		sidenavRight.style.width = "300px";
-		sidenavRight.style.right = "0";
-		sidenavRight.style.paddingLeft = "0px";
-		sidenavRight.style.paddingRight = "5px";
-		sidenavRight.style.margin = "0px";
-		//resize the timechart
-		timeChart();
-		newWidthRight = 315;
-		resizeChart();
-	}
-}
-function closeNavRight() {
-	if (isMobile) {
-		body.style.marginBottom = "0%"; // Push body down
-		body.style.transition = "0.5s";
-		sidenavRight.style.right = "-5px";
-		sidenavRight.style.top = "-5px";
-		sidenavRight.style.width = "0px";
-		sidenavRight.style.height = "0px";
-	} else {
-		body.style.marginRight = "0px"; // Reset the margin to default
-		body.style.transition = "0.5s";
-		sidenavRight.style.width = "0px";
-		sidenavRight.style.padding = "0px";
-		sidenavRight.style.margin = "0px";
-	}
-}
+// openNavRight() and closeNavRight() removed -- sidenavRight panel replaced by floating dialogs
 
 //==============================================================//
 // TOOL BAR COLLAPSABLE - START
@@ -47191,7 +47133,7 @@ function saveViewControlsSliderValues() {
 	// Connection controls
 	localStorage.setItem("delay", connectorDelay.value);
 	localStorage.setItem("connectorColor", connectorColor.jscolor.toHEXString());
-	localStorage.setItem("connectSlider", connectSlider.value);
+	localStorage.setItem("connectDistance", connectAmount);
 	localStorage.setItem("floatingDelay", floatingDelay.value);
 	localStorage.setItem("floatingConnectorColor", floatingConnectorColor.jscolor.toHEXString());
 
@@ -47227,7 +47169,11 @@ function loadViewControlsSliderValues() {
 	// Connection controls
 	if (localStorage.getItem("delay")) connectorDelay.value = localStorage.getItem("delay");
 	if (localStorage.getItem("connectorColor")) connectorColor.jscolor.fromString(localStorage.getItem("connectorColor"));
-	if (localStorage.getItem("connectSlider")) connectSlider.value = localStorage.getItem("connectSlider");
+	if (localStorage.getItem("connectDistance")) {
+		connectAmount = parseFloat(localStorage.getItem("connectDistance"));
+		var floatingConnectDistInput = document.getElementById("floatingConnectDistance");
+		if (floatingConnectDistInput) floatingConnectDistInput.value = connectAmount;
+	}
 	if (localStorage.getItem("floatingDelay")) floatingDelay.value = localStorage.getItem("floatingDelay");
 	if (localStorage.getItem("floatingConnectorColor")) floatingConnectorColor.jscolor.fromString(localStorage.getItem("floatingConnectorColor"));
 	// Drawing controls
@@ -52631,8 +52577,6 @@ document.addEventListener("DOMContentLoaded", function () {
 	});
 
 	addPlaySpeedMarkers();
-	updateConnectDistance(); // Set initial value based on current slider position
-	addConnectDistanceMarkers(); // Add visual scale markers
 
 	// ? CRITICAL: Add handleMouseMove and handleTouchMove listeners ONLY ONCE here
 	// These are for general mouse tracking and crosshairs, and should always be active.

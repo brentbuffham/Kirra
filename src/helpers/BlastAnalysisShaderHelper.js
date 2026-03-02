@@ -76,6 +76,10 @@ export function applyBlastAnalysisShader(config) {
 	}
 
 	// Prepare per-deck DataTexture from charging data — available for all models
+	// Dispose previous DataTexture to prevent GPU memory leak
+	if (config.params._deckData && config.params._deckData.texture) {
+		config.params._deckData.texture.dispose();
+	}
 	config.params._deckData = prepareDeckDataTexture(holes);
 
 	// Get shader material and bake to texture
@@ -85,7 +89,7 @@ export function applyBlastAnalysisShader(config) {
 		return;
 	}
 
-	// Calculate resolution from surface extent at 30 px/m, capped at 8192
+	// Calculate resolution from surface extent — keep GPU safe
 	var bakeResolution = 2048;
 	if (surfaceData.points && surfaceData.points.length > 0) {
 		var bx = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
@@ -97,8 +101,8 @@ export function applyBlastAnalysisShader(config) {
 			if (pt.y > bx.maxY) bx.maxY = pt.y;
 		}
 		var extentMax = Math.max(bx.maxX - bx.minX, bx.maxY - bx.minY);
-		var pxPerM = 30;
-		bakeResolution = Math.min(Math.max(Math.ceil(extentMax * pxPerM), 2048), 8192);
+		var pxPerM = 5;
+		bakeResolution = Math.min(Math.max(Math.ceil(extentMax * pxPerM), 512), 2048);
 	}
 
 	// Bake shader to texture (now auto-detects surface orientation)
@@ -713,50 +717,72 @@ export function clearFlattenedAnalysis() {
  * @param {Object} config - { model, blastName, params, surfaceId, planePadding }
  * @returns {string|null} - The flattened image ID, or null on failure
  */
+// Cached state for live 2D bake — reused across debounced calls to avoid
+// creating new DataTextures and CanvasTextures every 200ms during playback.
+var _liveBakeCache = {
+	deckData: null,         // { texture, count, width } — reused between bakes
+	surfaceData: null,      // Cached surface geometry (doesn't change during playback)
+	bakeResolution: 1024,   // Cached resolution
+	lastSurfaceId: null     // Track which surface we cached for
+};
+
 export function bakeLiveShaderTo2D(liveSurfaceId, config) {
 	if (!config || !config.model) return null;
 
 	var holes = getBlastHolesByEntity(config.blastName);
 	if (!holes || holes.length === 0) return null;
 
-	// Build surface geometry (same as the live surface)
-	var surfaceData = buildAnalysisSurfaceData(config, holes);
-	if (!surfaceData) return null;
+	// Reuse cached surface data if same surface (geometry doesn't change during playback)
+	var surfaceData;
+	if (_liveBakeCache.lastSurfaceId === liveSurfaceId && _liveBakeCache.surfaceData) {
+		surfaceData = _liveBakeCache.surfaceData;
+	} else {
+		surfaceData = buildAnalysisSurfaceData(config, holes);
+		if (!surfaceData) return null;
+		_liveBakeCache.surfaceData = surfaceData;
+		_liveBakeCache.lastSurfaceId = liveSurfaceId;
 
-	// Create a fresh shader material with current params (including displayTime)
+		// Calculate bake resolution once
+		var bakeResolution = 1024;
+		if (surfaceData.points && surfaceData.points.length > 0) {
+			var bx = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+			for (var pi = 0; pi < surfaceData.points.length; pi++) {
+				var pt = surfaceData.points[pi];
+				if (pt.x < bx.minX) bx.minX = pt.x;
+				if (pt.x > bx.maxX) bx.maxX = pt.x;
+				if (pt.y < bx.minY) bx.minY = pt.y;
+				if (pt.y > bx.maxY) bx.maxY = pt.y;
+			}
+			var extentMax = Math.max(bx.maxX - bx.minX, bx.maxY - bx.minY);
+			var pxPerM = 5; // Low resolution for live playback bake (speed + GPU safety)
+			bakeResolution = Math.min(Math.max(Math.ceil(extentMax * pxPerM), 512), 1024);
+		}
+		_liveBakeCache.bakeResolution = bakeResolution;
+	}
+
+	// Get shader material (singleton — no leak) and set displayTime
 	var shaderMaterial = getShaderMaterialForModel(config.model, holes, config.params);
 	if (!shaderMaterial) return null;
 
-	// If there's a displayTime, set it on the new shader material
 	if (config.params && config.params.displayTime !== undefined) {
 		if (shaderMaterial.uniforms && shaderMaterial.uniforms.uDisplayTime) {
 			shaderMaterial.uniforms.uDisplayTime.value = config.params.displayTime;
 		}
 	}
 
-	// Calculate bake resolution
-	var bakeResolution = 2048;
-	if (surfaceData.points && surfaceData.points.length > 0) {
-		var bx = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
-		for (var pi = 0; pi < surfaceData.points.length; pi++) {
-			var pt = surfaceData.points[pi];
-			if (pt.x < bx.minX) bx.minX = pt.x;
-			if (pt.x > bx.maxX) bx.maxX = pt.x;
-			if (pt.y < bx.minY) bx.minY = pt.y;
-			if (pt.y > bx.maxY) bx.maxY = pt.y;
-		}
-		var extentMax = Math.max(bx.maxX - bx.minX, bx.maxY - bx.minY);
-		var pxPerM = 15; // Lower resolution for live bake (speed)
-		bakeResolution = Math.min(Math.max(Math.ceil(extentMax * pxPerM), 1024), 4096);
-	}
-
 	// Bake shader to texture
 	var bakeResult = ShaderTextureBaker.bakeShaderToTexture(surfaceData, shaderMaterial, {
-		resolution: bakeResolution,
+		resolution: _liveBakeCache.bakeResolution,
 		padding: config.planePadding || 10
 	});
 
 	if (!bakeResult || !bakeResult.canvas) return null;
+
+	// Dispose the CanvasTexture — we only need the 2D canvas for rendering,
+	// the Three.js texture is not used for the 2D flattened image
+	if (bakeResult.texture) {
+		bakeResult.texture.dispose();
+	}
 
 	// Create/update flattened image for 2D rendering
 	var imageId = "flattened_live_" + liveSurfaceId;
@@ -852,6 +878,10 @@ export function applyLiveAnalysisShader(config) {
 	}
 
 	// Prepare per-deck DataTexture from charging data — available for all models
+	// Dispose previous DataTexture to prevent GPU memory leak
+	if (config.params._deckData && config.params._deckData.texture) {
+		config.params._deckData.texture.dispose();
+	}
 	config.params._deckData = prepareDeckDataTexture(holes);
 
 	var shaderMaterial = getShaderMaterialForModel(config.model, holes, config.params);
@@ -953,19 +983,48 @@ export function applyLiveAnalysisShader(config) {
 export function removeLiveAnalysisSurface(surfaceId) {
 	if (!surfaceId) return;
 
-	// Remove from 3D scene
+	// Remove from 3D scene and dispose GPU resources
 	if (window.threeRenderer && window.threeRenderer.surfaceMeshMap) {
 		var mesh = window.threeRenderer.surfaceMeshMap.get(surfaceId);
-		if (mesh && mesh.parent) {
-			mesh.parent.remove(mesh);
+		if (mesh) {
+			if (mesh.parent) mesh.parent.remove(mesh);
+			// Dispose geometry and materials to free GPU memory
+			mesh.traverse(function (child) {
+				if (child.geometry) child.geometry.dispose();
+				if (child.material) {
+					// Dispose textures attached to the material
+					if (child.material.map) child.material.map.dispose();
+					if (child.material.uniforms) {
+						// Dispose DataTextures in shader uniforms (uHoleData, _deckData)
+						for (var key in child.material.uniforms) {
+							var uVal = child.material.uniforms[key].value;
+							if (uVal && typeof uVal.dispose === "function" && uVal.isTexture) {
+								uVal.dispose();
+							}
+						}
+					}
+					child.material.dispose();
+				}
+			});
 		}
 		window.threeRenderer.surfaceMeshMap.delete(surfaceId);
 		window.threeRenderer.needsRender = true;
 	}
 
-	// Remove from loadedSurfaces
+	// Dispose analysisTexture stored on the surface object
 	if (window.loadedSurfaces) {
+		var surface = window.loadedSurfaces.get(surfaceId);
+		if (surface && surface.analysisTexture) {
+			surface.analysisTexture.dispose();
+			surface.analysisTexture = null;
+		}
 		window.loadedSurfaces.delete(surfaceId);
+	}
+
+	// Clear live bake cache
+	if (_liveBakeCache.lastSurfaceId === surfaceId) {
+		_liveBakeCache.surfaceData = null;
+		_liveBakeCache.lastSurfaceId = null;
 	}
 
 	// Hide legend
@@ -991,8 +1050,11 @@ export function rebakeAnalysisSurfaces() {
 		var holes = getBlastHolesByEntity(blastName);
 		if (!holes || holes.length === 0) return;
 
-		// Prepare per-deck DataTexture
+		// Prepare per-deck DataTexture (dispose old to prevent GPU leak)
 		var params = Object.assign({}, surface.analysisParams || {});
+		if (params._deckData && params._deckData.texture) {
+			params._deckData.texture.dispose();
+		}
 		params._deckData = prepareDeckDataTexture(holes);
 
 		// Fresh shader material with current hole timing
@@ -1013,7 +1075,7 @@ export function rebakeAnalysisSurfaces() {
 				if (pt.y > bx.maxY) bx.maxY = pt.y;
 			}
 			var extentMax = Math.max(bx.maxX - bx.minX, bx.maxY - bx.minY);
-			bakeResolution = Math.min(Math.max(Math.ceil(extentMax * 30), 2048), 8192);
+			bakeResolution = Math.min(Math.max(Math.ceil(extentMax * 5), 512), 2048);
 		}
 
 		// Re-bake
