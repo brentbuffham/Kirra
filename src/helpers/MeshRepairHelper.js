@@ -622,7 +622,7 @@ export function weldedToSoup(weldedTriangles) {
  */
 export function removeDegenerateTriangles(tris, minArea, sliverRatio) {
 	if (typeof minArea === "undefined") minArea = 1e-6;
-	if (typeof sliverRatio === "undefined") sliverRatio = 0.01;
+	if (typeof sliverRatio === "undefined") sliverRatio = 0;
 
 	var removed = 0;
 	var result = [];
@@ -658,6 +658,141 @@ export function removeDegenerateTriangles(tris, minArea, sliverRatio) {
 	}
 
 	return result;
+}
+
+// ────────────────────────────────────────────────────────
+// Mesh problem detection — detection only, no modification
+// ────────────────────────────────────────────────────────
+
+/**
+ * Detect mesh problems: open edges, non-manifold edges, degenerate triangles.
+ * Returns vertex positions for each problem type so callers can highlight them.
+ *
+ * @param {Array} tris - Triangle soup [{v0, v1, v2}, ...]
+ * @param {number} [minArea=1e-6] - Area threshold for degenerate triangles
+ * @returns {{ openEdges: Array<{v0,v1}>, nonManifoldEdges: Array<{v0,v1}>, degenerateTris: Array<{v0,v1,v2}> }}
+ */
+export function detectMeshProblems(tris, minArea) {
+	if (typeof minArea === "undefined") minArea = 1e-6;
+
+	var PREC = 6;
+	function vKey(v) {
+		return v.x.toFixed(PREC) + "," + v.y.toFixed(PREC) + "," + v.z.toFixed(PREC);
+	}
+	function edgeKey(ka, kb) {
+		return ka < kb ? ka + "|" + kb : kb + "|" + ka;
+	}
+
+	// Step 1) Build edge map — count how many triangles share each edge
+	var edgeMap = {};
+	for (var i = 0; i < tris.length; i++) {
+		var tri = tris[i];
+		var verts = [tri.v0, tri.v1, tri.v2];
+		var keys = [vKey(verts[0]), vKey(verts[1]), vKey(verts[2])];
+		for (var e = 0; e < 3; e++) {
+			var ne = (e + 1) % 3;
+			var ek = edgeKey(keys[e], keys[ne]);
+			if (!edgeMap[ek]) {
+				edgeMap[ek] = { count: 0, v0: verts[e], v1: verts[ne] };
+			}
+			edgeMap[ek].count++;
+		}
+	}
+
+	// Step 2) Classify edges
+	var openEdges = [];
+	var nonManifoldEdges = [];
+	for (var ek2 in edgeMap) {
+		var entry = edgeMap[ek2];
+		if (entry.count === 1) {
+			openEdges.push({ v0: entry.v0, v1: entry.v1 });
+		} else if (entry.count > 2) {
+			nonManifoldEdges.push({ v0: entry.v0, v1: entry.v1 });
+		}
+	}
+
+	// Step 3) Find degenerate triangles (near-zero area)
+	var degenerateTris = [];
+	for (var j = 0; j < tris.length; j++) {
+		var t = tris[j];
+		if (triangleArea3D(t) < minArea) {
+			degenerateTris.push({ v0: t.v0, v1: t.v1, v2: t.v2 });
+		}
+	}
+
+	return {
+		openEdges: openEdges,
+		nonManifoldEdges: nonManifoldEdges,
+		degenerateTris: degenerateTris
+	};
+}
+
+/**
+ * Detect unwelded vertices — unique vertex positions that are within tolerance
+ * of each other but not exactly coincident. Returns the count of vertices that
+ * would be merged by a weld at the given tolerance.
+ *
+ * @param {Array} tris - Triangle soup [{v0, v1, v2}, ...]
+ * @param {number} tolerance - Weld tolerance in metres
+ * @returns {number} Number of vertices that would be merged (removed)
+ */
+export function countUnweldedVertices(tris, tolerance) {
+	// Step 1) Collect all unique vertex positions
+	var PREC = 10;
+	var seen = {};
+	var uniqueVerts = [];
+	for (var i = 0; i < tris.length; i++) {
+		var verts = [tris[i].v0, tris[i].v1, tris[i].v2];
+		for (var j = 0; j < 3; j++) {
+			var v = verts[j];
+			var key = v.x.toFixed(PREC) + "," + v.y.toFixed(PREC) + "," + v.z.toFixed(PREC);
+			if (!seen[key]) {
+				seen[key] = true;
+				uniqueVerts.push(v);
+			}
+		}
+	}
+
+	// Step 2) Use spatial grid to find how many unique verts merge at tolerance
+	var cellSize = Math.max(tolerance * 2, 0.002);
+	var tolSq = tolerance * tolerance;
+	var grid = {};
+	var mergedCount = 0;
+
+	for (var vi = 0; vi < uniqueVerts.length; vi++) {
+		var uv = uniqueVerts[vi];
+		var gx = Math.floor(uv.x / cellSize);
+		var gy = Math.floor(uv.y / cellSize);
+		var gz = Math.floor(uv.z / cellSize);
+
+		var foundMatch = false;
+		for (var dx = -1; dx <= 1 && !foundMatch; dx++) {
+			for (var dy = -1; dy <= 1 && !foundMatch; dy++) {
+				for (var dz = -1; dz <= 1 && !foundMatch; dz++) {
+					var gk = (gx + dx) + "," + (gy + dy) + "," + (gz + dz);
+					var cell = grid[gk];
+					if (!cell) continue;
+					for (var c = 0; c < cell.length; c++) {
+						var p = uniqueVerts[cell[c]];
+						var ddx = p.x - uv.x, ddy = p.y - uv.y, ddz = p.z - uv.z;
+						if (ddx * ddx + ddy * ddy + ddz * ddz <= tolSq) {
+							foundMatch = true;
+							mergedCount++;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if (!foundMatch) {
+			var cellKey = gx + "," + gy + "," + gz;
+			if (!grid[cellKey]) grid[cellKey] = [];
+			grid[cellKey].push(vi);
+		}
+	}
+
+	return mergedCount;
 }
 
 // ────────────────────────────────────────────────────────
@@ -716,53 +851,85 @@ export function extractBoundaryLoops(tris) {
 		return { loops: [], boundaryEdgeCount: 0, overSharedEdgeCount: overSharedCount };
 	}
 
-	var adj = {};
+	// Build UNDIRECTED adjacency — each boundary edge connects two vertex keys
+	// Use edge indices so we can mark edges as used (not vertices)
+	var adj = {}; // vertexKey → [{edgeIdx, otherKey, otherVertex, thisVertex}]
 
 	for (var b = 0; b < boundaryEdges.length; b++) {
 		var be = boundaryEdges[b];
-		var fromKey, toKey, fromVert, toVert;
-		if (halfEdges[be.k0 + "|" + be.k1]) {
-			fromKey = be.k1; toKey = be.k0;
-			fromVert = be.v1; toVert = be.v0;
-		} else {
-			fromKey = be.k0; toKey = be.k1;
-			fromVert = be.v0; toVert = be.v1;
-		}
-		if (!adj[fromKey]) adj[fromKey] = [];
-		adj[fromKey].push({ key: toKey, vertex: toVert, fromVertex: fromVert });
+		if (!adj[be.k0]) adj[be.k0] = [];
+		if (!adj[be.k1]) adj[be.k1] = [];
+		adj[be.k0].push({ edgeIdx: b, otherKey: be.k1, otherVertex: be.v1, thisVertex: be.v0 });
+		adj[be.k1].push({ edgeIdx: b, otherKey: be.k0, otherVertex: be.v0, thisVertex: be.v1 });
 	}
 
-	var used = {};
+	// Walk loops using EDGE-based traversal (not vertex-based)
+	var usedEdge = new Array(boundaryEdges.length);
+	for (var ue = 0; ue < usedEdge.length; ue++) usedEdge[ue] = false;
 	var loops = [];
 
-	for (var startKey in adj) {
-		if (used[startKey]) continue;
+	for (var b2 = 0; b2 < boundaryEdges.length; b2++) {
+		if (usedEdge[b2]) continue;
 
-		var loop = [];
-		var currentKey = startKey;
+		// Start a new loop from this unused edge
+		var startEdge = boundaryEdges[b2];
+		var loop = [startEdge.v0, startEdge.v1];
+		var loopKeys = [startEdge.k0, startEdge.k1];
+		usedEdge[b2] = true;
+
 		var safety = boundaryEdges.length + 1;
 
+		// Extend tail
 		while (safety-- > 0) {
-			if (used[currentKey]) break;
-			used[currentKey] = true;
+			var tailKey = loopKeys[loopKeys.length - 1];
+			var neighbors = adj[tailKey];
+			if (!neighbors) break;
 
-			var neighbors = adj[currentKey];
-			if (!neighbors || neighbors.length === 0) break;
-
-			var next = null;
+			var found = false;
 			for (var n = 0; n < neighbors.length; n++) {
-				if (!used[neighbors[n].key] || (neighbors[n].key === startKey && loop.length > 2)) {
-					next = neighbors[n];
+				if (usedEdge[neighbors[n].edgeIdx]) continue;
+				// Check if this closes the loop
+				if (neighbors[n].otherKey === loopKeys[0] && loop.length > 2) {
+					usedEdge[neighbors[n].edgeIdx] = true;
+					found = true;
 					break;
 				}
+				// Extend
+				usedEdge[neighbors[n].edgeIdx] = true;
+				loop.push(neighbors[n].otherVertex);
+				loopKeys.push(neighbors[n].otherKey);
+				found = true;
+				break;
 			}
+			if (!found) break;
+			if (loopKeys[loopKeys.length - 1] === loopKeys[0] && loop.length > 2) break;
+		}
 
-			if (!next) break;
+		// Extend head (try to grow backwards)
+		safety = boundaryEdges.length + 1;
+		while (safety-- > 0) {
+			var headKey = loopKeys[0];
+			var hNeighbors = adj[headKey];
+			if (!hNeighbors) break;
 
-			loop.push(next.fromVertex);
-			currentKey = next.key;
-
-			if (currentKey === startKey) break;
+			var hFound = false;
+			for (var hn = 0; hn < hNeighbors.length; hn++) {
+				if (usedEdge[hNeighbors[hn].edgeIdx]) continue;
+				// Check if this closes the loop
+				if (hNeighbors[hn].otherKey === loopKeys[loopKeys.length - 1] && loop.length > 2) {
+					usedEdge[hNeighbors[hn].edgeIdx] = true;
+					hFound = true;
+					break;
+				}
+				// Prepend
+				usedEdge[hNeighbors[hn].edgeIdx] = true;
+				loop.unshift(hNeighbors[hn].otherVertex);
+				loopKeys.unshift(hNeighbors[hn].otherKey);
+				hFound = true;
+				break;
+			}
+			if (!hFound) break;
+			if (loopKeys[0] === loopKeys[loopKeys.length - 1] && loop.length > 2) break;
 		}
 
 		if (loop.length >= 3) {
@@ -1241,10 +1408,44 @@ export function triangulateLoop(loop) {
 	}
 
 	var n = loop.length;
+
+	// Center coords for numerical stability (UTM coords are large)
+	var centU = 0, centV = 0;
+	for (var ci2 = 0; ci2 < n; ci2++) {
+		centU += projU(loop[ci2]);
+		centV += projV(loop[ci2]);
+	}
+	centU /= n;
+	centV /= n;
+
 	var coords = new Float64Array(n * 2);
 	for (var j = 0; j < n; j++) {
-		coords[j * 2] = projU(loop[j]);
-		coords[j * 2 + 1] = projV(loop[j]);
+		coords[j * 2] = projU(loop[j]) - centU;
+		coords[j * 2 + 1] = projV(loop[j]) - centV;
+	}
+
+	// Check for near-collinear loops — if projected area is tiny relative to perimeter²,
+	// use fan triangulation directly to avoid Constrainautor hangs
+	var projArea = 0;
+	for (var pa = 0; pa < n; pa++) {
+		var paNext = (pa + 1) % n;
+		projArea += coords[pa * 2] * coords[paNext * 2 + 1] - coords[paNext * 2] * coords[pa * 2 + 1];
+	}
+	projArea = Math.abs(projArea) * 0.5;
+	var perim = 0;
+	for (var pe = 0; pe < n; pe++) {
+		var peNext = (pe + 1) % n;
+		var pdx = coords[peNext * 2] - coords[pe * 2];
+		var pdy = coords[peNext * 2 + 1] - coords[pe * 2 + 1];
+		perim += Math.sqrt(pdx * pdx + pdy * pdy);
+	}
+	// Isoperimetric ratio: circle has area/perim² = 1/(4π) ≈ 0.0796
+	// Very narrow sliver loops have ratio → 0. Use fan for these.
+	var isoRatio = perim > 0 ? projArea / (perim * perim) : 0;
+	if (isoRatio < 0.001) {
+		console.log("triangulateLoop: narrow loop (isoRatio=" + isoRatio.toFixed(6) +
+			", " + n + " verts) — using fan triangulation");
+		return _fanTriangulateSoup(loop, nx, ny, nz);
 	}
 
 	var del, con;
@@ -1261,13 +1462,8 @@ export function triangulateLoop(loop) {
 			}
 		}
 	} catch (e) {
-		console.warn("MeshRepairHelper: triangulateLoop — Constrainautor failed, using Delaunator only:", e.message);
-		try {
-			del = new Delaunator(coords);
-		} catch (e2) {
-			console.warn("MeshRepairHelper: triangulateLoop — Delaunator also failed:", e2.message);
-			return [];
-		}
+		console.warn("triangulateLoop: Constrainautor failed, using fan fallback:", e.message);
+		return _fanTriangulateSoup(loop, nx, ny, nz);
 	}
 
 	var result = [];
@@ -1285,6 +1481,12 @@ export function triangulateLoop(loop) {
 				v2: loop[c]
 			});
 		}
+	}
+
+	// If Delaunay produced no inside triangles, fall back to fan
+	if (result.length === 0) {
+		console.warn("triangulateLoop: Delaunay produced 0 interior tris — using fan fallback");
+		return _fanTriangulateSoup(loop, nx, ny, nz);
 	}
 
 	// Validate cap triangle winding against the Newell loop normal
@@ -1308,6 +1510,396 @@ export function triangulateLoop(loop) {
 	}
 
 	return result;
+}
+
+/**
+ * Fan triangulation for soup-format loops (returns {v0,v1,v2} objects).
+ * Used as fallback when Constrainautor hangs on narrow/degenerate loops.
+ */
+function _fanTriangulateSoup(loop, nx, ny, nz) {
+	var result = [];
+	for (var i = 1; i < loop.length - 1; i++) {
+		result.push({ v0: loop[0], v1: loop[i], v2: loop[i + 1] });
+	}
+	// Validate winding against Newell normal
+	var nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+	if (nLen > 1e-12) {
+		var nnx = nx / nLen, nny = ny / nLen, nnz = nz / nLen;
+		for (var wi = 0; wi < result.length; wi++) {
+			var wt = result[wi];
+			var ux = wt.v1.x - wt.v0.x, uy = wt.v1.y - wt.v0.y, uz = wt.v1.z - wt.v0.z;
+			var vx = wt.v2.x - wt.v0.x, vy = wt.v2.y - wt.v0.y, vz = wt.v2.z - wt.v0.z;
+			var tnx = uy * vz - uz * vy;
+			var tny = uz * vx - ux * vz;
+			var tnz = ux * vy - uy * vx;
+			var dot = tnx * nnx + tny * nny + tnz * nnz;
+			if (dot < 0) {
+				var tmp = wt.v1;
+				wt.v1 = wt.v2;
+				wt.v2 = tmp;
+			}
+		}
+	}
+	return result;
+}
+
+// ────────────────────────────────────────────────────────
+// Index-based mesh closing — Delaunay triangulate boundary holes
+// ────────────────────────────────────────────────────────
+
+/**
+ * Close holes in a triangle soup by:
+ * 1. Welding soup into an indexed mesh (points[] + idxTris[])
+ * 2. Extracting boundary loops as index chains
+ * 3. Delaunay-triangulating each loop using existing point indices
+ * 4. Adding cap triangles and returning updated soup
+ *
+ * @param {Array} soup - Triangle soup [{v0, v1, v2}, ...]
+ * @param {number} weldTol - Vertex weld tolerance
+ * @returns {Array} Updated triangle soup with holes filled
+ */
+export function closeMeshIndexed(soup, weldTol) {
+	if (!soup || soup.length === 0) return soup;
+
+	// Step 1: Build indexed mesh using exact vertex key matching
+	// Uses toFixed(6) keys — same as extractBoundaryLoops / detectMeshProblems
+	// so boundary detection is consistent with mesh check.
+	// Do NOT use weldTol here — that merges distinct vertices and destroys topology.
+	var PREC = 6;
+	var vertexMap = {}; // "x,y,z" → index
+	var points = [];
+	var idxTris = [];
+
+	function getOrAddPoint(v) {
+		var key = v.x.toFixed(PREC) + "," + v.y.toFixed(PREC) + "," + v.z.toFixed(PREC);
+		if (vertexMap[key] !== undefined) return vertexMap[key];
+		var idx = points.length;
+		points.push({ x: v.x, y: v.y, z: v.z });
+		vertexMap[key] = idx;
+		return idx;
+	}
+
+	for (var i = 0; i < soup.length; i++) {
+		var tri = soup[i];
+		var i0 = getOrAddPoint(tri.v0);
+		var i1 = getOrAddPoint(tri.v1);
+		var i2 = getOrAddPoint(tri.v2);
+		if (i0 === i1 || i1 === i2 || i0 === i2) continue;
+		idxTris.push([i0, i1, i2]);
+	}
+
+	console.log("closeMeshIndexed: " + points.length + " unique points, " + idxTris.length + " triangles");
+
+	// Step 2: Extract boundary loops as index chains
+	var loops = extractBoundaryLoopsIndexed(points, idxTris);
+	if (loops.length === 0) {
+		console.log("closeMeshIndexed: no boundary loops — mesh is already closed");
+		return soup;
+	}
+
+	console.log("closeMeshIndexed: " + loops.length + " boundary loop(s), sizes: " +
+		loops.map(function (l) { return l.length; }).join(", "));
+
+	// Step 3: Delaunay triangulate each loop and add cap tris
+	var totalCapTris = 0;
+
+	for (var li = 0; li < loops.length; li++) {
+		var loop = loops[li]; // array of point indices
+		if (loop.length < 3) continue;
+
+		var capIdxTris = triangulateLoopIndexed(points, loop);
+		for (var ct = 0; ct < capIdxTris.length; ct++) {
+			idxTris.push(capIdxTris[ct]);
+		}
+		totalCapTris += capIdxTris.length;
+
+		console.log("closeMeshIndexed: loop[" + li + "] " + loop.length +
+			" verts → " + capIdxTris.length + " cap tris");
+	}
+
+	if (totalCapTris === 0) {
+		console.log("closeMeshIndexed: triangulation produced 0 cap tris");
+		return soup;
+	}
+
+	// Step 4: Convert indexed mesh back to soup
+	var newSoup = [];
+	for (var ti = 0; ti < idxTris.length; ti++) {
+		var t = idxTris[ti];
+		newSoup.push({
+			v0: { x: points[t[0]].x, y: points[t[0]].y, z: points[t[0]].z },
+			v1: { x: points[t[1]].x, y: points[t[1]].y, z: points[t[1]].z },
+			v2: { x: points[t[2]].x, y: points[t[2]].y, z: points[t[2]].z }
+		});
+	}
+
+	console.log("closeMeshIndexed: " + soup.length + " → " + newSoup.length +
+		" tris (added " + totalCapTris + " cap tris)");
+
+	return newSoup;
+}
+
+/**
+ * Extract boundary loops from an indexed mesh as arrays of point indices.
+ * Works entirely with integer indices — no floating-point key issues.
+ *
+ * @param {Array} points - [{x,y,z}, ...]
+ * @param {Array} idxTris - [[i0,i1,i2], ...]
+ * @returns {Array} Array of loops, each loop is an array of point indices
+ */
+function extractBoundaryLoopsIndexed(points, idxTris) {
+	// Build directed half-edge map: count uses per directed edge
+	var edgeCount = {}; // "a|b" → count (undirected)
+	var halfEdgeExists = {}; // "a|b" → true (directed)
+
+	for (var i = 0; i < idxTris.length; i++) {
+		var t = idxTris[i];
+		for (var e = 0; e < 3; e++) {
+			var a = t[e], b = t[(e + 1) % 3];
+			var ek = a < b ? a + "|" + b : b + "|" + a;
+			edgeCount[ek] = (edgeCount[ek] || 0) + 1;
+			halfEdgeExists[a + "|" + b] = true;
+		}
+	}
+
+	// Collect boundary edges (count === 1) with correct direction
+	// The outward-facing boundary edge is the REVERSE of the existing half-edge
+	var adj = {}; // fromIdx → [{to: idx}]
+
+	for (var ek2 in edgeCount) {
+		if (edgeCount[ek2] !== 1) continue;
+		var parts = ek2.split("|");
+		var ia = parseInt(parts[0]), ib = parseInt(parts[1]);
+
+		// Determine direction: reverse the existing half-edge
+		var fromIdx, toIdx;
+		if (halfEdgeExists[ia + "|" + ib]) {
+			fromIdx = ib; toIdx = ia;
+		} else {
+			fromIdx = ia; toIdx = ib;
+		}
+
+		if (!adj[fromIdx]) adj[fromIdx] = [];
+		adj[fromIdx].push(toIdx);
+	}
+
+	// Walk loops
+	var used = {};
+	var loops = [];
+
+	for (var startKey in adj) {
+		var start = parseInt(startKey);
+		if (used[start]) continue;
+
+		var loop = [];
+		var current = start;
+		var safety = points.length + 1;
+
+		while (safety-- > 0) {
+			if (used[current] && current !== start) break;
+			used[current] = true;
+			loop.push(current);
+
+			var nexts = adj[current];
+			if (!nexts || nexts.length === 0) break;
+
+			var next = -1;
+			for (var n = 0; n < nexts.length; n++) {
+				if (!used[nexts[n]] || (nexts[n] === start && loop.length > 2)) {
+					next = nexts[n];
+					break;
+				}
+			}
+			if (next < 0) break;
+			current = next;
+			if (current === start) break;
+		}
+
+		if (loop.length >= 3) {
+			loops.push(loop);
+		}
+	}
+
+	return loops;
+}
+
+/**
+ * Delaunay-triangulate a boundary loop using existing point indices.
+ * Projects loop to best-fit 2D plane, runs Delaunator + Constrainautor,
+ * filters interior triangles, validates winding.
+ *
+ * @param {Array} points - Full points array [{x,y,z}, ...]
+ * @param {Array} loop - Array of point indices forming the boundary loop
+ * @returns {Array} Array of [i0, i1, i2] index triples
+ */
+function triangulateLoopIndexed(points, loop) {
+	var n = loop.length;
+
+	if (n === 3) {
+		return [[loop[0], loop[1], loop[2]]];
+	}
+
+	if (n === 4) {
+		var p0 = points[loop[0]], p1 = points[loop[1]];
+		var p2 = points[loop[2]], p3 = points[loop[3]];
+		var d02 = dist3(p0, p2);
+		var d13 = dist3(p1, p3);
+		if (d02 <= d13) {
+			return [
+				[loop[0], loop[1], loop[2]],
+				[loop[0], loop[2], loop[3]]
+			];
+		} else {
+			return [
+				[loop[0], loop[1], loop[3]],
+				[loop[1], loop[2], loop[3]]
+			];
+		}
+	}
+
+	// Compute centroid for numerical stability (UTM coords are large)
+	var centX = 0, centY = 0, centZ = 0;
+	for (var ci2 = 0; ci2 < n; ci2++) {
+		var cp = points[loop[ci2]];
+		centX += cp.x; centY += cp.y; centZ += cp.z;
+	}
+	centX /= n; centY /= n; centZ /= n;
+
+	// Compute Newell normal for winding validation (using centered coords)
+	var nx = 0, ny = 0, nz = 0;
+	for (var i = 0; i < n; i++) {
+		var curr = points[loop[i]];
+		var next = points[loop[(i + 1) % n]];
+		var cx1 = curr.x - centX, cy1 = curr.y - centY, cz1 = curr.z - centZ;
+		var nx1 = next.x - centX, ny1 = next.y - centY, nz1 = next.z - centZ;
+		nx += (cy1 - ny1) * (cz1 + nz1);
+		ny += (cz1 - nz1) * (cx1 + nx1);
+		nz += (cx1 - nx1) * (cy1 + ny1);
+	}
+
+	// Pick best 2D projection plane via shoelace area (centered coords)
+	var areaXY = 0, areaXZ = 0, areaYZ = 0;
+	for (var sa = 0; sa < n; sa++) {
+		var saCurr = points[loop[sa]];
+		var saNext = points[loop[(sa + 1) % n]];
+		var scx = saCurr.x - centX, scy = saCurr.y - centY, scz = saCurr.z - centZ;
+		var snx = saNext.x - centX, sny = saNext.y - centY, snz = saNext.z - centZ;
+		areaXY += (scx * sny - snx * scy);
+		areaXZ += (scx * snz - snx * scz);
+		areaYZ += (scy * snz - sny * scz);
+	}
+	areaXY = Math.abs(areaXY);
+	areaXZ = Math.abs(areaXZ);
+	areaYZ = Math.abs(areaYZ);
+
+	var projU, projV;
+	if (areaXY >= areaXZ && areaXY >= areaYZ) {
+		projU = function (p) { return p.x - centX; };
+		projV = function (p) { return p.y - centY; };
+	} else if (areaXZ >= areaYZ) {
+		projU = function (p) { return p.x - centX; };
+		projV = function (p) { return p.z - centZ; };
+	} else {
+		projU = function (p) { return p.y - centY; };
+		projV = function (p) { return p.z - centZ; };
+	}
+
+	// Build 2D coords for Delaunator (centered)
+	var coords = new Float64Array(n * 2);
+	for (var j = 0; j < n; j++) {
+		var pt = points[loop[j]];
+		coords[j * 2] = projU(pt);
+		coords[j * 2 + 1] = projV(pt);
+	}
+
+	// Delaunay triangulate with constrained edges
+	var del;
+	try {
+		del = new Delaunator(coords);
+		var con = new Constrainautor(del);
+		for (var ci = 0; ci < n; ci++) {
+			try {
+				con.constrainOne(ci, (ci + 1) % n);
+			} catch (e) {
+				// Skip problematic constraint
+			}
+		}
+	} catch (e) {
+		console.warn("triangulateLoopIndexed: Constrainautor failed, trying Delaunator only:", e.message);
+		try {
+			del = new Delaunator(coords);
+		} catch (e2) {
+			console.warn("triangulateLoopIndexed: Delaunator failed, using fan fallback:", e2.message);
+			return _fanTriangulateLoop(points, loop, nx, ny, nz);
+		}
+	}
+
+	// Filter interior triangles and map local indices back to global indices
+	var result = [];
+	var delTris = del.triangles;
+	for (var k = 0; k < delTris.length; k += 3) {
+		var a = delTris[k], b = delTris[k + 1], c = delTris[k + 2];
+
+		// Only use triangles whose vertices are ALL loop vertices (index < n)
+		if (a >= n || b >= n || c >= n) continue;
+
+		// Centroid inside loop test
+		var cx2 = (coords[a * 2] + coords[b * 2] + coords[c * 2]) / 3;
+		var cy2 = (coords[a * 2 + 1] + coords[b * 2 + 1] + coords[c * 2 + 1]) / 3;
+
+		if (_pointInLoop2D(cx2, cy2, coords, n)) {
+			result.push([loop[a], loop[b], loop[c]]);
+		}
+	}
+
+	// If Delaunay + centroid filtering produced nothing, use fan fallback
+	if (result.length === 0) {
+		console.warn("triangulateLoopIndexed: Delaunay produced 0 interior tris for " +
+			n + "-vertex loop, using fan fallback");
+		return _fanTriangulateLoop(points, loop, nx, ny, nz);
+	}
+
+	// Validate winding against Newell normal
+	_validateWinding(points, result, nx, ny, nz);
+
+	return result;
+}
+
+/**
+ * Fan triangulation fallback: triangulate a loop by fanning from vertex 0.
+ * Works for any convex or mildly concave loop.
+ */
+function _fanTriangulateLoop(points, loop, nx, ny, nz) {
+	var result = [];
+	for (var i = 1; i < loop.length - 1; i++) {
+		result.push([loop[0], loop[i], loop[i + 1]]);
+	}
+	_validateWinding(points, result, nx, ny, nz);
+	return result;
+}
+
+/**
+ * Validate and fix triangle winding against the Newell normal.
+ */
+function _validateWinding(points, tris, nx, ny, nz) {
+	var nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+	if (nLen < 1e-12) return;
+	var nnx = nx / nLen, nny = ny / nLen, nnz = nz / nLen;
+	for (var wi = 0; wi < tris.length; wi++) {
+		var wt = tris[wi];
+		var wv0 = points[wt[0]], wv1 = points[wt[1]], wv2 = points[wt[2]];
+		var ux = wv1.x - wv0.x, uy = wv1.y - wv0.y, uz = wv1.z - wv0.z;
+		var vx = wv2.x - wv0.x, vy = wv2.y - wv0.y, vz = wv2.z - wv0.z;
+		var tnx = uy * vz - uz * vy;
+		var tny = uz * vx - ux * vz;
+		var tnz = ux * vy - uy * vx;
+		var dot = tnx * nnx + tny * nny + tnz * nnz;
+		if (dot < 0) {
+			var tmp = wt[1];
+			wt[1] = wt[2];
+			wt[2] = tmp;
+		}
+	}
 }
 
 // ────────────────────────────────────────────────────────
@@ -1833,10 +2425,10 @@ export async function repairMesh(soup, config, onProgress) {
 	if (removeDegenerate) {
 		progress("Removing degenerate triangles...");
 		await yieldUI();
-		soup = removeDegenerateTriangles(soup, 1e-6, 0.01);
+		soup = removeDegenerateTriangles(soup, 1e-6, 0);
 	}
 
-	// Step 4: Stitch + cap (if closeMode === "stitch")
+	// Step 4: Stitch + close (if closeMode === "stitch")
 	if (closeMode === "stitch") {
 		progress("Stitching boundaries...");
 		await yieldUI();
@@ -1848,44 +2440,22 @@ export async function repairMesh(soup, config, onProgress) {
 			console.log("MeshRepairHelper: stitchByProximity added " + stitchTris.length + " triangles");
 		}
 
-		// Final weld after stitch
+		// Close boundary holes via indexed Delaunay
+		progress("Closing boundary holes...");
+		await yieldUI();
+		soup = closeMeshIndexed(soup, snapTol);
+
+		// Post-close cleanup — topology only, no sliver removal
+		progress("Cleaning up post-close mesh...");
+		await yieldUI();
+		var postCapStats = countOpenEdges(soup);
+		if (postCapStats.overShared > 0) {
+			soup = cleanCrossingTriangles(soup);
+		}
+
 		var finalWelded = weldVertices(soup, snapTol);
 		var worldPoints = finalWelded.points;
 		var triangles = finalWelded.triangles;
-
-		// Sequential capping
-		progress("Capping boundary loops...");
-		await yieldUI();
-		var postSoup = weldedToSoup(triangles);
-		postSoup = capBoundaryLoopsSequential(postSoup, snapTol, 3);
-
-		var cappedWeld = weldVertices(postSoup, snapTol);
-		worldPoints = cappedWeld.points;
-		triangles = cappedWeld.triangles;
-
-		// Post-cap cleanup
-		progress("Cleaning up post-cap mesh...");
-		await yieldUI();
-		var postCapSoup = weldedToSoup(triangles);
-		var postCapChanged = false;
-
-		var postCapStats = countOpenEdges(postCapSoup);
-		if (postCapStats.overShared > 0) {
-			postCapSoup = cleanCrossingTriangles(postCapSoup);
-			postCapChanged = true;
-		}
-
-		if (removeDegenerate) {
-			var preDegenCount = postCapSoup.length;
-			postCapSoup = removeDegenerateTriangles(postCapSoup, 1e-6, 0.01);
-			if (postCapSoup.length < preDegenCount) postCapChanged = true;
-		}
-
-		if (postCapChanged) {
-			var postCapWeld = weldVertices(postCapSoup, snapTol);
-			worldPoints = postCapWeld.points;
-			triangles = postCapWeld.triangles;
-		}
 
 		// Safety net — forceCloseIndexedMesh
 		progress("Force-closing gaps...");

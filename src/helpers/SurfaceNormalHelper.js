@@ -69,7 +69,7 @@ export function alignSurfaceNormals(surface) {
 export function setSurfaceNormalsDirection(surface, direction) {
 	var tris = extractTriangles(surface);
 	if (tris.length === 0) {
-		return { triangles: surface.triangles, flipped: false, message: "No triangles" };
+		return { triangles: surface.triangles, flippedCount: 0, message: "No triangles" };
 	}
 
 	// Check if surface is closed (watertight)
@@ -77,34 +77,55 @@ export function setSurfaceNormalsDirection(surface, direction) {
 	if (!isClosed) {
 		return {
 			triangles: surface.triangles,
-			flipped: false,
+			flippedCount: 0,
 			message: "Not a closed solid — use Flip or Align instead"
 		};
 	}
 
-	var vol = computeVolumeFromTris(tris);
+	// Compute centroid for numerical stability (large UTM coords)
+	var n = tris.length;
+	var cx = 0, cy = 0, cz = 0;
+	for (var c = 0; c < n; c++) {
+		cx += tris[c].v0.x + tris[c].v1.x + tris[c].v2.x;
+		cy += tris[c].v0.y + tris[c].v1.y + tris[c].v2.y;
+		cz += tris[c].v0.z + tris[c].v1.z + tris[c].v2.z;
+	}
+	var inv = 1.0 / (n * 3);
+	cx *= inv; cy *= inv; cz *= inv;
 
-	// Positive signed volume = outward normals (CCW convention)
-	// Negative signed volume = inward normals
-	var currentlyOut = vol > 0;
 	var wantOut = direction === "out";
+	var flippedCount = 0;
 
-	if (currentlyOut === wantOut) {
-		var label = direction === "out" ? "Out" : "In";
-		return {
-			triangles: surface.triangles,
-			flipped: false,
-			message: "Already normals " + label
-		};
+	// Check each triangle's signed volume contribution individually.
+	// Positive contribution = outward-facing normal, negative = inward-facing.
+	for (var i = 0; i < n; i++) {
+		var t = tris[i];
+		var x0 = t.v0.x - cx, y0 = t.v0.y - cy, z0 = t.v0.z - cz;
+		var x1 = t.v1.x - cx, y1 = t.v1.y - cy, z1 = t.v1.z - cz;
+		var x2 = t.v2.x - cx, y2 = t.v2.y - cy, z2 = t.v2.z - cz;
+
+		var sv = (x0 * (y1 * z2 - y2 * z1)
+			- x1 * (y0 * z2 - y2 * z0)
+			+ x2 * (y0 * z1 - y1 * z0));
+
+		// sv > 0 means this triangle faces outward, sv < 0 means inward
+		var facesOut = sv > 0;
+		if (facesOut !== wantOut) {
+			// Flip this triangle by swapping v1 and v2
+			var tmp = t.v1;
+			t.v1 = t.v2;
+			t.v2 = tmp;
+			flippedCount++;
+		}
 	}
 
-	// Need to flip
-	var flipped = flipAllNormals(tris);
 	var label = direction === "out" ? "Out" : "In";
 	return {
-		triangles: soupToSurfaceTriangles(flipped),
-		flipped: true,
-		message: "Flipped to normals " + label
+		triangles: soupToSurfaceTriangles(tris),
+		flippedCount: flippedCount,
+		message: flippedCount === 0
+			? "Already all normals " + label
+			: "Set " + flippedCount + "/" + n + " normals to " + label
 	};
 }
 

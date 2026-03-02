@@ -2663,8 +2663,21 @@ function handle3DClick(event) {
 						}
 
 						// Step 12j.4) Get the KAD entity from the map
-						const entity = allKADDrawingsMap.get(object.userData.kadId);
+						// kadId format is "entityName:::vertexIndex" — extract entityName for map lookup
+						var kadEntityName = object.userData.kadId.split(":::")[0];
+						const entity = allKADDrawingsMap.get(kadEntityName);
 						if (entity) {
+							// Step 12j.4a) Skip hidden/invisible KAD entities
+							if (window.isEntityVisible && !window.isEntityVisible(kadEntityName)) {
+								object = object.parent;
+								depth++;
+								continue;
+							}
+							if (entity.visible === false) {
+								object = object.parent;
+								depth++;
+								continue;
+							}
 							// Step 12j.5) Find which specific element was clicked
 							// Use intersection point to determine closest element
 							let closestElementIndex = 0;
@@ -2819,6 +2832,9 @@ function handle3DClick(event) {
 
 					allKADDrawingsMap.forEach((entity, entityName) => {
 						if (!entity.data || entity.data.length === 0) return;
+						// Step 12j.6.5f.1) Skip hidden/invisible KAD entities
+						if (entity.visible === false) return;
+						if (window.isEntityVisible && !window.isEntityVisible(entityName)) return;
 
 						// Step 12j.6.5g) Calculate screen-space distance based on entity type
 						if (entity.entityType === "point") {
@@ -30806,6 +30822,34 @@ function drawData(allBlastHoles, selectedHole) {
 				// This ensures fat lines render with correct thickness on initial draw
 				if (typeof updateAllLineMaterialResolution === "function") {
 					updateAllLineMaterialResolution();
+				}
+
+				// Step 3.1f) Draw point ID labels for super-batched entities
+				// Super-batching skips the per-entity loop, so point IDs must be rendered here
+				if (displayOptions.kadPointID) {
+					// Point entities
+					for (var pi = 0; pi < pointEntities.length; pi++) {
+						var pEntity = pointEntities[pi];
+						for (var pj = 0; pj < pEntity.data.length; pj++) {
+							var pd = pEntity.data[pj];
+							if (pd.visible === false) continue;
+							if (pd.pointID === undefined) continue;
+							var pLocal = worldToThreeLocal(pd.pointXLocation, pd.pointYLocation);
+							drawKADPointIDThreeJS(pLocal.x, pLocal.y, pd.pointZLocation || 0, pd.pointID, pd.color || "#FF0000");
+						}
+					}
+					// Line/poly entities that were super-batched
+					for (var [sbName, sbEntity] of allKADDrawingsMap.entries()) {
+						if (!superBatchedLineEntities.has(sbName)) continue;
+						if (sbEntity.visible === false) continue;
+						for (var si = 0; si < sbEntity.data.length; si++) {
+							var sd = sbEntity.data[si];
+							if (sd.visible === false) continue;
+							if (sd.pointID === undefined) continue;
+							var sLocal = worldToThreeLocal(sd.pointXLocation, sd.pointYLocation);
+							drawKADPointIDThreeJS(sLocal.x, sLocal.y, sd.pointZLocation || 0, sd.pointID, sd.color || "#FF0000");
+						}
+					}
 				}
 			}
 

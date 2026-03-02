@@ -41,6 +41,7 @@ import {
 	stitchByProximity,
 	capBoundaryLoopsSequential,
 	forceCloseIndexedMesh,
+	closeMeshIndexed,
 	logBoundaryStats,
 	computeBounds
 } from "../helpers/MeshRepairHelper.js";
@@ -1110,48 +1111,26 @@ self.onmessage = function(e) {
 			var worldPoints = finalWelded.points;
 			var triangles = finalWelded.triangles;
 
-			// Sequential capping (stitch mode)
+			// Close mesh holes (stitch mode)
 			if (closeMode === "stitch") {
-				sendProgress(75, "Capping boundaries...");
+				sendProgress(75, "Closing boundary holes...");
 				var postSoup = weldedToSoup(triangles);
-				postSoup = capBoundaryLoopsSequential(postSoup, snapTol, 3);
+				postSoup = closeMeshIndexed(postSoup, snapTol);
+
+				// Post-cap cleanup — only fix topology, do NOT remove degenerates
+				// (cap triangles may be thin slivers that are essential for closure)
+				sendProgress(85, "Post-cap cleanup...");
+				var postCapStats = countOpenEdges(postSoup);
+				if (postCapStats.overShared > 0) {
+					postSoup = cleanCrossingTriangles(postSoup);
+				}
+				if (config.removeOverlapping) {
+					postSoup = removeOverlappingTriangles(postSoup, config.overlapTolerance || 0.5);
+				}
+
 				var cappedWeld = weldVertices(postSoup, snapTol);
 				worldPoints = cappedWeld.points;
 				triangles = cappedWeld.triangles;
-
-				// Post-cap cleanup
-				sendProgress(85, "Post-cap cleanup...");
-				var postCapSoup = weldedToSoup(triangles);
-				var postCapChanged = false;
-				var postCapStats = countOpenEdges(postCapSoup);
-				if (postCapStats.overShared > 0) {
-					postCapSoup = cleanCrossingTriangles(postCapSoup);
-					postCapChanged = true;
-				}
-				if (config.removeOverlapping) {
-					var preCount = postCapSoup.length;
-					postCapSoup = removeOverlappingTriangles(postCapSoup, config.overlapTolerance || 0.5);
-					if (postCapSoup.length < preCount) postCapChanged = true;
-				}
-				if (removeDegenerate || removeSlivers) {
-					var preCount2 = postCapSoup.length;
-					postCapSoup = removeDegenerateTriangles(postCapSoup, minArea, removeSlivers ? sliverRatio : 0);
-					if (postCapSoup.length < preCount2) postCapChanged = true;
-				}
-				if (postCapChanged) {
-					var postCapWeld = weldVertices(postCapSoup, snapTol);
-					worldPoints = postCapWeld.points;
-					triangles = postCapWeld.triangles;
-				}
-
-				// Safety net
-				var safetyCheckSoup = weldedToSoup(triangles);
-				var safetyStats = countOpenEdges(safetyCheckSoup);
-				if (safetyStats.openEdges > 0) {
-					var forceClosed = forceCloseIndexedMesh(worldPoints, triangles, config.stitchTolerance || 1.0);
-					worldPoints = forceClosed.points;
-					triangles = forceClosed.triangles;
-				}
 			}
 
 			// Compute bounds

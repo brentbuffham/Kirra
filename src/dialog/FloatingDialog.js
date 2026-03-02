@@ -206,7 +206,10 @@ class FloatingDialog {
 		// Step 13) Option3 button (fifth button)
 		if (this.options.showOption3) {
 			const option3Btn = this.createButton(this.options.option3Text, "option3", () => {
-				if (this.options.onOption3) this.options.onOption3();
+				if (this.options.onOption3) {
+					const result = this.options.onOption3();
+					if (result === false) return; // Don't close dialog if callback returns false
+				}
 				this.close();
 			});
 			footer.appendChild(option3Btn);
@@ -215,7 +218,10 @@ class FloatingDialog {
 		// Step 13a) Option2 button (fourth button)
 		if (this.options.showOption2) {
 			const option2Btn = this.createButton(this.options.option2Text, "option2", () => {
-				if (this.options.onOption2) this.options.onOption2();
+				if (this.options.onOption2) {
+					const result = this.options.onOption2();
+					if (result === false) return; // Don't close dialog if callback returns false
+				}
 				this.close();
 			});
 			footer.appendChild(option2Btn);
@@ -224,7 +230,10 @@ class FloatingDialog {
 		// Step 14) Option1 button (third button)
 		if (this.options.showOption1) {
 			const option1Btn = this.createButton(this.options.option1Text, "option1", () => {
-				if (this.options.onOption1) this.options.onOption1();
+				if (this.options.onOption1) {
+					const result = this.options.onOption1();
+					if (result === false) return; // Don't close dialog if callback returns false
+				}
 				this.close();
 			});
 			footer.appendChild(option1Btn);

@@ -3083,6 +3083,23 @@ body.dark-mode .floating-dialog .update-popup-logo {
     margin-right: 4px !important;
 }
 
+/* Narrow number input with no spinner – reusable for tight inline inputs */
+.floating-dialog input.narrow-no-spinner[type="number"],
+.floating-dialog-compact input.narrow-no-spinner[type="number"] {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    max-height: 16px !important;
+    min-height: 16px !important;
+    margin-right: 0 !important;
+    -moz-appearance: textfield !important;
+}
+input.narrow-no-spinner[type="number"]::-webkit-outer-spin-button,
+input.narrow-no-spinner[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 /* Compact layout gets more padding for readability */
 .floating-dialog-compact input[type="text"],
 .floating-dialog-compact input[type="number"],

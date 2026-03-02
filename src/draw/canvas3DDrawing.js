@@ -912,19 +912,18 @@ export function drawKADTextThreeJS(worldX, worldY, worldZ, text, fontSize, color
 export function drawKADPointIDThreeJS(worldX, worldY, worldZ, pointID, color) {
 	if (!window.threeInitialized || !window.threeRenderer) return;
 
-	// Small offset to position the ID label above and to the left of the point
-	const offsetX = -0.5;
-	const offsetY = 0.5;
-	const offsetZ = 0.2;
+	// Scale offset with camera zoom so labels stay visually offset at any zoom level
+	const cameraZoom = (window.threeRenderer.camera) ? window.threeRenderer.camera.zoom : 1;
+	const pixelOffset = 8; // pixels offset, same as 2D
+	const offsetWorld = pixelOffset / cameraZoom;
 
-	// Use font size 12 for the ID
 	const fontSize = 9;
 
-	// Draw the point ID using vector text
+	// Draw the point ID using vector text — position above-left of point
 	const vectorText = GeometryFactory.createVectorText(
-		worldX + offsetX,
-		worldY + offsetY,
-		worldZ + offsetZ,
+		worldX - offsetWorld,
+		worldY + offsetWorld,
+		worldZ,
 		String(pointID),
 		fontSize,
 		color,
