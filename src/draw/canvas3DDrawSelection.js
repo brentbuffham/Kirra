@@ -77,8 +77,11 @@ export function highlightSelectedKADThreeJS() {
 	// Only highlight if:
 	// 1. Selection pointer is active (normal selection mode), OR
 	// 2. PatternInPolygon tool is active AND selected entity is a poly, OR
-	// 3. HolesAlongPolyLine tool is active AND selected entity is a line OR a poly
-	const shouldHighlight = selectedKADObject && ((isSelectionPointerActive && !isPatternInPolygonActive && !isHolesAlongPolyLineActive) || (isPatternInPolygonActive && selectedKADObject.entityType === "poly") || (isHolesAlongPolyLineActive && (selectedKADObject.entityType === "line" || selectedKADObject.entityType === "poly")));
+	// 3. HolesAlongPolyLine tool is active AND selected entity is a line OR a poly, OR
+	// 4. SplitKAD or JoinKAD interactive tool is active (always highlight picked vertex)
+	const isSplitKADActive = window.isSplitKADActive;
+	const isJoinKADActive = window.isJoinKADActive;
+	const shouldHighlight = selectedKADObject && ((isSelectionPointerActive && !isPatternInPolygonActive && !isHolesAlongPolyLineActive) || (isPatternInPolygonActive && selectedKADObject.entityType === "poly") || (isHolesAlongPolyLineActive && (selectedKADObject.entityType === "line" || selectedKADObject.entityType === "poly")) || isSplitKADActive || isJoinKADActive);
 
 	if (shouldHighlight) {
 		// if (developerModeEnabled) {

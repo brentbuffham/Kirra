@@ -17,14 +17,18 @@ import { flashHighlight, clearAllHighlights } from '../../helpers/SurfaceHighlig
 /**
  * Compute signed volume of a closed triangulated mesh using the divergence theorem.
  * Each triangle forms a tetrahedron with the origin; sum of signed volumes = mesh volume.
+ *
+ * @returns {{ volume: number, normalsConsistent: boolean }}
+ *   normalsConsistent is true when all triangle winding agrees (all In or all Out).
+ *   Detected by comparing |signedSum| to absoluteSum — if ratio < 0.9, normals are mixed.
  */
 function computeMeshVolume(surface) {
 	var tris = surface.triangles;
-	if (!tris || tris.length === 0) return 0;
+	if (!tris || tris.length === 0) return { volume: 0, normalsConsistent: true };
 
 	var pts = surface.points;
 
-	// First pass: extract vertices and compute centroid.
+	// Step 1) First pass: extract vertices and compute centroid.
 	// Centering avoids floating-point errors with large UTM coordinates.
 	var verts = [];
 	var cx = 0, cy = 0, cz = 0;
@@ -47,24 +51,34 @@ function computeMeshVolume(surface) {
 	}
 
 	var n = verts.length / 3;
-	if (n === 0) return 0;
+	if (n === 0) return { volume: 0, normalsConsistent: true };
 	var inv = 1.0 / (n * 3);
 	cx *= inv; cy *= inv; cz *= inv;
 
-	// Second pass: divergence theorem with centered coordinates
+	// Step 2) Second pass: divergence theorem with centered coordinates.
+	// Also accumulate absolute per-triangle volume for consistency check.
 	var vol = 0;
+	var absVol = 0;
 	for (var j = 0; j < n; j++) {
 		var a = verts[j * 3], b = verts[j * 3 + 1], c = verts[j * 3 + 2];
 		var x0 = a.x - cx, y0 = a.y - cy, z0 = a.z - cz;
 		var x1 = b.x - cx, y1 = b.y - cy, z1 = b.z - cz;
 		var x2 = c.x - cx, y2 = c.y - cy, z2 = c.z - cz;
 
-		vol += (x0 * (y1 * z2 - y2 * z1)
+		var sv = (x0 * (y1 * z2 - y2 * z1)
 			- x1 * (y0 * z2 - y2 * z0)
 			+ x2 * (y0 * z1 - y1 * z0)) / 6.0;
+		vol += sv;
+		absVol += Math.abs(sv);
 	}
 
-	return vol;
+	// Step 3) Consistency: if |signed| / absolute < 0.9, normals are mixed
+	var consistent = true;
+	if (absVol > 1e-6) {
+		consistent = (Math.abs(vol) / absVol) > 0.9;
+	}
+
+	return { volume: vol, normalsConsistent: consistent };
 }
 
 /**
@@ -2329,9 +2343,11 @@ export class TreeView {
 			var triCount = surface.triangles ? surface.triangles.length : 0;
 			var typeLabel = isClosed ? "SOLID" : "OPEN";
 			var statExtra = "";
+			var normalsOk = true;
 			if (isClosed) {
-				var vol = computeMeshVolume(surface);
-				statExtra = ", " + formatNumber(Math.abs(vol)) + " m\u00B3";
+				var volResult = computeMeshVolume(surface);
+				statExtra = ", " + formatNumber(Math.abs(volResult.volume)) + " m\u00B3";
+				normalsOk = volResult.normalsConsistent;
 			} else {
 				var area = computeFootprintArea(surface);
 				if (area > 0) {
@@ -2340,11 +2356,18 @@ export class TreeView {
 			}
 			var meta = "[" + typeLabel + "] (" + ptCount + " pts, " + triCount + " tris" + statExtra + ")";
 
+			// Step 28c) Append warning badge for closed solids with inconsistent normals
+			var warnHtml = "";
+			if (isClosed && !normalsOk) {
+				warnHtml = "<span class=\"tree-normal-warn\" title=\"Mixed normals - volume may be inaccurate\">&#9888;</span>";
+			}
+
 			layerSurfaceMap.get(layerId).push({
 				id: "surface" + TREE_NODE_SEPARATOR + surfaceId,
 				type: surfaceType,
 				label: surface.name,
 				meta: meta,
+				warnHtml: warnHtml,
 				visible: surfaceVisible,
 				surfaceId: surfaceId
 			});
@@ -2367,11 +2390,21 @@ export class TreeView {
 			var layerVisible = layer ? layer.visible !== false : true;
 			var layerSurfaces = layerSurfaceMap.get(layerId) || [];
 
+			// Step 4b) Propagate warning to layer if any child solid has inconsistent normals
+			var layerWarnHtml = "";
+			for (var si = 0; si < layerSurfaces.length; si++) {
+				if (layerSurfaces[si].warnHtml) {
+					layerWarnHtml = "<span class=\"tree-normal-warn\" title=\"One or more solids have mixed normals\">&#9888;</span>";
+					break;
+				}
+			}
+
 			surfaceChildren.push({
 				id: "layer-surface" + TREE_NODE_SEPARATOR + layerId,
 				type: "layer-surface",
 				label: layerName,
 				meta: "(" + layerSurfaces.length + " surfaces)",
+				warnHtml: layerWarnHtml,
 				visible: layerVisible,
 				children: layerSurfaces
 			});
@@ -2437,7 +2470,7 @@ export class TreeView {
 				if (isActiveLayer) itemClasses += " active-layer";
 				if (isHidden) itemClasses += " hidden-node";
 
-				let html = "<li class=\"tree-node\"><div class=\"" + itemClasses + "\" data-node-id=\"" + node.id + "\"" + (isHidden ? " style=\"opacity: 0.5;\"" : "") + "><span class=\"tree-expand " + (shouldShowExpand ? (isExpanded ? "expanded" : "") : "leaf") + "\"></span><span class=\"tree-icon " + node.type + "\"></span>" + colorSwatchHtml + "<span class=\"tree-label\">" + node.label + "</span>" + (node.meta ? "<span class=\"tree-meta\">" + node.meta + "</span>" : "") + "</div>";
+				let html = "<li class=\"tree-node\"><div class=\"" + itemClasses + "\" data-node-id=\"" + node.id + "\"" + (isHidden ? " style=\"opacity: 0.5;\"" : "") + "><span class=\"tree-expand " + (shouldShowExpand ? (isExpanded ? "expanded" : "") : "leaf") + "\"></span><span class=\"tree-icon " + node.type + "\"></span>" + colorSwatchHtml + "<span class=\"tree-label\">" + node.label + "</span>" + (node.warnHtml || "") + (node.meta ? "<span class=\"tree-meta\">" + node.meta + "</span>" : "") + "</div>";
 
 				// Step 2) Always create children container for entity nodes (even if empty) for lazy loading
 				if (shouldShowExpand) {

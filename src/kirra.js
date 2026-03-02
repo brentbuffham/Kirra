@@ -711,14 +711,16 @@ function exposeGlobalsToWindow() {
 	window.worldToCanvas = worldToCanvas;
 
 	// Step 6) Selection state for KAD and holes (for selection highlighting modules)
-	// FIX: Preserve window.selectedKADObject if local variable is null but window already has a value
-	// This prevents pattern tool selections from being cleared when exposeGlobalsToWindow() runs
-	if (selectedKADObject !== null && selectedKADObject !== undefined) {
+	// FIX: When Split/Join tools are active, they manage their own selection state via
+	// window.selectedKADObject and window.selectedPoint — always preserve their values.
+	// Otherwise the module-local value (the original line/entity selection) would overwrite
+	// the vertex highlight the tool just set.
+	if (window.isSplitKADActive || window.isJoinKADActive) {
+		// Tools manage their own selection — don't overwrite from module-local
+	} else if (selectedKADObject !== null && selectedKADObject !== undefined) {
 		window.selectedKADObject = selectedKADObject;
 	} else if (window.selectedKADObject && (window.isPatternInPolygonActive || window.isHolesAlongPolyLineActive)) {
-		// Preserve window.selectedKADObject for pattern tools even if local variable is null
-		// This handles the case where drawData() calls exposeGlobalsToWindow() before the local variable is set
-		// The local variable will be set by the click handler, but exposeGlobalsToWindow() runs first
+		// Preserve window.selectedKADObject for pattern tools that set it externally
 	} else {
 		window.selectedKADObject = selectedKADObject;
 	}
@@ -726,7 +728,14 @@ function exposeGlobalsToWindow() {
 	window.selectedMultipleKADObjects = selectedMultipleKADObjects;
 	window.selectedHole = selectedHole;
 	window.selectedMultipleHoles = selectedMultipleHoles;
-	window.selectedPoint = selectedPoint; // CRITICAL: Expose selectedPoint for vertex highlighting
+	// Preserve selectedPoint for interactive KAD tools that set it externally
+	if (window.isSplitKADActive || window.isJoinKADActive) {
+		// Tools manage their own selection — don't overwrite from module-local
+	} else if (selectedPoint !== null && selectedPoint !== undefined) {
+		window.selectedPoint = selectedPoint;
+	} else {
+		window.selectedPoint = selectedPoint;
+	}
 	window.selectedMultiplePoints = selectedMultiplePoints; // CRITICAL: Expose for multi-vertex highlighting
 	window.isSelectionPointerActive = isSelectionPointerActive;
 	window.allKADDrawingsMap = allKADDrawingsMap;
@@ -2293,7 +2302,9 @@ function handle3DClick(event) {
 	const isRenumberToolActive = window.isRenumberHolesActive;
 	const isReorderRowsToolActive = window.isReorderRowsActive;
 	const isReorderKADToolActive = window.isReorderKADActive || isReorderKADActive;
-	if (!isSelectionPointerActive && !isConnectorToolActive && !isMultiHoleSelectionEnabled && !isMoveToolActive && !isRenumberToolActive && !isReorderRowsToolActive && !isReorderKADToolActive) {
+	const isSplitKADToolActive = window.isSplitKADActive;
+	const isJoinKADToolActive = window.isJoinKADActive;
+	if (!isSelectionPointerActive && !isConnectorToolActive && !isMultiHoleSelectionEnabled && !isMoveToolActive && !isRenumberToolActive && !isReorderRowsToolActive && !isReorderKADToolActive && !isSplitKADToolActive && !isJoinKADToolActive) {
 		if (developerModeEnabled) {
 			console.log("🚫 [3D CLICK] Select Pointer tool not active - skipping selection");
 		}
@@ -2388,6 +2399,58 @@ function handle3DClick(event) {
 			console.error("❌ [3D CLICK] window.handleReorderKADClick is not defined!");
 		}
 		return; // ReorderKAD handles its own drawing
+	}
+
+	// Step 12i.pre.4) SplitKAD tool logic in 3D
+	if (isSplitKADToolActive) {
+		console.log("⬇️ [3D CLICK] SplitKAD tool mode active");
+		event.stopPropagation();
+		event.preventDefault();
+
+		const splitVertex = getClickedKADVertex3DWithTolerance(event);
+		let clickedKAD = null;
+		if (splitVertex) {
+			clickedKAD = {
+				entityName: splitVertex.entityName,
+				entityType: splitVertex.entityType,
+				elementIndex: splitVertex.elementIndex,
+				selectionType: "vertex",
+				pointXLocation: splitVertex.dataPoint.pointXLocation,
+				pointYLocation: splitVertex.dataPoint.pointYLocation,
+				pointZLocation: splitVertex.dataPoint.pointZLocation
+			};
+		}
+
+		if (window.handleSplitKADClick) {
+			window.handleSplitKADClick(clickedKAD);
+		}
+		return;
+	}
+
+	// Step 12i.pre.5) JoinKAD tool logic in 3D
+	if (isJoinKADToolActive) {
+		console.log("⬇️ [3D CLICK] JoinKAD tool mode active");
+		event.stopPropagation();
+		event.preventDefault();
+
+		const joinVertex = getClickedKADVertex3DWithTolerance(event);
+		let clickedKAD = null;
+		if (joinVertex) {
+			clickedKAD = {
+				entityName: joinVertex.entityName,
+				entityType: joinVertex.entityType,
+				elementIndex: joinVertex.elementIndex,
+				selectionType: "vertex",
+				pointXLocation: joinVertex.dataPoint.pointXLocation,
+				pointYLocation: joinVertex.dataPoint.pointYLocation,
+				pointZLocation: joinVertex.dataPoint.pointZLocation
+			};
+		}
+
+		if (window.handleJoinKADClick) {
+			window.handleJoinKADClick(clickedKAD);
+		}
+		return;
 	}
 
 	// Step 12i) Handle selection based on current tool mode
@@ -27137,6 +27200,24 @@ function handleSelection(event) {
 			}
 		}
 
+		// Step 7b) Handle SplitKAD interactive mode
+		if (window.isSplitKADActive) {
+			const splitClickedKAD = getClickedKADObject(clickX, clickY);
+			if (window.handleSplitKADClick && window.handleSplitKADClick(splitClickedKAD)) {
+				exposeGlobalsToWindow();
+				return; // SplitKAD handled the click
+			}
+		}
+
+		// Step 7c) Handle JoinKAD interactive mode
+		if (window.isJoinKADActive) {
+			const joinClickedKAD = getClickedKADObject(clickX, clickY);
+			if (window.handleJoinKADClick && window.handleJoinKADClick(joinClickedKAD)) {
+				exposeGlobalsToWindow();
+				return; // JoinKAD handled the click
+			}
+		}
+
 		// Step 8) Try KAD objects (only if KAD radio is selected)
 		let clickedKADObject = null;
 		if (selectingKAD) {
@@ -34909,6 +34990,14 @@ window.onload = function () {
 			if (isReorderKADActive) {
 				cancelReorderKADMode();
 			}
+			// Cancel SplitKAD mode
+			if (window.isSplitKADActive && window.cancelSplitKADMode) {
+				window.cancelSplitKADMode();
+			}
+			// Cancel JoinKAD mode
+			if (window.isJoinKADActive && window.cancelJoinKADMode) {
+				window.cancelJoinKADMode();
+			}
 			// Cancel RenumberHoles mode
 			if (window.isRenumberHolesActive) {
 				cancelRenumberHolesMode();
@@ -35609,6 +35698,44 @@ document.addEventListener("DOMContentLoaded", function () {
 				showKADBooleanDialog();
 			} catch (error) {
 				console.error("Failed to load KAD Boolean:", error);
+			}
+		});
+	}
+});
+
+// KAD Join Lines button handler
+document.addEventListener("DOMContentLoaded", function () {
+	var kadJoinLinesBtn = document.getElementById("kadJoinLinesBtn");
+	if (kadJoinLinesBtn) {
+		kadJoinLinesBtn.addEventListener("click", async function () {
+			if (window.isJoinKADActive) {
+				if (window.cancelJoinKADMode) window.cancelJoinKADMode();
+			} else {
+				try {
+					var { showKADJoinLinesDialog } = await import("./dialog/popups/kad/KADJoinLinesDialog.js");
+					showKADJoinLinesDialog();
+				} catch (error) {
+					console.error("Failed to load KAD Join Lines:", error);
+				}
+			}
+		});
+	}
+});
+
+// KAD Split Lines button handler
+document.addEventListener("DOMContentLoaded", function () {
+	var kadSplitLinesBtn = document.getElementById("kadSplitLinesBtn");
+	if (kadSplitLinesBtn) {
+		kadSplitLinesBtn.addEventListener("click", async function () {
+			if (window.isSplitKADActive) {
+				if (window.cancelSplitKADMode) window.cancelSplitKADMode();
+			} else {
+				try {
+					var { showKADSplitLinesDialog } = await import("./dialog/popups/kad/KADSplitLinesDialog.js");
+					showKADSplitLinesDialog();
+				} catch (error) {
+					console.error("Failed to load KAD Split Lines:", error);
+				}
 			}
 		});
 	}

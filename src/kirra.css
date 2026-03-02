@@ -2573,6 +2573,18 @@ body.dark-mode .tree-meta {
     background-image: url("/icons/surface-open-leaf.png");
 }
 
+/* Warning badge for closed solids with inconsistent normals */
+.tree-normal-warn {
+    display: inline-block;
+    color: #f5a623;
+    font-size: 13px;
+    line-height: 18px;
+    margin-left: 3px;
+    margin-right: 2px;
+    vertical-align: middle;
+    cursor: help;
+}
+
 /* Step 3) Context menu icon for Add Layer */
 .tree-context-item[data-action="add-layer"] span:first-child:before {
     background-image: url("/icons/layer-add.png");

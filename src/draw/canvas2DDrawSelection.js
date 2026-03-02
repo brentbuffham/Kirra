@@ -40,7 +40,10 @@ export function drawKADHighlightSelectionVisuals() {
     const verticesColor = "rgba(255,0,0,0.5)";
 
     // Step 2) Handle single selection
-    if (selectedKADObject && isSelectionPointerActive) {
+    // Highlight when selection pointer is active, or when interactive KAD tools (Split/Join) are active
+    const isSplitKADActive = window.isSplitKADActive;
+    const isJoinKADActive = window.isJoinKADActive;
+    if (selectedKADObject && (isSelectionPointerActive || isSplitKADActive || isJoinKADActive)) {
         const tolerance = 5;
         let entity = getEntityFromKADObject(selectedKADObject);
         if (!entity) return;
