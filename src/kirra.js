@@ -57,6 +57,10 @@ import {
 //=================================================
 import { startTransformMode, cancelTransformMode } from "./tools/TransformTool.js";
 //=================================================
+// Mesh Edit Tool (side-effect: registers window.startMeshEditMode)
+//=================================================
+import "./tools/MeshEditTool.js";
+//=================================================
 // Three.js Renderer Selection (MUST BE EARLY!)
 //=================================================
 // CRITICAL: Load renderer preference from localStorage IMMEDIATELY

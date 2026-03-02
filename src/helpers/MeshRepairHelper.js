@@ -1448,21 +1448,36 @@ export function triangulateLoop(loop) {
 		return _fanTriangulateSoup(loop, nx, ny, nz);
 	}
 
-	var del, con;
+	// Check for self-intersecting edges or near-duplicate vertices in 2D projection.
+	// These cause Constrainautor to enter infinite flip loops.
+	var skipConstraints = false;
+	if (_hasNearDuplicateCoords2D(coords, n)) {
+		console.warn("triangulateLoop: near-duplicate vertices detected (" + n +
+			" verts) — skipping Constrainautor, using Delaunator only");
+		skipConstraints = true;
+	} else if (_loopSelfIntersects2D(coords, n)) {
+		console.warn("triangulateLoop: self-intersecting loop detected (" + n +
+			" verts) — skipping Constrainautor, using Delaunator only");
+		skipConstraints = true;
+	}
+
+	var del;
 	try {
 		del = new Delaunator(coords);
-		con = new Constrainautor(del);
 
-		for (var ci = 0; ci < n; ci++) {
-			var ni = (ci + 1) % n;
-			try {
-				con.constrainOne(ci, ni);
-			} catch (e) {
-				// Skip problematic constraint edges
+		if (!skipConstraints) {
+			var con = new Constrainautor(del);
+			for (var ci = 0; ci < n; ci++) {
+				var ni = (ci + 1) % n;
+				try {
+					con.constrainOne(ci, ni);
+				} catch (e) {
+					// Skip problematic constraint edges
+				}
 			}
 		}
 	} catch (e) {
-		console.warn("triangulateLoop: Constrainautor failed, using fan fallback:", e.message);
+		console.warn("triangulateLoop: Delaunay/Constrainautor failed, using fan fallback:", e.message);
 		return _fanTriangulateSoup(loop, nx, ny, nz);
 	}
 
@@ -1510,6 +1525,74 @@ export function triangulateLoop(loop) {
 	}
 
 	return result;
+}
+
+/**
+ * Check if a 2D polygon (given as flat coords array) has self-intersecting edges.
+ * Uses segment-segment intersection test for all non-adjacent edge pairs.
+ * Returns true if any edges cross — Constrainautor will hang on these.
+ *
+ * @param {Float64Array} coords - Flat [u0,v0, u1,v1, ...] array
+ * @param {number} n - Number of vertices
+ * @returns {boolean} true if loop self-intersects in 2D projection
+ */
+function _loopSelfIntersects2D(coords, n) {
+	if (n < 4) return false;
+
+	for (var i = 0; i < n; i++) {
+		var ax = coords[i * 2], ay = coords[i * 2 + 1];
+		var i2 = (i + 1) % n;
+		var bx = coords[i2 * 2], by = coords[i2 * 2 + 1];
+
+		// Check against all non-adjacent edges
+		for (var j = i + 2; j < n; j++) {
+			// Skip the edge that shares a vertex with edge i
+			if (j === n - 1 && i === 0) continue;
+
+			var cx = coords[j * 2], cy = coords[j * 2 + 1];
+			var j2 = (j + 1) % n;
+			var dx = coords[j2 * 2], dy = coords[j2 * 2 + 1];
+
+			// Segment-segment intersection using cross products
+			var abx = bx - ax, aby = by - ay;
+			var cdx = dx - cx, cdy = dy - cy;
+			var denom = abx * cdy - aby * cdx;
+			if (Math.abs(denom) < 1e-12) continue; // parallel
+
+			var acx = cx - ax, acy = cy - ay;
+			var t = (acx * cdy - acy * cdx) / denom;
+			var u = (acx * aby - acy * abx) / denom;
+
+			// Strict interior intersection (not touching at endpoints)
+			if (t > 1e-8 && t < 1 - 1e-8 && u > 1e-8 && u < 1 - 1e-8) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Check for near-duplicate vertices in 2D projected coords.
+ * Near-duplicate vertices cause degenerate Delaunay triangulations
+ * that make Constrainautor enter infinite flip loops.
+ *
+ * @param {Float64Array} coords - Flat [u0,v0, u1,v1, ...] array
+ * @param {number} n - Number of vertices
+ * @returns {boolean} true if near-duplicate vertices found
+ */
+function _hasNearDuplicateCoords2D(coords, n) {
+	var tol2 = 1e-12; // squared tolerance
+	for (var i = 0; i < n; i++) {
+		for (var j = i + 1; j < n; j++) {
+			var dx = coords[j * 2] - coords[i * 2];
+			var dy = coords[j * 2 + 1] - coords[i * 2 + 1];
+			if (dx * dx + dy * dy < tol2) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 /**
@@ -1812,26 +1895,58 @@ function triangulateLoopIndexed(points, loop) {
 		coords[j * 2 + 1] = projV(pt);
 	}
 
-	// Delaunay triangulate with constrained edges
+	// Check for narrow/sliver loops via isoperimetric ratio
+	var projArea = 0;
+	for (var pa = 0; pa < n; pa++) {
+		var paNext = (pa + 1) % n;
+		projArea += coords[pa * 2] * coords[paNext * 2 + 1] - coords[paNext * 2] * coords[pa * 2 + 1];
+	}
+	projArea = Math.abs(projArea) * 0.5;
+	var perim = 0;
+	for (var pe = 0; pe < n; pe++) {
+		var peNext = (pe + 1) % n;
+		var pdx = coords[peNext * 2] - coords[pe * 2];
+		var pdy = coords[peNext * 2 + 1] - coords[pe * 2 + 1];
+		perim += Math.sqrt(pdx * pdx + pdy * pdy);
+	}
+	var isoRatio = perim > 0 ? projArea / (perim * perim) : 0;
+	if (isoRatio < 0.001) {
+		console.log("triangulateLoopIndexed: narrow loop (isoRatio=" + isoRatio.toFixed(6) +
+			", " + n + " verts) — using fan triangulation");
+		return _fanTriangulateLoop(points, loop, nx, ny, nz);
+	}
+
+	// Check for self-intersecting edges or near-duplicate vertices in 2D projection.
+	// These cause Constrainautor to enter infinite flip loops.
+	var skipConstraints = false;
+	if (_hasNearDuplicateCoords2D(coords, n)) {
+		console.warn("triangulateLoopIndexed: near-duplicate vertices detected (" + n +
+			" verts) — skipping Constrainautor, using Delaunator only");
+		skipConstraints = true;
+	} else if (_loopSelfIntersects2D(coords, n)) {
+		console.warn("triangulateLoopIndexed: self-intersecting loop detected (" + n +
+			" verts) — skipping Constrainautor, using Delaunator only");
+		skipConstraints = true;
+	}
+
+	// Delaunay triangulate, with constrained edges only if loop is safe
 	var del;
 	try {
 		del = new Delaunator(coords);
-		var con = new Constrainautor(del);
-		for (var ci = 0; ci < n; ci++) {
-			try {
-				con.constrainOne(ci, (ci + 1) % n);
-			} catch (e) {
-				// Skip problematic constraint
+
+		if (!skipConstraints) {
+			var con = new Constrainautor(del);
+			for (var ci = 0; ci < n; ci++) {
+				try {
+					con.constrainOne(ci, (ci + 1) % n);
+				} catch (e) {
+					// Skip problematic constraint
+				}
 			}
 		}
 	} catch (e) {
-		console.warn("triangulateLoopIndexed: Constrainautor failed, trying Delaunator only:", e.message);
-		try {
-			del = new Delaunator(coords);
-		} catch (e2) {
-			console.warn("triangulateLoopIndexed: Delaunator failed, using fan fallback:", e2.message);
-			return _fanTriangulateLoop(points, loop, nx, ny, nz);
-		}
+		console.warn("triangulateLoopIndexed: Delaunay/Constrainautor failed, using fan fallback:", e.message);
+		return _fanTriangulateLoop(points, loop, nx, ny, nz);
 	}
 
 	// Filter interior triangles and map local indices back to global indices

@@ -735,6 +735,28 @@ function showSurfaceStatsDialog(stats, surface) {
 		normalsRow.appendChild(normalsRightDiv);
 		meshCheckSection.appendChild(normalsRow);
 
+		// Edit Mesh row — launches MeshEditTool for surgical triangle removal
+		var editRow = document.createElement("div");
+		editRow.style.display = "flex";
+		editRow.style.alignItems = "center";
+		editRow.style.justifyContent = "flex-end";
+		editRow.style.marginTop = "6px";
+
+		var editBtn = document.createElement("button");
+		editBtn.className = "floating-dialog-btn";
+		editBtn.textContent = "Edit";
+		editBtn.title = "Edit mesh — select and delete individual triangles/vertices";
+		editBtn.style.padding = "2px 10px";
+		editBtn.addEventListener("click", function () {
+			if (typeof window.startMeshEditMode === "function") {
+				window.startMeshEditMode(surface.id);
+			} else {
+				console.warn("MeshEditTool not loaded");
+			}
+		});
+		editRow.appendChild(editBtn);
+		meshCheckSection.appendChild(editRow);
+
 		content.appendChild(meshCheckSection);
 	}
 
@@ -748,7 +770,7 @@ function showSurfaceStatsDialog(stats, surface) {
 		title: "Statistics: " + stats.name,
 		content: content,
 		width: 320,
-		height: surface ? 510 : 380,
+		height: surface ? 520 : 380,
 		showConfirm: true,
 		confirmText: "Copy",
 		onConfirm: function () {

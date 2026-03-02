@@ -200,6 +200,15 @@ class ToolManager {
                 type: "measurement"
             },
 
+            // Mesh Editing Tools
+            meshEdit: {
+                id: "meshEditTool",
+                active: false,
+                stateVar: "isMeshEditActive",
+                elementId: "meshEditTool",
+                type: "mesh"
+            },
+
             // View Tools
             resetView: {
                 id: "resetViewTool",
@@ -497,6 +506,7 @@ class ToolManager {
             radiiHolesOrKADs: "Radii tool active - Adjust radii of holes or KAD objects",
             assignSurface: "Assign surface tool active - Click to assign surface elevation",
             assignGrade: "Assign grade tool active - Click to assign grade",
+            meshEdit: "Mesh edit tool active - Click triangles to select/delete",
             resetView: "Resetting view to fit all data"
         };
 
