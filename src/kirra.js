@@ -1485,6 +1485,9 @@ function initializeThreeJS() {
 			if (isHolesAlongPolyLineActive) {
 				drawHolesAlongPolyline3DVisual();
 			}
+			// Reset multi-stage reset view cycle on any camera interaction
+			resetViewStage = 0;
+			clearTimeout(resetViewTimer);
 		};
 
 		// Step 6a) Create interaction manager for 3D raycasting
@@ -31875,7 +31878,7 @@ function zoomOut() {
 	drawData(allBlastHoles, selectedHole);
 }
 
-function getHoleBoundaries() {
+function getHoleBoundaries(visibleOnly) {
 	if (!allBlastHoles || allBlastHoles.length === 0) {
 		return null;
 	}
@@ -31886,12 +31889,14 @@ function getHoleBoundaries() {
 		maxY = -Infinity;
 
 	for (const hole of allBlastHoles) {
+		if (visibleOnly && (!blastGroupVisible || hole.visible === false)) continue;
 		if (hole.startXLocation < minX) minX = hole.startXLocation;
 		if (hole.startXLocation > maxX) maxX = hole.startXLocation;
 		if (hole.startYLocation < minY) minY = hole.startYLocation;
 		if (hole.startYLocation > maxY) maxY = hole.startYLocation;
 	}
 
+	if (minX === Infinity) return null;
 	return {
 		minX,
 		maxX,
@@ -31971,8 +31976,69 @@ function zoomToFitAll() {
 
 	drawData(allBlastHoles, selectedHole);
 }
+
+function zoomToFitVisible() {
+	const holeBoundaries = getHoleBoundaries(true);
+	const kadBoundaries = getKADBoundaries(true);
+	const surfaceBoundaries = getSurfaceBoundaries(true);
+	const imageBoundaries = getImageBoundaries(true);
+
+	let minX = Infinity,
+		maxX = -Infinity,
+		minY = Infinity,
+		maxY = -Infinity;
+
+	if (holeBoundaries) {
+		minX = Math.min(minX, holeBoundaries.minX);
+		maxX = Math.max(maxX, holeBoundaries.maxX);
+		minY = Math.min(minY, holeBoundaries.minY);
+		maxY = Math.max(maxY, holeBoundaries.maxY);
+	}
+	if (kadBoundaries) {
+		minX = Math.min(minX, kadBoundaries.minX);
+		maxX = Math.max(maxX, kadBoundaries.maxX);
+		minY = Math.min(minY, kadBoundaries.minY);
+		maxY = Math.max(maxY, kadBoundaries.maxY);
+	}
+	if (surfaceBoundaries) {
+		minX = Math.min(minX, surfaceBoundaries.minX);
+		maxX = Math.max(maxX, surfaceBoundaries.maxX);
+		minY = Math.min(minY, surfaceBoundaries.minY);
+		maxY = Math.max(maxY, surfaceBoundaries.maxY);
+	}
+	if (imageBoundaries) {
+		minX = Math.min(minX, imageBoundaries.minX);
+		maxX = Math.max(maxX, imageBoundaries.maxX);
+		minY = Math.min(minY, imageBoundaries.minY);
+		maxY = Math.max(maxY, imageBoundaries.maxY);
+	}
+
+	if (minX === Infinity) {
+		// No visible data — fall back to fit all
+		zoomToFitAll();
+		return;
+	}
+
+	centroidX = minX + (maxX - minX) / 2;
+	centroidY = minY + (maxY - minY) / 2;
+
+	const dataWidth = maxX - minX;
+	const dataHeight = maxY - minY;
+
+	if (dataWidth === 0 || dataHeight === 0) {
+		currentScale = 1;
+	} else {
+		const scaleX = (canvas.width * 0.9) / dataWidth;
+		const scaleY = (canvas.height * 0.9) / dataHeight;
+		currentScale = Math.min(scaleX, scaleY);
+	}
+
+	syncCameraToThreeJS();
+	drawData(allBlastHoles, selectedHole);
+}
+
 // REPLACE the entire function:
-function getSurfaceBoundaries() {
+function getSurfaceBoundaries(visibleOnly) {
 	if (loadedSurfaces.size === 0) return null;
 
 	let minX = Infinity,
@@ -31981,6 +32047,7 @@ function getSurfaceBoundaries() {
 		maxY = -Infinity;
 
 	loadedSurfaces.forEach((surface) => {
+		if (visibleOnly && (!surfacesGroupVisible || surface.visible === false)) return;
 		if (surface.points && surface.points.length > 0) {
 			surface.points.forEach((point) => {
 				if (point.x < minX) minX = point.x;
@@ -32001,7 +32068,7 @@ function getSurfaceBoundaries() {
 }
 
 // REPLACE the entire function:
-function getImageBoundaries() {
+function getImageBoundaries(visibleOnly) {
 	if (loadedImages.size === 0) return null;
 
 	let minX = Infinity,
@@ -32010,6 +32077,7 @@ function getImageBoundaries() {
 		maxY = -Infinity;
 
 	loadedImages.forEach((image) => {
+		if (visibleOnly && (!imagesGroupVisible || image.visible === false)) return;
 		if (image.bbox && image.bbox.length >= 4) {
 			// image.bbox is [minX, minY, maxX, maxY] format
 			if (image.bbox[0] < minX) minX = image.bbox[0];
@@ -35221,7 +35289,7 @@ window.addEventListener("beforeunload", function () {
 	}
 });
 
-function getKADBoundaries() {
+function getKADBoundaries(visibleOnly) {
 	let minX = Infinity;
 	let maxX = -Infinity;
 	let minY = Infinity;
@@ -35232,8 +35300,11 @@ function getKADBoundaries() {
 	}
 
 	for (const entity of allKADDrawingsMap.values()) {
+		if (visibleOnly && (!drawingsGroupVisible || entity.visible === false)) continue;
+		if (visibleOnly && entity.entityType && !getTypeGroupVisible(entity.entityType)) continue;
 		if (entity.data && Array.isArray(entity.data)) {
 			for (const point of entity.data) {
+				if (visibleOnly && point.visible === false) continue;
 				if (point.pointXLocation < minX) minX = point.pointXLocation;
 				if (point.pointXLocation > maxX) maxX = point.pointXLocation;
 				if (point.pointYLocation < minY) minY = point.pointYLocation;
@@ -35242,6 +35313,7 @@ function getKADBoundaries() {
 		}
 	}
 
+	if (minX === Infinity) return null;
 	return {
 		minX,
 		maxX,
@@ -35811,6 +35883,8 @@ document.addEventListener("DOMContentLoaded", () => {
 const selectPointerTool = document.getElementById("selectPointer");
 const selectByPolygonTool = document.getElementById("selectByPolygon");
 const resetViewTool = document.getElementById("resetViewTool");
+var resetViewStage = 0;        // 0 = ready for first click
+var resetViewTimer = null;     // timeout handle for 1.5s reset
 const moveToTool = document.getElementById("moveToTool");
 const bearingTool = document.getElementById("bearingTool");
 const rulerTool = document.getElementById("rulerTool");
@@ -38298,12 +38372,71 @@ function handlePolygonMouseMove(event) {
 
 //use the same function for the resetView in the resetViewTool
 resetViewTool.addEventListener("change", function () {
-	if (this.checked) {
-		resetZoom();
-		drawData(allBlastHoles, selectedHole);
-		resetViewTool.checked = false;
+	if (!this.checked) return;
+	this.checked = false;
+
+	// Clear previous timeout
+	clearTimeout(resetViewTimer);
+
+	var is3D = onlyShowThreeJS;
+
+	if (is3D) {
+		// 3D: 3-stage cycle (Plan View -> Fit Visible -> Fit All)
+		if (resetViewStage === 0) {
+			// Stage 1: Plan view — reset orbit to top-down, keep zoom/position
+			if (threeInitialized && cameraControls) {
+				cameraControls.orbitX = 0;
+				cameraControls.orbitY = 0;
+				currentRotation = 0;
+				cameraControls.rotation = 0;
+				syncCameraToThreeJS();
+			}
+			drawData(allBlastHoles, selectedHole);
+			resetViewStage = 1;
+		} else if (resetViewStage === 1) {
+			// Stage 2: Zoom to fit visible data
+			zoomToFitVisible();
+			resetViewStage = 2;
+		} else {
+			// Stage 3: Zoom to fit ALL data
+			zoomToFitAll();
+			resetViewStage = 0;
+		}
+	} else {
+		// 2D: 2-stage cycle (Fit Visible -> Fit All)
+		if (resetViewStage === 0) {
+			// Stage 1: Zoom to fit visible data
+			zoomToFitVisible();
+			resetViewStage = 1;
+		} else {
+			// Stage 2: Zoom to fit ALL data
+			zoomToFitAll();
+			resetViewStage = 0;
+		}
 	}
+
+	// Reset stage after 1.5s timeout
+	resetViewTimer = setTimeout(function () {
+		resetViewStage = 0;
+		updateResetViewTooltip();
+	}, 1500);
+
+	// Update tooltip for next stage
+	updateResetViewTooltip();
 });
+
+function updateResetViewTooltip() {
+	var label = document.querySelector("label[for='resetViewTool']");
+	if (!label) return;
+	var is3D = onlyShowThreeJS;
+	if (is3D) {
+		var tips = ["Plan View", "Fit Visible", "Fit All"];
+		label.title = tips[resetViewStage] || "Plan View";
+	} else {
+		var tips2D = ["Fit Visible", "Fit All"];
+		label.title = tips2D[resetViewStage] || "Fit Visible";
+	}
+}
 
 // #region CUSTOM CSV
 //---------------- CUSTOM STRUCTURED CSV IMPORTER - FLOATING DIALOG ONLY ----------------//
