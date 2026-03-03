@@ -313,7 +313,7 @@ export class BlastAnalyticsShader extends BaseAnalyticsShader {
             fragmentShader: this.activeModel.getFragmentSource(this.modelParams),
             uniforms: allUniforms,
             transparent: true,
-            depthWrite: false,
+            depthWrite: true,
             side: THREE.DoubleSide
         });
     }

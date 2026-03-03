@@ -1,6 +1,7 @@
 // src/dialog/popups/analytics/TimeInteractionDialog.js
 import { FloatingDialog } from "../../FloatingDialog.js";
 import { bakeLiveShaderTo2D, removeLiveFlattenedImage } from "../../../helpers/BlastAnalysisShaderHelper.js";
+import { calculateDownholeTimings, getTimingRange } from "../../../helpers/DownholeTimingCalculator.js";
 
 /**
  * TimeInteractionDialog provides real-time time-slice control for
@@ -31,8 +32,9 @@ export function showTimeInteractionDialog(config) {
 	var shaderMat = config.shaderMaterial || null;
 
 	// Calculate timing range from blast holes
-	var maxFireTime = 0;
-	var minFireTime = Infinity;
+	// Surface times (min fire time = earliest surface delay)
+	var maxSurfaceTime = 0;
+	var minSurfaceTime = Infinity;
 	if (window.allBlastHoles) {
 		for (var i = 0; i < window.allBlastHoles.length; i++) {
 			var hole = window.allBlastHoles[i];
@@ -41,15 +43,27 @@ export function showTimeInteractionDialog(config) {
 				var match = hole.holeTime.match(/(\d+)/);
 				if (match) t = parseFloat(match[1]);
 			}
-			if (t > maxFireTime) maxFireTime = t;
-			if (t < minFireTime) minFireTime = t;
+			if (t > maxSurfaceTime) maxSurfaceTime = t;
+			if (t < minSurfaceTime) minSurfaceTime = t;
 		}
 	}
-	if (!isFinite(minFireTime)) minFireTime = 0;
+	if (!isFinite(minSurfaceTime)) minSurfaceTime = 0;
+
+	// Include downhole detonation times (surface + downhole delay per deck)
+	var maxFireTime = maxSurfaceTime;
+	var minFireTime = minSurfaceTime;
+	if (window.allBlastHoles && window.loadedCharging) {
+		var entries = calculateDownholeTimings(window.allBlastHoles, window.loadedCharging, { visibleOnly: false });
+		if (entries.length > 0) {
+			var range = getTimingRange(entries);
+			if (range.maxMs > maxFireTime) maxFireTime = range.maxMs;
+			if (range.minMs < minFireTime) minFireTime = range.minMs;
+		}
+	}
 	if (maxFireTime <= 0) maxFireTime = 1000;
 
-	// Add 10% buffer to max
-	var sliderMax = Math.ceil(maxFireTime * 1.1);
+	// Max = max downhole detonation time + 500ms buffer
+	var sliderMax = Math.ceil(maxFireTime + 500);
 	var sliderStep = Math.max(1, Math.round(sliderMax / 500));
 
 	// Debounce timer for 2D bake
@@ -244,7 +258,7 @@ export function showTimeInteractionDialog(config) {
 	rangeInfo.style.color = "#888";
 	rangeInfo.style.flexShrink = "0";
 	rangeInfo.innerHTML = "<span>Min: " + minFireTime.toFixed(0) + " ms</span>"
-		+ "<span>Max: " + maxFireTime.toFixed(0) + " ms</span>";
+		+ "<span>Max: " + maxFireTime.toFixed(0) + " ms (+500 buffer)</span>";
 	container.appendChild(rangeInfo);
 
 	// ── Playback functions ──

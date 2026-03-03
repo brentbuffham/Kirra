@@ -961,9 +961,9 @@ function runMeshCheck(surface, openCb, nonManifoldCb, degenerateCb,
 			var lc = toLocal ? toLocal(cx, cy) : { x: cx, y: cy };
 			positions.push(lc.x, lc.y, cz);
 			positions.push(lc.x + nx2 * arrowLength, lc.y + ny2 * arrowLength, cz + nz2 * arrowLength);
-			// Orange at base, cyan at tip
-			colors.push(1, 0.647, 0);
-			colors.push(0, 1, 1);
+			// Red at base, blue at tip
+			colors.push(1, 0, 0); //RED
+			colors.push(0, 0, 1); //BLUE
 		}
 		if (positions.length === 0) return null;
 		var geom = new THREE.BufferGeometry();

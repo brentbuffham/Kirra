@@ -2,12 +2,13 @@
  * ExtrudeKADDialog.js
  *
  * Dialog for extruding a closed KAD polygon into a 3D solid.
- * Follows the offsetKAD live-preview pattern.
+ * Single dialog with pick-row UI for polygon selection + live preview.
  * Uses FloatingDialog + createEnhancedFormContent.
  */
 
 import { FloatingDialog, createEnhancedFormContent, getFormData } from "../../FloatingDialog.js";
 import { createPreviewMesh, applyExtrusion } from "../../../helpers/ExtrudeKADHelper.js";
+import { createPickRow, enterKADPickMode, exitKADPickMode } from "../../../helpers/ScreenPickHelper.js";
 
 var SETTINGS_KEY = "kirra_extrude_kad_settings";
 
@@ -64,148 +65,75 @@ function updatePreview(entity, params, color) {
 
 /**
  * Show the Extrude KAD to Solid dialog.
- * If a closed polygon is already selected, opens immediately.
- * Otherwise prompts user to click on one.
+ * Single dialog with pick-row for polygon selection + extrusion parameters.
+ * Pre-populates from current selection if a closed poly is selected.
  */
 export function showExtrudeKADDialog() {
-	// Step 1) Check for existing selection
-	var kadObject = window.selectedKADObject;
-	if (kadObject && kadObject.entityType === "poly") {
-		var entity = window.getEntityFromKADObject
-			? window.getEntityFromKADObject(kadObject)
-			: (window.allKADDrawingsMap ? window.allKADDrawingsMap.get(kadObject.entityName) : null);
-
-		if (entity && entity.data && entity.data.length >= 3) {
-			openExtrudeDialog(entity, kadObject.entityName);
-			return;
-		}
-	}
-
-	// Step 2) No selection — prompt user to pick one
-	// Build a list of closed poly entities for a picker dialog
-	var polyEntities = [];
-	if (window.allKADDrawingsMap && window.allKADDrawingsMap.size > 0) {
-		window.allKADDrawingsMap.forEach(function (entity, entityName) {
-			if (entity.entityType === "poly" && entity.data && entity.data.length >= 3) {
-				// Check if closed (poly entities are closed by default)
-				var firstPt = entity.data[0];
-				if (firstPt && (firstPt.closed === true || firstPt.closed === undefined)) {
-					polyEntities.push({
-						name: entityName,
-						pointCount: entity.data.length
-					});
-				}
-			}
-		});
-	}
+	// Step 1) Gather all closed poly entities
+	var polyEntities = getAllClosedPolys();
 
 	if (polyEntities.length === 0) {
-		showInfoDialog("No closed KAD polygons found. Create a polygon first, then use this tool.");
+		showInfoDialog("No closed KAD polygons found.\nCreate a polygon first, then use this tool.");
 		return;
 	}
 
-	// Step 3) Show entity picker
-	showEntityPickerDialog(polyEntities, function (selectedName) {
-		var entity = window.allKADDrawingsMap.get(selectedName);
-		if (entity) {
-			openExtrudeDialog(entity, selectedName);
+	// Step 2) Determine default selection from current screen selection
+	var defaultName = polyEntities[0].name;
+	var kadObject = window.selectedKADObject;
+	if (kadObject && kadObject.entityType === "poly" && kadObject.entityName) {
+		if (isClosedPoly(kadObject.entityName)) {
+			defaultName = kadObject.entityName;
 		}
-	});
-}
+	}
 
-// ────────────────────────────────────────────────────────
-// Entity picker dialog (when nothing is pre-selected)
-// ────────────────────────────────────────────────────────
-
-function showEntityPickerDialog(polyEntities, onSelect) {
-	var container = document.createElement("div");
-	container.style.padding = "10px";
-
-	var label = document.createElement("div");
-	label.style.fontWeight = "bold";
-	label.style.marginBottom = "8px";
-	label.style.fontSize = "13px";
-	label.textContent = "Select a closed polygon to extrude:";
-	container.appendChild(label);
-
-	var listDiv = document.createElement("div");
-	listDiv.style.maxHeight = "250px";
-	listDiv.style.overflowY = "auto";
-	listDiv.style.border = "1px solid rgba(255,255,255,0.15)";
-	listDiv.style.borderRadius = "4px";
-	listDiv.style.padding = "6px";
-	listDiv.style.background = "rgba(0,0,0,0.15)";
-
-	var selectedRadio = null;
-
-	polyEntities.forEach(function (pe) {
-		var row = document.createElement("label");
-		row.style.display = "flex";
-		row.style.alignItems = "center";
-		row.style.padding = "4px 6px";
-		row.style.cursor = "pointer";
-		row.style.borderRadius = "3px";
-		row.style.fontSize = "12px";
-
-		row.addEventListener("mouseenter", function () { row.style.background = "rgba(255,255,255,0.08)"; });
-		row.addEventListener("mouseleave", function () { row.style.background = "transparent"; });
-
-		var radio = document.createElement("input");
-		radio.type = "radio";
-		radio.name = "extrudeEntityPicker";
-		radio.value = pe.name;
-		radio.style.marginRight = "8px";
-		radio.style.flexShrink = "0";
-		if (!selectedRadio) {
-			radio.checked = true;
-			selectedRadio = radio;
-		}
-
-		var text = document.createElement("span");
-		text.textContent = pe.name + " (" + pe.pointCount + " pts)";
-		text.style.overflow = "hidden";
-		text.style.textOverflow = "ellipsis";
-		text.style.whiteSpace = "nowrap";
-
-		row.appendChild(radio);
-		row.appendChild(text);
-		listDiv.appendChild(row);
+	// Step 3) Build pick-row options
+	var polyOptions = polyEntities.map(function (pe) {
+		return { value: pe.name, text: pe.name + " (" + pe.pointCount + " pts)" };
 	});
 
-	container.appendChild(listDiv);
-
-	var dialog = new FloatingDialog({
-		title: "Extrude KAD — Select Polygon",
-		content: container,
-		width: 400,
-		height: 360,
-		showConfirm: true,
-		confirmText: "Next",
-		cancelText: "Cancel",
-		onConfirm: function () {
-			var radios = listDiv.querySelectorAll("input[type=radio]");
-			var selected = null;
-			radios.forEach(function (r) { if (r.checked) selected = r.value; });
-			if (selected) {
-				onSelect(selected);
-			}
-		}
-	});
-	dialog.show();
-}
-
-// ────────────────────────────────────────────────────────
-// Main extrude parameter dialog with live preview
-// ────────────────────────────────────────────────────────
-
-function openExtrudeDialog(entity, entityName) {
+	// Step 4) Load saved settings
 	var saved = loadSavedSettings();
 
-	// Step 1) Debounce timer for preview updates
-	var previewDebounceTimer = null;
-	var PREVIEW_DEBOUNCE_MS = 100;
+	// Step 5) Build container
+	var container = document.createElement("div");
+	container.style.display = "flex";
+	container.style.flexDirection = "column";
+	container.style.gap = "8px";
+	container.style.padding = "4px 0";
 
-	// Step 2) Build form fields
+	// Pick row for polygon selection
+	var polyRow = createPickRow("Polygon", polyOptions, defaultName, function () {
+		enterKADPickMode(polyRow, function (entityName) {
+			polyRow.select.value = entityName;
+			// Update info and trigger preview
+			updateInfoHeader(entityName);
+			triggerPreviewUpdate();
+		});
+	});
+	container.appendChild(polyRow.row);
+
+	// Info header showing selected polygon details
+	var dark = isDarkMode();
+	var infoDiv = document.createElement("div");
+	infoDiv.style.fontSize = "11px";
+	infoDiv.style.color = dark ? "rgba(255,200,0,0.8)" : "rgba(180,120,0,0.9)";
+	infoDiv.style.padding = "4px 8px";
+	infoDiv.style.background = dark ? "rgba(0,0,0,0.2)" : "rgba(255,240,200,0.5)";
+	infoDiv.style.borderRadius = "4px";
+	container.appendChild(infoDiv);
+
+	function updateInfoHeader(entityName) {
+		var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
+		if (entity && entity.data && entity.data.length > 0) {
+			var z = (entity.data[0].pointZLocation || 0).toFixed(1);
+			infoDiv.textContent = "Polygon: " + entityName + " (" + entity.data.length + " pts, Z=" + z + ")";
+		} else {
+			infoDiv.textContent = "Polygon: " + entityName;
+		}
+	}
+	updateInfoHeader(defaultName);
+
+	// Step 6) Extrusion form fields
 	var fields = [
 		{
 			label: "Depth (m) +ve=up, -ve=down",
@@ -237,37 +165,27 @@ function openExtrudeDialog(entity, entityName) {
 	];
 
 	var formContent = createEnhancedFormContent(fields, false, false);
+	container.appendChild(formContent);
 
-	// Step 3) Add entity info header
-	var infoDiv = document.createElement("div");
-	infoDiv.style.fontSize = "11px";
-	infoDiv.style.color = "rgba(255,200,0,0.8)";
-	infoDiv.style.marginBottom = "8px";
-	infoDiv.style.padding = "4px 8px";
-	infoDiv.style.background = "rgba(0,0,0,0.2)";
-	infoDiv.style.borderRadius = "4px";
-	infoDiv.textContent = "Polygon: " + entityName + " (" + entity.data.length + " pts, Z=" + ((entity.data[0].pointZLocation || 0).toFixed(1)) + ")";
-
-	var wrapper = document.createElement("div");
-	wrapper.appendChild(infoDiv);
-	wrapper.appendChild(formContent);
-
-	// Step 4) Add notes
+	// Notes
 	var notesDiv = document.createElement("div");
-	notesDiv.style.gridColumn = "1 / -1";
 	notesDiv.style.marginTop = "10px";
 	notesDiv.style.fontSize = "10px";
-	notesDiv.style.color = "#888";
+	notesDiv.style.color = dark ? "#888" : "#666";
 	notesDiv.innerHTML =
 		"<strong>Notes:</strong><br>" +
 		"&bull; Depth: +ve = extrude up, -ve = extrude down<br>" +
 		"&bull; Steps subdivide the side walls vertically<br>" +
 		"&bull; Preview updates live as you change values<br>" +
 		"&bull; Supports irregular Z per vertex<br>" +
-		"&bull; Solid Color becomes the surface colour on creation";
-	formContent.appendChild(notesDiv);
+		"&bull; Solid Color becomes the surface colour on creation<br>" +
+		"<br><strong>Tip:</strong> Click the pick button then click a polygon on the canvas.";
+	container.appendChild(notesDiv);
 
-	// Step 5) Get current params from form
+	// Step 7) Debounced preview
+	var previewDebounceTimer = null;
+	var PREVIEW_DEBOUNCE_MS = 100;
+
 	function getCurrentParams() {
 		var data = getFormData(formContent);
 		return {
@@ -277,65 +195,81 @@ function openExtrudeDialog(entity, entityName) {
 		};
 	}
 
-	// Step 6) Debounced preview update
+	function getCurrentEntity() {
+		var entityName = polyRow.select.value;
+		return window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
+	}
+
 	function triggerPreviewUpdate() {
 		if (previewDebounceTimer) {
 			clearTimeout(previewDebounceTimer);
 		}
 		previewDebounceTimer = setTimeout(function () {
-			var params = getCurrentParams();
-			updatePreview(entity, params, params.solidColor);
+			var entity = getCurrentEntity();
+			if (entity) {
+				var params = getCurrentParams();
+				updatePreview(entity, params, params.solidColor);
+			}
 		}, PREVIEW_DEBOUNCE_MS);
 	}
 
-	// Step 7) Attach event listeners for live preview on all inputs
+	// Step 8) Attach event listeners for live preview on all form inputs
 	var allInputs = formContent.querySelectorAll("input, select");
 	allInputs.forEach(function (input) {
 		input.addEventListener("input", triggerPreviewUpdate);
 		input.addEventListener("change", triggerPreviewUpdate);
 	});
 
-	// Step 8) Create dialog
+	// Also update preview when dropdown changes
+	polyRow.select.addEventListener("change", function () {
+		updateInfoHeader(polyRow.select.value);
+		triggerPreviewUpdate();
+	});
+
+	// Step 9) Create dialog
 	var dialog = new FloatingDialog({
 		title: "Extrude KAD to Solid",
-		content: wrapper,
+		content: container,
 		layoutType: "wide",
 		width: 420,
-		height: 400,
+		height: 460,
 		showConfirm: true,
 		showCancel: true,
 		confirmText: "Apply",
 		cancelText: "Cancel",
 		onConfirm: function () {
-			// Cancel pending preview updates
+			exitKADPickMode();
+
 			if (previewDebounceTimer) {
 				clearTimeout(previewDebounceTimer);
 				previewDebounceTimer = null;
 			}
 
-			// Clear preview
 			clearPreview();
 
-			// Get final parameters
 			var params = getCurrentParams();
+			var entity = getCurrentEntity();
 
-			// Save settings for next time
+			if (!entity) {
+				showInfoDialog("Selected polygon not found.");
+				return;
+			}
+
 			saveSettings(params);
 
-			// Apply the extrusion
 			var surfaceId = applyExtrusion(entity, params);
 			if (surfaceId) {
 				console.log("Extrude KAD applied: " + surfaceId);
 			}
 		},
 		onCancel: function () {
-			// Cancel pending preview updates
+			exitKADPickMode();
+
 			if (previewDebounceTimer) {
 				clearTimeout(previewDebounceTimer);
 				previewDebounceTimer = null;
 			}
 
-			// Clear preview and redraw
 			clearPreview();
 
 			if (typeof window.redraw3D === "function") {
@@ -348,7 +282,7 @@ function openExtrudeDialog(entity, entityName) {
 
 	dialog.show();
 
-	// Step 9) Initialize JSColor and trigger initial preview after dialog renders
+	// Step 10) Initialize JSColor and trigger initial preview after dialog renders
 	setTimeout(function () {
 		if (typeof jscolor !== "undefined") {
 			jscolor.install();
@@ -365,6 +299,39 @@ function openExtrudeDialog(entity, entityName) {
 		// Initial preview
 		triggerPreviewUpdate();
 	}, 200);
+}
+
+// ────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────
+
+function getAllClosedPolys() {
+	var result = [];
+	if (window.allKADDrawingsMap && window.allKADDrawingsMap.size > 0) {
+		window.allKADDrawingsMap.forEach(function (entity, entityName) {
+			if (entity.entityType === "poly" && entity.data && entity.data.length >= 3) {
+				var firstPt = entity.data[0];
+				if (firstPt && (firstPt.closed === true || firstPt.closed === undefined)) {
+					result.push({
+						name: entityName,
+						pointCount: entity.data.length
+					});
+				}
+			}
+		});
+	}
+	return result;
+}
+
+function isClosedPoly(entityName) {
+	var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
+	if (!entity || !entity.data || entity.data.length < 3) return false;
+	var firstPt = entity.data[0];
+	return firstPt && (firstPt.closed === true || firstPt.closed === undefined);
+}
+
+function isDarkMode() {
+	return typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
 }
 
 // ────────────────────────────────────────────────────────

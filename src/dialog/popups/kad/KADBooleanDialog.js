@@ -2,16 +2,15 @@
  * KADBooleanDialog.js
  *
  * Dialog for 2D boolean operations on KAD polygon entities.
- * Uses screen-selected polygons (N >= 2) when available.
- * Falls back to dropdown pickers if fewer than 2 are selected.
- *
- * For Union/XOR: all selected polys are combined.
- * For Intersect/Difference: first selected is subject (A), rest are clips.
+ * Single dialog with pick-row UI for Subject (A) and Clip (B) selection.
+ * Pick rows use [Label] [🎯] [Dropdown] pattern (shared via ScreenPickHelper).
+ * Pre-populates from screen selection when 2+ polys are selected.
  * Uses FloatingDialog + createEnhancedFormContent.
  */
 
 import { FloatingDialog, createEnhancedFormContent, getFormData } from "../../FloatingDialog.js";
 import { kadBoolean } from "../../../helpers/KADBooleanHelper.js";
+import { createPickRow, enterKADPickMode, exitKADPickMode } from "../../../helpers/ScreenPickHelper.js";
 
 // ────────────────────────────────────────────────────────
 // Public: show the KAD Boolean dialog
@@ -29,13 +28,158 @@ export function showKADBooleanDialog() {
 	// Step 2) Gather selected closed poly entity names from screen selection
 	var selectedPolys = getSelectedClosedPolys();
 
+	// Step 3) Build pick-row options
+	var polyOptions = allPolys.map(function (pe) {
+		return { value: pe.name, text: pe.name + " (" + pe.pointCount + " pts)" };
+	});
+
+	// Pre-set defaults from selection
+	var defaultA = selectedPolys.length > 0 ? selectedPolys[0] : polyOptions[0].value;
+	var defaultB = polyOptions[0].value;
 	if (selectedPolys.length >= 2) {
-		// 2+ selected — open directly with selection
-		openSelectionDialog(selectedPolys);
+		defaultB = selectedPolys[1];
 	} else {
-		// 0 or 1 selected — fall back to dropdown picker
-		openPickerDialog(allPolys, selectedPolys);
+		for (var i = 0; i < polyOptions.length; i++) {
+			if (polyOptions[i].value !== defaultA) {
+				defaultB = polyOptions[i].value;
+				break;
+			}
+		}
 	}
+
+	// Step 4) Build container
+	var container = document.createElement("div");
+	container.style.display = "flex";
+	container.style.flexDirection = "column";
+	container.style.gap = "8px";
+	container.style.padding = "4px 0";
+
+	// Selection info header (if pre-selected)
+	if (selectedPolys.length >= 2) {
+		var dark = isDarkMode();
+		var infoDiv = document.createElement("div");
+		infoDiv.style.fontSize = "11px";
+		infoDiv.style.color = dark ? "rgba(255,200,0,0.8)" : "rgba(180,120,0,0.9)";
+		infoDiv.style.marginBottom = "4px";
+		infoDiv.style.padding = "4px 8px";
+		infoDiv.style.background = dark ? "rgba(0,0,0,0.2)" : "rgba(255,240,200,0.5)";
+		infoDiv.style.borderRadius = "4px";
+		infoDiv.textContent = selectedPolys.length + " polygons pre-selected from screen";
+		container.appendChild(infoDiv);
+	}
+
+	// Pick row A — Subject
+	var rowA = createPickRow("Subject (A)", polyOptions, defaultA, function () {
+		enterKADPickMode(rowA, function (entityName) {
+			rowA.select.value = entityName;
+		});
+	});
+	container.appendChild(rowA.row);
+
+	// Pick row B — Clip
+	var rowB = createPickRow("Clip (B)", polyOptions, defaultB, function () {
+		enterKADPickMode(rowB, function (entityName) {
+			rowB.select.value = entityName;
+		});
+	});
+	container.appendChild(rowB.row);
+
+	// Step 5) Boolean form fields
+	var boolFields = [
+		{
+			label: "Operation",
+			name: "operation",
+			type: "select",
+			value: "union",
+			options: [
+				{ value: "union", text: "Union (A + B)" },
+				{ value: "intersect", text: "Intersect (A ∩ B)" },
+				{ value: "difference", text: "Difference (A - B)" },
+				{ value: "xor", text: "XOR (A △ B)" }
+			]
+		},
+		{
+			label: "Output Color",
+			name: "color",
+			type: "color",
+			value: "#FFCC00"
+		},
+		{
+			label: "Line Width",
+			name: "lineWidth",
+			type: "number",
+			value: 3, step: 1, min: 1, max: 10
+		},
+		{
+			label: "Layer Name",
+			name: "layerName",
+			type: "text",
+			value: "BOOLS"
+		}
+	];
+
+	var formContent = createEnhancedFormContent(boolFields, false, false);
+	container.appendChild(formContent);
+
+	// Notes
+	var notesDark = isDarkMode();
+	var notesDiv = document.createElement("div");
+	notesDiv.style.marginTop = "10px";
+	notesDiv.style.fontSize = "10px";
+	notesDiv.style.color = notesDark ? "#888" : "#666";
+	notesDiv.innerHTML =
+		"<strong>Operations:</strong><br>" +
+		"&bull; <b>Union</b> — merge both polygons into outer boundary<br>" +
+		"&bull; <b>Intersect</b> — keep only the overlapping region<br>" +
+		"&bull; <b>Difference</b> — subtract B from A<br>" +
+		"&bull; <b>XOR</b> — keep everything except the overlap<br>" +
+		"<br><strong>Tip:</strong> Click the pick button then click a polygon on the canvas.";
+	container.appendChild(notesDiv);
+
+	// Step 6) Create dialog
+	var dialog = new FloatingDialog({
+		title: "KAD Boolean Operation",
+		content: container,
+		layoutType: "wide",
+		width: 440,
+		height: 460,
+		showConfirm: true,
+		showCancel: true,
+		confirmText: "Execute",
+		cancelText: "Cancel",
+		onConfirm: function () {
+			exitKADPickMode();
+
+			var subjectName = rowA.select.value;
+			var clipName = rowB.select.value;
+			var data = getFormData(formContent);
+
+			if (subjectName === clipName) {
+				showInfoDialog("Subject and Clip must be different polygons.");
+				return;
+			}
+
+			var resultCount = kadBoolean({
+				entityNames: [subjectName, clipName],
+				operation: data.operation,
+				color: data.color || "#FFCC00",
+				lineWidth: parseInt(data.lineWidth) || 3,
+				layerName: data.layerName || "BOOLS"
+			});
+
+			if (resultCount > 0) {
+				console.log("KAD Boolean: Created " + resultCount + " result polygon(s)");
+			} else {
+				showInfoDialog("Boolean operation produced no results.\nThe polygons may not overlap.");
+			}
+		},
+		onCancel: function () {
+			exitKADPickMode();
+		}
+	});
+
+	dialog.show();
+	initJSColor(formContent);
 }
 
 // ────────────────────────────────────────────────────────
@@ -95,317 +239,8 @@ function isClosedPoly(entityName) {
 	return firstPt && (firstPt.closed === true || firstPt.closed === undefined);
 }
 
-function getPointCount(entityName) {
-	var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
-	return entity && entity.data ? entity.data.length : 0;
-}
-
-// ────────────────────────────────────────────────────────
-// Dialog A: 2+ polys from screen selection
-// ────────────────────────────────────────────────────────
-
-function openSelectionDialog(entityNames) {
-	var container = document.createElement("div");
-
-	// Selection summary header
-	var infoDiv = document.createElement("div");
-	infoDiv.style.fontSize = "11px";
-	infoDiv.style.color = "rgba(255,200,0,0.8)";
-	infoDiv.style.marginBottom = "10px";
-	infoDiv.style.padding = "6px 8px";
-	infoDiv.style.background = "rgba(0,0,0,0.2)";
-	infoDiv.style.borderRadius = "4px";
-	infoDiv.textContent = entityNames.length + " polygons selected";
-	container.appendChild(infoDiv);
-
-	// Polygon list with badges
-	var listDiv = createPolyList(entityNames);
-	container.appendChild(listDiv);
-
-	// Form + notes
-	var formContent = createBooleanForm();
-	container.appendChild(formContent);
-
-	var dialog = new FloatingDialog({
-		title: "KAD Boolean (" + entityNames.length + " polys)",
-		content: container,
-		layoutType: "wide",
-		width: 440,
-		height: 480,
-		showConfirm: true,
-		showCancel: true,
-		confirmText: "Execute",
-		cancelText: "Cancel",
-		onConfirm: function () {
-			executeBooleanFromForm(formContent, entityNames);
-		}
-	});
-
-	dialog.show();
-	initJSColor(formContent);
-}
-
-// ────────────────────────────────────────────────────────
-// Dialog B: Fallback dropdown picker (0 or 1 selected)
-// ────────────────────────────────────────────────────────
-
-function openPickerDialog(allPolys, preSelected) {
-	var entityOptions = allPolys.map(function (pe) {
-		return { value: pe.name, text: pe.name + " (" + pe.pointCount + " pts)" };
-	});
-
-	// Pre-set defaults from any existing selection
-	var defaultA = preSelected.length > 0 ? preSelected[0] : entityOptions[0].value;
-	var defaultB = entityOptions[0].value;
-	for (var i = 0; i < entityOptions.length; i++) {
-		if (entityOptions[i].value !== defaultA) {
-			defaultB = entityOptions[i].value;
-			break;
-		}
-	}
-
-	var pickerFields = [
-		{
-			label: "Subject Polygon (A)",
-			name: "subjectName",
-			type: "select",
-			value: defaultA,
-			options: entityOptions,
-			tooltip: "The primary polygon (A)"
-		},
-		{
-			label: "Clip Polygon (B)",
-			name: "clipName",
-			type: "select",
-			value: defaultB,
-			options: entityOptions,
-			tooltip: "The secondary polygon (B)"
-		}
-	];
-
-	var pickerContent = createEnhancedFormContent(pickerFields, false, false);
-
-	// Also add the boolean form fields
-	var boolFields = [
-		{
-			label: "Operation",
-			name: "operation",
-			type: "select",
-			value: "union",
-			options: [
-				{ value: "union", text: "Union (A + B)" },
-				{ value: "intersect", text: "Intersect (A ∩ B)" },
-				{ value: "difference", text: "Difference (A - B)" },
-				{ value: "xor", text: "XOR (A △ B)" }
-			]
-		},
-		{
-			label: "Output Color",
-			name: "color",
-			type: "color",
-			value: "#FFCC00"
-		},
-		{
-			label: "Line Width",
-			name: "lineWidth",
-			type: "number",
-			value: 3, step: 1, min: 1, max: 10
-		},
-		{
-			label: "Layer Name",
-			name: "layerName",
-			type: "text",
-			value: "BOOLS"
-		}
-	];
-
-	var boolContent = createEnhancedFormContent(boolFields, false, false);
-
-	// Combine into wrapper
-	var wrapper = document.createElement("div");
-
-	var hintDiv = document.createElement("div");
-	hintDiv.style.fontSize = "10px";
-	hintDiv.style.color = "#999";
-	hintDiv.style.marginBottom = "8px";
-	hintDiv.textContent = "Tip: Select 2+ polys on screen first, then click KAD Boolean to skip this picker.";
-	wrapper.appendChild(hintDiv);
-	wrapper.appendChild(pickerContent);
-	wrapper.appendChild(boolContent);
-
-	// Notes
-	var notesDiv = document.createElement("div");
-	notesDiv.style.gridColumn = "1 / -1";
-	notesDiv.style.marginTop = "10px";
-	notesDiv.style.fontSize = "10px";
-	notesDiv.style.color = "#888";
-	notesDiv.innerHTML =
-		"<strong>Operations:</strong><br>" +
-		"&bull; <b>Union</b> — merge both polygons into outer boundary<br>" +
-		"&bull; <b>Intersect</b> — keep only the overlapping region<br>" +
-		"&bull; <b>Difference</b> — subtract B from A<br>" +
-		"&bull; <b>XOR</b> — keep everything except the overlap";
-	boolContent.appendChild(notesDiv);
-
-	var dialog = new FloatingDialog({
-		title: "KAD Boolean Operation",
-		content: wrapper,
-		layoutType: "wide",
-		width: 440,
-		height: 480,
-		showConfirm: true,
-		showCancel: true,
-		confirmText: "Execute",
-		cancelText: "Cancel",
-		onConfirm: function () {
-			var pickerData = getFormData(pickerContent);
-			var boolData = getFormData(boolContent);
-
-			if (pickerData.subjectName === pickerData.clipName) {
-				showInfoDialog("Subject and Clip must be different polygons.");
-				return;
-			}
-
-			var resultCount = kadBoolean({
-				entityNames: [pickerData.subjectName, pickerData.clipName],
-				operation: boolData.operation,
-				color: boolData.color || "#FFCC00",
-				lineWidth: parseInt(boolData.lineWidth) || 3,
-				layerName: boolData.layerName || "BOOLS"
-			});
-
-			if (resultCount > 0) {
-				console.log("KAD Boolean: Created " + resultCount + " result polygon(s)");
-			} else {
-				showInfoDialog("Boolean operation produced no results.\nThe polygons may not overlap.");
-			}
-		}
-	});
-
-	dialog.show();
-	initJSColor(pickerContent);
-	initJSColor(boolContent);
-}
-
-// ────────────────────────────────────────────────────────
-// Shared helpers
-// ────────────────────────────────────────────────────────
-
-function createPolyList(entityNames) {
-	var listDiv = document.createElement("div");
-	listDiv.style.maxHeight = "150px";
-	listDiv.style.overflowY = "auto";
-	listDiv.style.border = "1px solid rgba(255,255,255,0.15)";
-	listDiv.style.borderRadius = "4px";
-	listDiv.style.padding = "4px";
-	listDiv.style.background = "rgba(0,0,0,0.15)";
-	listDiv.style.marginBottom = "10px";
-
-	for (var i = 0; i < entityNames.length; i++) {
-		var row = document.createElement("div");
-		row.style.display = "flex";
-		row.style.alignItems = "center";
-		row.style.padding = "3px 6px";
-		row.style.fontSize = "12px";
-		row.style.gap = "6px";
-
-		var badge = document.createElement("span");
-		badge.style.fontSize = "10px";
-		badge.style.padding = "1px 5px";
-		badge.style.borderRadius = "3px";
-		badge.style.flexShrink = "0";
-		badge.textContent = String.fromCharCode(65 + i); // A, B, C, D, ...
-		if (i === 0) {
-			badge.style.background = "rgba(68,136,255,0.3)";
-			badge.style.color = "#88CCFF";
-		} else {
-			badge.style.background = "rgba(255,136,68,0.2)";
-			badge.style.color = "#FFAA88";
-		}
-
-		var label = document.createElement("span");
-		label.style.overflow = "hidden";
-		label.style.textOverflow = "ellipsis";
-		label.style.whiteSpace = "nowrap";
-		label.style.flex = "1";
-		label.textContent = entityNames[i] + " (" + getPointCount(entityNames[i]) + " pts)";
-
-		row.appendChild(badge);
-		row.appendChild(label);
-		listDiv.appendChild(row);
-	}
-
-	return listDiv;
-}
-
-function createBooleanForm() {
-	var fields = [
-		{
-			label: "Operation",
-			name: "operation",
-			type: "select",
-			value: "union",
-			options: [
-				{ value: "union", text: "Union — merge all into outer boundary" },
-				{ value: "intersect", text: "Intersect — common region of all" },
-				{ value: "difference", text: "Difference — A minus all others" },
-				{ value: "xor", text: "XOR — symmetric difference" }
-			]
-		},
-		{
-			label: "Output Color",
-			name: "color",
-			type: "color",
-			value: "#FFCC00"
-		},
-		{
-			label: "Line Width",
-			name: "lineWidth",
-			type: "number",
-			value: 3, step: 1, min: 1, max: 10
-		},
-		{
-			label: "Layer Name",
-			name: "layerName",
-			type: "text",
-			value: "BOOLS"
-		}
-	];
-
-	var formContent = createEnhancedFormContent(fields, false, false);
-
-	var notesDiv = document.createElement("div");
-	notesDiv.style.gridColumn = "1 / -1";
-	notesDiv.style.marginTop = "10px";
-	notesDiv.style.fontSize = "10px";
-	notesDiv.style.color = "#888";
-	notesDiv.innerHTML =
-		"<strong>Operations:</strong><br>" +
-		"&bull; <b>Union</b> — merge all polygons into outer boundary<br>" +
-		"&bull; <b>Intersect</b> — keep region common to all (A ∩ B ∩ ...)<br>" +
-		"&bull; <b>Difference</b> — subtract B,C,... from A<br>" +
-		"&bull; <b>XOR</b> — symmetric difference of all";
-	formContent.appendChild(notesDiv);
-
-	return formContent;
-}
-
-function executeBooleanFromForm(formContent, entityNames) {
-	var data = getFormData(formContent);
-
-	var resultCount = kadBoolean({
-		entityNames: entityNames,
-		operation: data.operation,
-		color: data.color || "#FFCC00",
-		lineWidth: parseInt(data.lineWidth) || 3,
-		layerName: data.layerName || "BOOLS"
-	});
-
-	if (resultCount > 0) {
-		console.log("KAD Boolean: Created " + resultCount + " result polygon(s) from " + entityNames.length + " inputs");
-	} else {
-		showInfoDialog("Boolean operation produced no results.\nThe polygons may not overlap.");
-	}
+function isDarkMode() {
+	return typeof window.darkModeEnabled !== "undefined" ? window.darkModeEnabled : true;
 }
 
 function initJSColor(container) {
