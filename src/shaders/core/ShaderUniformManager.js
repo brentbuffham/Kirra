@@ -9,7 +9,7 @@ import { chargingKey } from "../../charging/HoleCharging.js";
  *
  * Pixel 0 (Row 0): [collarX, collarY, collarZ, totalChargeKg]
  * Pixel 1 (Row 1): [toeX, toeY, toeZ, holeLength_m]
- * Pixel 2 (Row 2): [MIC_kg, timing_ms, holeDiam_mm, unused]
+ * Pixel 2 (Row 2): [MIC_kg, detonation_time_ms, holeDiam_mm, unused]
  * Pixel 3 (Row 3): [chargeTopDepth_m, chargeBaseDepth_m, vodMs, totalExplosiveMassKg]
  *
  * Row 3 is populated from actual charging data (window.loadedCharging) when available.
@@ -72,7 +72,7 @@ export class ShaderUniformManager {
             // Row 2: MIC, timing, diameter, unused
             var row2Idx = (this.textureWidth * 2 * 4) + (i * 4);
             this.data[row2Idx + 0] = this._getMIC(h);       // Max Instantaneous Charge
-            this.data[row2Idx + 1] = this._parseHoleTime(h.holeTime) || 0;  // firing time ms
+            this.data[row2Idx + 1] = this._getDetonationTime(h);  // firing time ms (includes downhole delay)
             this.data[row2Idx + 2] = parseFloat(h.holeDiameter) || 115;
             this.data[row2Idx + 3] = 0; // unused
 
@@ -131,7 +131,7 @@ export class ShaderUniformManager {
         // Update row 2 (MIC, timing)
         var row2Idx = (this.textureWidth * 2 * 4) + (index * 4);
         this.data[row2Idx + 0] = this._getMIC(hole);
-        this.data[row2Idx + 1] = this._parseHoleTime(hole.holeTime) || 0;
+        this.data[row2Idx + 1] = this._getDetonationTime(hole);
 
         // Update row 3 (charging details)
         var row3Idx = (this.textureWidth * 3 * 4) + (index * 4);
@@ -256,6 +256,63 @@ export class ShaderUniformManager {
         }
         // Fallback: total measured mass (single-deck assumption)
         return parseFloat(hole.measuredMass) || 0;
+    }
+
+    /**
+     * Get the detonation time for a hole in milliseconds.
+     *
+     * When charging data with primers exists, uses the earliest deck's
+     * total fire time (surfaceTime + downholeDelay). This is critical for
+     * electronic detonators where surface wire delay is ~0 (speed of light)
+     * and the actual detonation time is the programmed downhole delay.
+     *
+     * Falls back to surface holeTime when no charging/primer data exists.
+     *
+     * @param {Object} hole - Blast hole object
+     * @returns {number} - Detonation time in milliseconds
+     * @private
+     */
+    _getDetonationTime(hole) {
+        var surfaceTime = this._parseHoleTime(hole.holeTime) || 0;
+
+        if (!window.loadedCharging) return surfaceTime;
+
+        var charging = window.loadedCharging.get(chargingKey(hole));
+        if (!charging || !charging.decks || !charging.primers || charging.primers.length === 0) {
+            return surfaceTime;
+        }
+
+        // Find earliest detonation time across all explosive decks
+        var earliestTime = Infinity;
+        for (var d = 0; d < charging.decks.length; d++) {
+            var deck = charging.decks[d];
+            if (deck.deckType !== "COUPLED" && deck.deckType !== "DECOUPLED") continue;
+
+            var downholeDelay = 0;
+            // Match primer to deck by deckID
+            for (var p = 0; p < charging.primers.length; p++) {
+                if (charging.primers[p].deckID === deck.deckID) {
+                    downholeDelay = charging.primers[p].totalDownholeDelayMs || 0;
+                    break;
+                }
+            }
+            // Fallback: primer within deck depth bounds
+            if (downholeDelay === 0) {
+                for (var p2 = 0; p2 < charging.primers.length; p2++) {
+                    if (deck.containsDepth && deck.containsDepth(charging.primers[p2].lengthFromCollar)) {
+                        downholeDelay = charging.primers[p2].totalDownholeDelayMs || 0;
+                        break;
+                    }
+                }
+            }
+
+            var deckFireTime = surfaceTime + downholeDelay;
+            if (deckFireTime < earliestTime) {
+                earliestTime = deckFireTime;
+            }
+        }
+
+        return isFinite(earliestTime) ? earliestTime : surfaceTime;
     }
 
     /**

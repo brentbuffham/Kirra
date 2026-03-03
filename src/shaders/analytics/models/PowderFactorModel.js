@@ -194,7 +194,7 @@ export function prepareDeckDataTexture(holes) {
 		var axZ = (h.endZLocation - h.startZLocation) / holeLen;
 
 		var holeDiamMm = parseFloat(h.holeDiameter) || 115;
-		var timingMs = parseFloat(h.holeTime) || parseFloat(h.timingDelayMilliseconds) || 0;
+		var surfaceTimeMs = parseFloat(h.holeTime) || parseFloat(h.timingDelayMilliseconds) || 0;
 
 		if (!chargingObj || !chargingObj.decks || chargingObj.decks.length === 0) {
 			// Fallback: treat entire hole as single charge (30%-100% of hole)
@@ -213,11 +213,14 @@ export function prepareDeckDataTexture(holes) {
 				density: 1.2,   // fallback density (kg/L)
 				vod: 5000,      // fallback VOD (m/s)
 				holeDiamMm: holeDiamMm,
-				timingMs: timingMs,
+				timingMs: surfaceTimeMs,
 				holeIndex: i
 			});
 			continue;
 		}
+
+		// Build primer lookup for downhole delays
+		var primers = chargingObj.primers || [];
 
 		for (var d = 0; d < chargingObj.decks.length; d++) {
 			var deck = chargingObj.decks[d];
@@ -234,6 +237,26 @@ export function prepareDeckDataTexture(holes) {
 			var density = product ? (parseFloat(product.density) || 1.2) : 1.2;  // g/cc = kg/L
 			var vod = product ? (parseFloat(product.vodMs) || 5000) : 5000;
 
+			// Calculate per-deck detonation time: surface + downhole delay
+			// For electronic detonators, surface time ~0 (speed of light through wire)
+			// and the actual detonation time is the programmed downhole delay
+			var downholeDelayMs = 0;
+			for (var p = 0; p < primers.length; p++) {
+				if (primers[p].deckID === deck.deckID) {
+					downholeDelayMs = primers[p].totalDownholeDelayMs || 0;
+					break;
+				}
+			}
+			// Fallback: primer within deck depth bounds
+			if (downholeDelayMs === 0) {
+				for (var p2 = 0; p2 < primers.length; p2++) {
+					if (deck.containsDepth && deck.containsDepth(primers[p2].lengthFromCollar)) {
+						downholeDelayMs = primers[p2].totalDownholeDelayMs || 0;
+						break;
+					}
+				}
+			}
+
 			deckEntries.push({
 				topX: h.startXLocation + axX * deckTop,
 				topY: h.startYLocation + axY * deckTop,
@@ -245,7 +268,7 @@ export function prepareDeckDataTexture(holes) {
 				density: density,
 				vod: vod,
 				holeDiamMm: holeDiamMm,
-				timingMs: timingMs,
+				timingMs: surfaceTimeMs + downholeDelayMs,
 				holeIndex: i
 			});
 		}

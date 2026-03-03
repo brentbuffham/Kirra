@@ -30634,7 +30634,8 @@ function drawData(allBlastHoles, selectedHole) {
 					displayOptions3D.xValue || displayOptions3D.yValue || displayOptions3D.zValue ||
 					displayOptions3D.displayRowAndPosId || displayOptions3D.measuredLength || displayOptions3D.measuredMass ||
 					displayOptions3D.measuredComment || displayOptions3D.holeDip ||
-					displayOptions3D.massPerHole || displayOptions3D.massPerDeck;
+					displayOptions3D.massPerHole || displayOptions3D.massPerDeck ||
+					displayOptions3D.downholeTiming;
 
 				if (hasTextOptions) {
 					for (var holeIdx2 = 0; holeIdx2 < visibleHoles.length; holeIdx2++) {
