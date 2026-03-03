@@ -65,7 +65,7 @@ export function updatePopup() {
         '<path d="M65.76,119.94c0,0-0.8-2.02-2.61-2.63c-1.81-0.61-4.99-0.91-6.88-0.92s-3.11,0.63-4.16,0c-1.05-0.63-1.66-1.39-1.66-1.39" />' +
         "</svg>" +
         '<label class="labelWhite18" style="text-align: center; font-weight: bold;">Welcome to Kirra</label>' +
-        '<i><label class="labelWhite15" style="text-align: center;">Version: Build ' +
+        '<i><label class="labelWhite15" style="text-align: center;">' +
         window.buildVersion +
         "</i></label>" +
         '<div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--light-mode-border); padding: 10px; text-align: center; width: 100%;">' +
@@ -100,7 +100,7 @@ export function updatePopup() {
 
     // Step 6c) Create FloatingDialog
     const dialog = new window.FloatingDialog({
-        title: "Kirra - Version " + window.buildVersion,
+        title: "Kirra - " + (window.appVersion ? "v" + window.appVersion : window.buildVersion),
         content: content,
         width: 500,
         height: 730,

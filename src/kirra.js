@@ -415,14 +415,17 @@ import { printHeader, printFooter, printBlastStats, printBlastStatsSimple } from
 
 // Description: This file contains the main functions for the Kirra App
 // Author: Brent Buffham
-// Last Modified: "20250816.0140AWST"
-// Get system date/time and format as YYYYMMDD.HHMM (in user's local time)
-const now = new Date();
-const pad = (n, len = 2) => n.toString().padStart(len, '0');
-const buildVersion =
-	`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.` +
-	`${pad(now.getHours())}${pad(now.getMinutes())}`;
-window.buildVersion = buildVersion; // Expose to window for dialog modules
+// Build info injected by Vite at compile time (see vite.config.js)
+// __APP_VERSION__ comes from package.json "version"
+// __BUILD_DATE__ and __BUILD_TIME__ are stamped in AWST at build time
+const appVersion = __APP_VERSION__;
+const buildDate = __BUILD_DATE__;
+const buildTime = __BUILD_TIME__;
+const buildVersion = appVersion + " | " + buildDate + " " + buildTime + " AWST";
+window.buildVersion = buildVersion;
+window.appVersion = appVersion;
+window.buildDate = buildDate;
+window.buildTime = buildTime;
 
 //=================================================
 // FileManager IO System - Expose globally for file operations
