@@ -95,7 +95,7 @@ export class PPVDeckModel {
 		`;
 
 		var footer = `
-				if (minDist > uMaxDisplayDistance) discard;
+				if (peakPPV <= 0.0 || minDist > uMaxDisplayDistance) discard;
 				if (peakPPV < uMinValue * 0.01) discard;
 
 				vec4 colour;
