@@ -11,19 +11,27 @@ Ideas and potential tasks to discuss or implement later.
 5. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
 6. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
 7. Charging — Formula Builder UI — _medium risk, new UI component_
-8. KAD Modification Tools — _low risk, additive new tools_
+8. ~~KAD Modification Tools~~ — **COMPLETED** (2026-03-03)
+8b. KAD Extend/Trim Segment to Segment ("T-Junction") Tool — _low risk, new tool_
+8c. CSG Solid Boolean — Normals Alignment Warning — _quick win, UI-only_
 9. TreeView Revamp — _low-medium risk, medium effort_
 10. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
 11. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
 12. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
 13. Electronic Timing Tools — _medium risk, new feature area_
 14. Performance & Large Dataset Scalability — _medium-high risk, high effort_
-15. Replace local helpers with trimesh-boolean npm package — _high risk, dependency swap_
+15. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
 16. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
 
 ## Under Consideration
 
-- **Replace local helpers with trimesh-boolean npm package** — Remove ~4,300 lines of duplicated algorithm code from `src/helpers/` (SurfaceBooleanHelper, MeshRepairHelper, SurfaceIntersectionHelper, SurfaceNormalHelper) and import from `trimesh-boolean` instead. Keeps Kirra-specific wrappers (dialogs, undo, preview). Risk: adds npm dependency. (2026-02-25)
+- **Update trimesh-boolean library with Kirra insights** — Feed back all the mesh repair, normals, and diagnostics knowledge gained from building the Surface Boolean tool into the `trimesh-boolean` npm library. Make it a standalone, full-featured mesh toolkit. Key additions: (updated 2026-03-03)
+  - **Mesh repair**: stitch by proximity, force-close indexed mesh (with max distance limit), weld vertices, remove degenerate/sliver triangles, clean non-manifold crossings, remove overlapping/internal walls
+  - **Normals**: detect direction (Z+, Z-, Out, In, Chaos), align Z-up, flip normals, classify per-region
+  - **Diagnostics/warnings**: closed vs open mesh detection, boundary edge count, hole finding, normal consistency report, topology badges
+  - **Boolean pipeline**: split-and-classify with Steiner point re-triangulation, per-component split groups, seam closure modes (raw, stitch, close by stitching)
+  - **Build a Three.js demo app** — interactive demo using Three.js to visualise boolean operations, mesh repair steps, normals colouring, hole detection, and diagnostics overlays
+  - Source insights from: `SurfaceBooleanHelper.js`, `MeshRepairHelper.js`, `SurfaceIntersectionHelper.js`, `SurfaceNormalHelper.js`, `SurfaceHighlightHelper.js`
 
 - **UI/UX Overhaul — Align with Kirra Scheduler** — Redesign the UI to match the Kirra Scheduler aesthetic while maintaining a desktop CAD design tool feel. Key goals: (2026-02-25)
   - Remove side navs, replace with a proper **menubar** system
@@ -55,11 +63,22 @@ Ideas and potential tasks to discuss or implement later.
 
 - **Offset and Radii Undo/Redo Deletion** — Offset and radii operations that create new entities currently lack undo/redo support for deletion of those results. If a user deletes an offset or radii entity, there is no way to recover it. Implement undo/redo hooks for these destructive actions. (2026-02-25)
 
-- **KAD Modification Tools** — A set of new tools for editing KAD line/poly entities: (2026-02-25)
-  - **Split line/poly at point** — Split an existing line or polygon entity into two separate entities at a selected point
-  - **Join lines** — Merge two line entities into a single continuous line (snap endpoints)
-  - **Insert point** — Insert a new vertex into an existing line/poly segment at a specified location
-  - **Extend segment to intersecting line** — Extend the end of a line/poly segment until it intersects another line entity
+- ~~**KAD Modification Tools**~~ — **COMPLETED** (2026-03-03). All sub-items implemented:
+  - ~~**Split line/poly at point**~~ — ✅ `SplitKADLinesHelper.js` + `KADSplitLinesDialog.js`
+  - ~~**Join lines**~~ — ✅ `JoinKADLinesHelper.js` + `KADJoinLinesDialog.js`
+  - ~~**Insert point**~~ — ✅ Via KAD context menu (right-click segment → Insert Point)
+  - ~~**Extend segment to intersecting line**~~ — _Moved to item 8b (T-Junction Tool)_
+
+- **CSG Solid Boolean — Normals Alignment Warning** — Add a warning/info message in the Solid CSG Boolean dialog reminding the user to align normals outward on both closed solids before running the operation. Misaligned or inconsistent normals produce unreliable CSG results. Could be a persistent info banner at the top of the dialog, or a pre-flight check that inspects the normal direction badges and warns if either solid is not "Out" or "Z+". (2026-03-03)
+
+- **KAD Extend/Trim Segment to Segment ("T-Junction") Tool** — A tool for extending or shortening a line/poly endpoint to meet another segment, creating a clean "T" junction. Workflow: (2026-03-03)
+  1. Select a line or poly entity and pick an **endpoint** on a segment to extend/trim
+  2. Select a **target segment** on the same line or a different line/poly
+  3. The selected endpoint is moved along its segment direction until it meets (intersects) the target segment
+  - Handles both **extend** (lengthen to reach target) and **trim** (shorten back to target)
+  - Should show a live preview of the projected intersection point before confirming
+  - Works with line and poly entity types
+  - Uses the existing Select Pointer + KAD pick pattern for interactive segment/endpoint selection
 
 - **Charging System UI Improvements** — Enhance the deck/charging interface for better usability: (2026-02-25)
   - **Right-click context menu on deck** — Right-click a deck to edit it, link to deck-base above, or link to deck-top below
@@ -97,10 +116,7 @@ Ideas and potential tasks to discuss or implement later.
 
 - **Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer Scenario)** — Surface boolean operations fail when both input meshes are open (e.g., a tea cup intersected with a saucer — two open shells). Works perfectly on open mesh vs closed solid, and closed solid vs closed solid. Investigate edge cases in the boolean pipeline for dual-open-mesh inputs. (2026-02-25)
 
-- **KAD Entity Validation & Sorting** — The previous entity type auto-sorting code (converting invalid types like 2-pt poly→line, 1-pt line→point) didn't stick. Revisit with a stricter approach: (2026-02-25)
-  - **Prevent saving invalid entities** — lines must have ≥2 points, polys must have ≥3 points
-  - Show **user warnings** when attempting to save incomplete entities rather than silently converting
-  - Review and fix the existing sorting/validation logic
+- ~~**KAD Entity Validation & Sorting**~~ — **COMPLETED** (2026-02-26). See Completed section below.
 
 ## Decided / Ready to Implement
 
@@ -111,3 +127,5 @@ _(move items here when ready to proceed)_
 - **KAD Entity Validation & Sorting** — Implemented 2026-02-26. Files: `src/helpers/KADValidationHelper.js`, modified `src/kirra.js` (endKadTools, debouncedSaveKAD, loadKADFromDB), `src/dialog/contextMenu/ContextMenuManager.js`. Interactive Convert/Discard dialog on invalid entities (Escape, right-click, entity finish). Silent batch validation on save/load chokepoints.
 
 - **Surface Contour Line Generation** — Implemented 2026-02-26. Files: `src/helpers/ContourHelper.js`, `src/dialog/popups/surface/ContourDialog.js`. Plane-triangle intersection slicing with elevation-based entity naming (`RL{elev}-{seq}-{uid}`), line/poly toggle, settings persistence.
+
+- **KAD Modification Tools** — Implemented by 2026-03-03. Split: `src/helpers/SplitKADLinesHelper.js` + `src/dialog/popups/kad/KADSplitLinesDialog.js`. Join: `src/helpers/JoinKADLinesHelper.js` + `src/dialog/popups/kad/KADJoinLinesDialog.js`. Insert Point: via KAD right-click context menu (`src/dialog/contextMenu/KADContextMenu.js`). "Extend segment" sub-item moved to backlog item 8b (T-Junction Tool).
