@@ -75,7 +75,7 @@ export class PowderFactorModel {
 				float peakPF = 0.0;
 				float minDist = 1e10;
 
-				for (int i = 0; i < 2048; i++) {
+				for (int i = 0; i < 512; i++) {
 					if (i >= uDeckCount) break;
 
 					vec4 top = getDeckData(i, 0);  // [topX, topY, topZ, mass]

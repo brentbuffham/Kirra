@@ -188,7 +188,7 @@ export function applyBlastAnalysisShader(config) {
 	}
 
 	// Show legend
-	var legendInfo = getShaderLegendInfo(config.model);
+	var legendInfo = getShaderLegendInfo(config.model, config.params);
 	showShaderAnalyticsLegend(
 		legendInfo.title,
 		legendInfo.minVal,
@@ -494,11 +494,13 @@ function createFlattenedAnalysisImage(surfaceId, surface, bakeResult) {
 /**
  * Get legend information for a shader model.
  * Dynamically samples colours from ColourRampFactory.RAMPS.
+ * When PPV models have a targetPPV > 0, generates a split ramp legend.
  *
  * @param {string} modelName - Model name
+ * @param {Object} [params] - Model parameters (optional, for target PPV split ramp)
  * @returns {Object} - { title, minVal, maxVal, colorStops }
  */
-function getShaderLegendInfo(modelName) {
+function getShaderLegendInfo(modelName, params) {
 	var models = {
 		ppv: { title: "PPV (mm/s)", ramp: "ppv", min: 0, max: 200 },
 		heelan_original: { title: "PPV (mm/s)", ramp: "jet", min: 0, max: 300 },
@@ -512,6 +514,37 @@ function getShaderLegendInfo(modelName) {
 		ppv_deck: { title: "PPV (mm/s)", ramp: "ppv", min: 0, max: 200 }
 	};
 	var info = models[modelName] || models.ppv;
+
+	// PPV models with active target: split ramp (Purple→Blue | Green→Red)
+	var targetPPV = params && params.targetPPV ? params.targetPPV : 0;
+	var isPPV = (modelName === "ppv" || modelName === "ppv_deck");
+	if (isPPV && targetPPV > 0) {
+		var maxVal = info.max;
+		// Legend renders top-to-bottom: pos 0 = top = min, pos 1 = bottom = max
+		// (matches existing PPV legend convention)
+		var targetPos = targetPPV / maxVal;  // normalized position of target
+
+		// Below target zone: Purple (0) → Blue (target) at top of legend
+		// Above target zone: Green (target) → Red (max) at bottom of legend
+		var colorStops = [
+			{ pos: 0.0,  color: "rgb(128,0,204)" },                  // 0 mm/s = purple
+			{ pos: Math.max(0.01, targetPos * 0.5), color: "rgb(80,0,160)" },  // mid-below = blue-purple
+			{ pos: Math.max(0.02, targetPos - 0.01), color: "rgb(0,0,255)" },  // just below target = blue
+			{ pos: targetPos + 0.01, color: "rgb(0,204,0)" },        // just above target = green
+			{ pos: Math.min(0.99, targetPos + (1.0 - targetPos) * 0.5), color: "rgb(255,128,0)" }, // mid-above = orange
+			{ pos: 1.0,  color: "rgb(255,0,0)" }                     // max = red
+		];
+
+		// Custom tick values showing the target boundary
+		colorStops.tickValues = [
+			{ value: 0, pos: 0.0, label: "0" },
+			{ value: targetPPV, pos: targetPos, label: targetPPV.toFixed(0) + " (target)" },
+			{ value: maxVal, pos: 1.0, label: maxVal.toFixed(0) }
+		];
+
+		return { title: info.title, minVal: info.min, maxVal: info.max, colorStops: colorStops };
+	}
+
 	var stops = ColourRampFactory.RAMPS[info.ramp] || ColourRampFactory.RAMPS["jet"];
 
 	// Sample 5 colours at positions 0, 0.25, 0.5, 0.75, 1.0
@@ -527,12 +560,6 @@ function getShaderLegendInfo(modelName) {
 
 	// For log-scale models, provide custom tick labels at log-spaced positions
 	if (modelName === "powder_factor_vol") {
-		// Log10 scale: min=0.01 (-2), max=100 (+2), range=4 decades
-		// Tick positions in normalized log space:
-		//   0    → log10(0.01) = -2 → pos = 0.0
-		//   1    → log10(1)    =  0 → pos = 0.5
-		//   10   → log10(10)   =  1 → pos = 0.75
-		//   100  → log10(100)  =  2 → pos = 1.0
 		colorStops.tickValues = [
 			{ value: 0, pos: 0.0, label: "0" },
 			{ value: 1, pos: 0.5, label: "1" },
@@ -827,7 +854,7 @@ export function bakeLiveShaderTo2D(liveSurfaceId, config) {
 }
 
 /**
- * Remove a live flattened analysis image from 2D view.
+ * Remove a live flattened analysis image from both 2D and 3D views.
  *
  * @param {string} liveSurfaceId - Live surface ID
  */
@@ -836,6 +863,26 @@ export function removeLiveFlattenedImage(liveSurfaceId) {
 	var imageId = "flattened_live_" + liveSurfaceId;
 	if (window.loadedImages) {
 		window.loadedImages.delete(imageId);
+	}
+	// Remove the corresponding Three.js image mesh from imagesGroup
+	if (window.threeRenderer && window.threeRenderer.imagesGroup) {
+		var toRemove = [];
+		window.threeRenderer.imagesGroup.children.forEach(function(child) {
+			if (child.userData && child.userData.imageId === imageId) {
+				toRemove.push(child);
+			}
+		});
+		for (var i = 0; i < toRemove.length; i++) {
+			window.threeRenderer.imagesGroup.remove(toRemove[i]);
+			if (toRemove[i].geometry) toRemove[i].geometry.dispose();
+			if (toRemove[i].material) {
+				if (toRemove[i].material.map) toRemove[i].material.map.dispose();
+				toRemove[i].material.dispose();
+			}
+		}
+		if (toRemove.length > 0) {
+			window.threeRenderer.needsRender = true;
+		}
 	}
 	// Redraw 2D
 	if (window.drawData) {
@@ -963,7 +1010,7 @@ export function applyLiveAnalysisShader(config) {
 	window.threeRenderer.needsRender = true;
 
 	// Show legend
-	var legendInfo = getShaderLegendInfo(config.model);
+	var legendInfo = getShaderLegendInfo(config.model, config.params);
 	showShaderAnalyticsLegend(legendInfo.title, legendInfo.minVal, legendInfo.maxVal, legendInfo.colorStops);
 
 	console.log("Live analysis shader applied: " + surfaceId + " (" + config.model + ")");

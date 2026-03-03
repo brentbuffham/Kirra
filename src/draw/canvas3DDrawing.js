@@ -22,6 +22,7 @@ var voronoi3DCache = {
 	dataVersion: -1,
 	metric: null,
 	useToeLocation: null,
+	isLegendFixed: null,
 	exists: false
 };
 
@@ -42,8 +43,9 @@ var relief3DCache = {
 function shouldSkipVoronoi3DRebuild(metric, useToeLocation) {
 	// Get current data version from AnalysisCache module
 	var currentVersion = window.analysisDataVersion || 0;
+	var legendFixed = window.isVoronoiLegendFixed || false;
 
-	if (voronoi3DCache.exists && voronoi3DCache.dataVersion === currentVersion && voronoi3DCache.metric === metric && voronoi3DCache.useToeLocation === useToeLocation) {
+	if (voronoi3DCache.exists && voronoi3DCache.dataVersion === currentVersion && voronoi3DCache.metric === metric && voronoi3DCache.useToeLocation === useToeLocation && voronoi3DCache.isLegendFixed === legendFixed) {
 		return true; // Skip rebuild - geometry is still valid
 	}
 	return false;
@@ -58,6 +60,7 @@ function markVoronoi3DBuilt(metric, useToeLocation) {
 		dataVersion: currentVersion,
 		metric: metric,
 		useToeLocation: useToeLocation,
+		isLegendFixed: window.isVoronoiLegendFixed || false,
 		exists: true
 	};
 }

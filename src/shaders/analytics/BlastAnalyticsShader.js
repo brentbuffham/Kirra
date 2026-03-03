@@ -51,8 +51,8 @@ export class BlastAnalyticsShader extends BaseAnalyticsShader {
         this._registerModel(new HeelanOriginalModel());
         this._registerModel(new ScaledHeelanModel());
         this._registerModel(new NonLinearDamageModel());
-        this._registerModel(new SDoBModel());
-        this._registerModel(new SEEModel());
+        // this._registerModel(new SDoBModel());     // Hidden from UI — code retained
+        // this._registerModel(new SEEModel());      // Hidden from UI — code retained
         this._registerModel(new PressureModel());
         this._registerModel(new PowderFactorModel());
         this._registerModel(new JointedRockDamageModel());
@@ -310,7 +310,7 @@ export class BlastAnalyticsShader extends BaseAnalyticsShader {
 
         this.material = new THREE.ShaderMaterial({
             vertexShader: VERT_SOURCE,
-            fragmentShader: this.activeModel.getFragmentSource(),
+            fragmentShader: this.activeModel.getFragmentSource(this.modelParams),
             uniforms: allUniforms,
             transparent: true,
             depthWrite: false,

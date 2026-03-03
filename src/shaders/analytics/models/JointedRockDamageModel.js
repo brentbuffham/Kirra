@@ -115,7 +115,7 @@ export class JointedRockDamageModel {
 				float peakDamageRatio = 0.0;
 				float minDist = 1e10;
 
-				for (int d = 0; d < 2048; d++) {
+				for (int d = 0; d < 512; d++) {
 					if (d >= uDeckCount) break;
 
 					vec4 top = getDeckData(d, 0);

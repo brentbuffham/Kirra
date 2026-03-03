@@ -97,7 +97,7 @@ export class NonLinearDamageModel {
             void main() {
                 float peakPPV = 0.0;
 
-                for (int d = 0; d < 2048; d++) {
+                for (int d = 0; d < 512; d++) {
                     if (d >= uDeckCount) break;
 
                     vec4 top = getDeckData(d, 0);

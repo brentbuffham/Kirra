@@ -189,22 +189,22 @@ export function showTimeInteractionDialog(config) {
 
 	var speedSlider = document.createElement("input");
 	speedSlider.type = "range";
-	speedSlider.min = "0.1";
-	speedSlider.max = "10";
-	speedSlider.step = "0.1";
-	speedSlider.value = "1";
+	speedSlider.min = "0";
+	speedSlider.max = "100";
+	speedSlider.step = "1";
+	speedSlider.value = "50";
 	speedSlider.style.flex = "1";
 	speedSlider.title = "Play Speed";
 	speedSlider.addEventListener("input", function () {
-		playSpeed = parseFloat(speedSlider.value);
-		speedLabel.textContent = playSpeed.toFixed(1) + "x";
+		playSpeed = window.playSpeedLogScale(parseFloat(speedSlider.value));
+		speedLabel.textContent = playSpeed.toFixed(3) + "x";
 	});
 
 	var speedLabel = document.createElement("span");
 	speedLabel.style.fontSize = "11px";
 	speedLabel.style.color = dark ? "#ccc" : "#333";
-	speedLabel.style.minWidth = "40px";
-	speedLabel.textContent = "1.0x";
+	speedLabel.style.minWidth = "60px";
+	speedLabel.textContent = "1.000x";
 
 	speedRow.appendChild(speedSlider);
 	speedRow.appendChild(speedLabel);

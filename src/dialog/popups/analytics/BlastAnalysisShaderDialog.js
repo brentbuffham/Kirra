@@ -294,11 +294,16 @@ export function showBlastAnalysisShaderDialog(callback) {
 					// User cancelled — remove the live surface and flattened image
 					removeLiveFlattenedImage(liveResult.surfaceId);
 					removeLiveAnalysisSurface(liveResult.surfaceId);
+					// Redraw to clear the removed surface
+					if (window.drawData) window.drawData(window.allBlastHoles, window.selectedHole);
+					if (window.threeRenderer) window.threeRenderer.needsRender = true;
 				}
 			});
 		},
 		onCancel: function() {
-			// Do nothing
+			// Redraw in case dialog obscured the view
+			if (window.drawData) window.drawData(window.allBlastHoles, window.selectedHole);
+			if (window.threeRenderer) window.threeRenderer.needsRender = true;
 		}
 	});
 
@@ -595,6 +600,8 @@ function getDefaultParametersForModel(modelName) {
 					tooltip: "Distance attenuation exponent (slope). Typical range 1.5-2.0. Higher b = faster PPV decay with distance." },
 				chargeExponent: { label: "Scaled Weight Exponent n", value: 0.5, min: 0.3, max: 0.8, step: 0.05, unit: "",
 					tooltip: "Charge weight scaling exponent. 0.5 = square-root (standard SD), 0.33 = cube-root. Controls how charge mass influences scaled distance." },
+				pWaveVelocity: { label: "P-Wave Velocity (0 = instant)", value: 0, min: 0, max: 7000, step: 100, unit: "m/s",
+					tooltip: "Rock P-wave velocity for wave propagation animation. During time interaction, PPV ripples outward at this speed. 0 = instant (no travel time). Typical: 1600-4500 m/s." },
 				targetPPV: { label: "Target PPV (0 = off)", value: 0, min: 0, max: 500, step: 5, unit: "mm/s",
 					tooltip: "Draw a black contour line at this PPV value. Set to 0 to disable. Useful for compliance boundaries." },
 				timeWindow: { label: "MIC Bin Width (0 = per-hole)", value: 0, min: 0, max: 500, step: 1, unit: "ms",
@@ -735,6 +742,8 @@ function getDefaultParametersForModel(modelName) {
 					tooltip: "Distance attenuation exponent. Controls PPV decay with scaled distance." },
 				chargeExponent: { label: "Scaled Weight Exponent n", value: 0.5, min: 0.3, max: 0.8, step: 0.05, unit: "",
 					tooltip: "Charge weight scaling exponent. 0.5 = square-root (standard SD)." },
+				pWaveVelocity: { label: "P-Wave Velocity (0 = instant)", value: 0, min: 0, max: 7000, step: 100, unit: "m/s",
+					tooltip: "Rock P-wave velocity for wave propagation animation. During time interaction, PPV ripples outward at this speed. 0 = instant (no travel time). Typical: 1600-4500 m/s." },
 				targetPPV: { label: "Target PPV (0 = off)", value: 0, min: 0, max: 500, step: 5, unit: "mm/s",
 					tooltip: "Draw a black contour line at this PPV value. 0 = disabled." },
 				timeWindow: { label: "MIC Bin Width (0 = per-deck)", value: 0, min: 0, max: 500, step: 1, unit: "ms",

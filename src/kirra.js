@@ -506,6 +506,8 @@ function initializeVoronoiControls() {
 	const voronoiMetricDropdown = document.getElementById("voronoiSelect");
 	if (voronoiMetricDropdown) {
 		voronoiMetricDropdown.addEventListener("change", function () {
+			invalidateVoronoiCaches();
+			if (typeof clearVoronoiCellsThreeJS === "function") clearVoronoiCellsThreeJS();
 			drawData(allBlastHoles, selectedHole);
 		});
 	}
@@ -514,6 +516,9 @@ function initializeVoronoiControls() {
 	if (voronoiLegendDropdown) {
 		voronoiLegendDropdown.addEventListener("change", function () {
 			isVoronoiLegendFixed = voronoiLegendDropdown.value === "fixed";
+			window.isVoronoiLegendFixed = isVoronoiLegendFixed;
+			invalidateVoronoiCaches();
+			if (typeof clearVoronoiCellsThreeJS === "function") clearVoronoiCellsThreeJS();
 			drawData(allBlastHoles, selectedHole);
 		});
 	}
@@ -4268,6 +4273,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			if (show3D) {
 				// Step 1c) 3D-only mode - show only 3D canvas, hide 2D canvas
 				onlyShowThreeJS = true;
+				if (cursorOverlayCanvas) cursorOverlayCanvas.style.display = "none";
 
 				// Step 1c.0) START 3D render loop when switching to 3D mode
 				// Performance: Render loop was stopped in 2D mode to save CPU/GPU
@@ -4404,6 +4410,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			} else {
 				// Step 1d) 2D-only mode - show only 2D canvas, hide 3D canvas
 				onlyShowThreeJS = false;
+				if (cursorOverlayCanvas) cursorOverlayCanvas.style.display = "";
 
 				// Step 1d.0) STOP 3D render loop when switching to 2D mode
 				// Performance: Saves CPU/GPU resources - 3D canvas is hidden anyway
@@ -4713,6 +4720,10 @@ let currentMouseWorldZ = document.getElementById("drawingElevation").value;
 let currentMouseIndicatorX = 0;
 let currentMouseIndicatorY = 0;
 let currentMouseIndicatorZ = 0;
+// Cursor overlay canvas — draws crosshairs/snap on a separate transparent canvas
+// so idle mouse moves don't re-render all 600+ holes/surfaces/voronoi
+var cursorOverlayCanvas = null;
+var cursorOverlayCtx = null;
 // Surfaces
 let allAvailableSurfaces = [];
 let intervalAmount = document.getElementById("intervalSlider").value;
@@ -4751,6 +4762,7 @@ let selectedVoronoiMetric = "powderFactor"; // default
 // Add these variables near the top (around line 190)
 let lastKADDrawPoint = null; // Store the last drawn point from any KAD tool
 let isVoronoiLegendFixed = false;
+window.isVoronoiLegendFixed = false;
 let isBearingToolActive = false;
 
 // Add this declaration around line 99 (after bearingToolSelectedHole declaration)
@@ -8172,7 +8184,9 @@ if (voronoiMetricDropdown) {
 	selectedVoronoiMetric = voronoiMetricDropdown.value || "powderFactor";
 	voronoiMetricDropdown.addEventListener("change", function (e) {
 		selectedVoronoiMetric = e.target.value;
-		drawData(allBlastHoles, selectedHole); // Redraw with the new metric
+		invalidateVoronoiCaches();
+		if (typeof clearVoronoiCellsThreeJS === "function") clearVoronoiCellsThreeJS();
+		drawData(allBlastHoles, selectedHole);
 	});
 }
 
@@ -13600,10 +13614,28 @@ function handleMouseMove(event) {
 		isUpdatingSelectionFromMove = true; // Flag to prevent re-evaluating selection during mouse move
 	}
 
-	// Only redraw during active interactions to improve performance
-	//if (isDragging || isAddingHole || isDeletingHole || isAddingConnector || isAddingMultiConnector || isDrawingText || isDrawingLine || isDrawingPoly || isDrawingCircle || isMeasureRecording) {
+	// Fast cursor path: on idle mouse moves (no pan, no tool active),
+	// skip the full drawData and only update the cursor overlay canvas.
+	// The underlying content (holes, voronoi, surfaces) doesn't change on idle moves.
+	var isIdleMove = !isDragging && !isDraggingBearing && !isDraggingHole && !isAddingHole && !isDeletingHole && !isAddingConnector && !isAddingMultiConnector && !isDrawingText && !isDrawingLine && !isDrawingPoly && !isDrawingCircle && !isMeasureRecording && !isResizingLeft;
+	if (isIdleMove && !onlyShowThreeJS && cursorOverlayCanvas) {
+		// Update HUD coordinates
+		var _mx = lastMouseX;
+		var _my = lastMouseY;
+		var _wx = (_mx - canvas.width / 2) / currentScale + centroidX;
+		var _wy = -(_my - canvas.height / 2) / currentScale + centroidY;
+		var _wz = currentMouseWorldZ || drawingZValue || 0;
+		var _isSnapped = snapHighlight !== null && snapEnabled;
+		emitCoords({ x: _mx, y: _my }, { x: _wx, y: _wy, z: parseFloat(_wz) || 0 }, currentScale, _isSnapped);
+
+		// Redraw cursor overlay only (< 1ms)
+		drawCursorOverlay(_mx, _my);
+
+		isUpdatingSelectionFromMove = false;
+		return;
+	}
+
 	drawData(allBlastHoles, selectedHole);
-	//}
 
 	// Step #) Update contour overlay when panning - ensures contours stay in sync with canvas position
 	if (isDragging && typeof updateOverlayColorsForTheme === "function") {
@@ -18856,6 +18888,15 @@ function getVoronoiMetrics(allBlastHoles, useToeLocation) {
 			// SDoB (Chiappetta): D / Wt^(1/3)
 			var sdob = null;
 			var holeLen = parseFloat(h.holeLengthCalculated) || 0;
+			// Fallback: compute hole length from collar-to-toe distance
+			if (holeLen <= 0) {
+				var dx = parseFloat(h.endXLocation) - parseFloat(h.startXLocation);
+				var dy = parseFloat(h.endYLocation) - parseFloat(h.startYLocation);
+				var dz = parseFloat(h.endZLocation) - parseFloat(h.startZLocation);
+				if (isFinite(dx) && isFinite(dy) && isFinite(dz)) {
+					holeLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+				}
+			}
 			var holeDiam_mm = parseFloat(h.holeDiameter) || 115;
 			var holeDiam_m = holeDiam_mm / 1000.0;
 			var sdobStemming = 0;
@@ -18867,27 +18908,22 @@ function getVoronoiMetrics(allBlastHoles, useToeLocation) {
 			if (chargingObj && chargingObj.decks && chargingObj.decks.length > 0) {
 				var firstChargeTop = null;
 				var deepestChargeBase = 0;
-				var deckMassTotal = 0;
 				for (var di = 0; di < chargingObj.decks.length; di++) {
 					var deck = chargingObj.decks[di];
 					if (deck.deckType !== "COUPLED" && deck.deckType !== "DECOUPLED") continue;
-					var deckMass = parseFloat(deck.calculateMass(holeDiam_mm)) || 0;
-					if (deckMass <= 0) continue;
-					deckMassTotal += deckMass;
 					var deckTop = Math.min(deck.topDepth, deck.baseDepth);
 					var deckBase = Math.max(deck.topDepth, deck.baseDepth);
+					if (deckBase <= deckTop) continue;
 					if (firstChargeTop === null || deckTop < firstChargeTop) firstChargeTop = deckTop;
 					if (deckBase > deepestChargeBase) deepestChargeBase = deckBase;
 				}
-				if (chargingObj.primers) {
-					for (var pk = 0; pk < chargingObj.primers.length; pk++) {
-						deckMassTotal += (chargingObj.primers[pk].totalBoosterMassGrams || 0) / 1000;
-					}
-				}
-				if (deckMassTotal > 0 && firstChargeTop !== null) {
+				// Use getTotalExplosiveMass() for accurate mass (handles DECOUPLED + primers)
+				var chargingMass = typeof chargingObj.getTotalExplosiveMass === "function"
+					? chargingObj.getTotalExplosiveMass() : 0;
+				if (chargingMass > 0 && firstChargeTop !== null && deepestChargeBase > firstChargeTop) {
 					sdobStemming = firstChargeTop;
 					sdobChargeLen = deepestChargeBase - firstChargeTop;
-					sdobTotalMass = deckMassTotal;
+					sdobTotalMass = chargingMass;
 				}
 			}
 
@@ -18895,19 +18931,21 @@ function getVoronoiMetrics(allBlastHoles, useToeLocation) {
 			if (sdobChargeLen <= 0 && holeLen > 0) {
 				sdobStemming = holeLen * 0.3;
 				sdobChargeLen = holeLen * 0.7;
-				sdobTotalMass = parseFloat(h.measuredMass) || parseFloat(h.massPerHole) || 0;
+				sdobTotalMass = parseFloat(h.massPerHole) || parseFloat(h.measuredMass) || 0;
 				if (sdobTotalMass <= 0 && holeDiam_m > 0) {
 					var radius_m = holeDiam_m / 2.0;
 					sdobTotalMass = 3.14159 * radius_m * radius_m * sdobChargeLen * 1200.0;
 				}
 			}
 
-			if (sdobChargeLen > 0 && sdobTotalMass > 0 && sdobStemming > 0) {
+			if (sdobChargeLen > 0 && sdobTotalMass > 0) {
 				var sdobM = holeDiam_m >= 0.1 ? 10 : 8;
 				var contributingLen = Math.min(sdobChargeLen, sdobM * holeDiam_m);
 				var Wt = (sdobTotalMass / sdobChargeLen) * contributingLen;
 				var D = sdobStemming + 0.5 * contributingLen;
-				sdob = D / Math.pow(Wt, 1.0 / 3.0);
+				if (Wt > 0) {
+					sdob = D / Math.pow(Wt, 1.0 / 3.0);
+				}
 			}
 
 			voronoiResults.push({
@@ -28637,8 +28675,107 @@ function buildHoleMap(allBlastHoles) {
 
 let drawMouseLines = true; //used to debug mouse location
 
+// ── Cursor overlay canvas ──
+// Transparent canvas layered on top of the main 2D canvas.
+// Only crosshairs/snap/ruler are drawn here so idle mouse moves
+// never re-render the expensive content underneath.
+function createCursorOverlay() {
+	if (cursorOverlayCanvas) return;
+	var container = canvas.parentElement;
+	cursorOverlayCanvas = document.createElement("canvas");
+	cursorOverlayCtx = cursorOverlayCanvas.getContext("2d");
+	cursorOverlayCanvas.width = canvas.width;
+	cursorOverlayCanvas.height = canvas.height;
+	cursorOverlayCanvas.style.position = "absolute";
+	cursorOverlayCanvas.style.left = "0";
+	cursorOverlayCanvas.style.top = "0";
+	cursorOverlayCanvas.style.zIndex = "15"; // above contour overlay (10)
+	cursorOverlayCanvas.style.pointerEvents = "none";
+	cursorOverlayCanvas.style.width = canvas.style.width || canvas.width + "px";
+	cursorOverlayCanvas.style.height = canvas.style.height || canvas.height + "px";
+	container.appendChild(cursorOverlayCanvas);
+}
+
+function syncCursorOverlay() {
+	if (!cursorOverlayCanvas || !canvas) return;
+	cursorOverlayCanvas.width = canvas.width;
+	cursorOverlayCanvas.height = canvas.height;
+	cursorOverlayCanvas.style.width = canvas.style.width || canvas.width + "px";
+	cursorOverlayCanvas.style.height = canvas.style.height || canvas.height + "px";
+	cursorOverlayCanvas.style.left = canvas.offsetLeft + "px";
+	cursorOverlayCanvas.style.top = canvas.offsetTop + "px";
+}
+
+// Draw all cursor-related elements on the overlay canvas
+function drawCursorOverlay(mouseX, mouseY) {
+	// Lazy-create the overlay on first use
+	if (!cursorOverlayCanvas) createCursorOverlay();
+	if (!cursorOverlayCtx) return;
+	// Keep overlay dimensions in sync with main canvas
+	if (cursorOverlayCanvas.width !== canvas.width || cursorOverlayCanvas.height !== canvas.height) {
+		syncCursorOverlay();
+	}
+	var oc = cursorOverlayCtx;
+	oc.clearRect(0, 0, cursorOverlayCanvas.width, cursorOverlayCanvas.height);
+
+	// When snapped, jump crosshairs to the snap target position
+	var crossX = mouseX;
+	var crossY = mouseY;
+	if (snapHighlight && snapEnabled) {
+		var snapCanvas = worldToCanvas(snapHighlight.point.x, snapHighlight.point.y);
+		crossX = snapCanvas[0];
+		crossY = snapCanvas[1];
+	}
+
+	// Crosshairs
+	if (drawMouseLines) {
+		var cursorColor = darkModeEnabled ? "rgba(200, 200, 200, 0.6)" : "rgba(100, 100, 100, 0.6)";
+		oc.lineWidth = 0.5;
+		oc.strokeStyle = cursorColor;
+		oc.beginPath();
+		oc.moveTo(crossX, 0);
+		oc.lineTo(crossX, cursorOverlayCanvas.height);
+		oc.moveTo(0, crossY);
+		oc.lineTo(cursorOverlayCanvas.width, crossY);
+		oc.stroke();
+
+		// Snap radius circle at mouse position (not snapped)
+		if (snapRadiusPixels > 0) {
+			oc.beginPath();
+			oc.arc(mouseX, mouseY, snapRadiusPixels, 0, 2 * Math.PI);
+			oc.stroke();
+		}
+	}
+
+	// Add hole crosshair (uses snapped position)
+	if (isAddingHole) {
+		oc.beginPath();
+		oc.strokeStyle = "rgba(209, 0, 0, 0.8)";
+		oc.lineWidth = 2;
+		oc.moveTo(crossX - snapRadiusPixels * 1.5, crossY);
+		oc.lineTo(crossX + snapRadiusPixels * 1.5, crossY);
+		oc.moveTo(crossX, crossY - snapRadiusPixels * 1.5);
+		oc.lineTo(crossX, crossY + snapRadiusPixels * 1.5);
+		oc.stroke();
+		oc.beginPath();
+		oc.arc(crossX, crossY, 3, 0, Math.PI * 2);
+		oc.fillStyle = "rgba(209, 0, 0, 0.6)";
+		oc.fill();
+	}
+
+	// Snap highlight
+	if (snapHighlight && snapEnabled) {
+		drawSnapHighlight();
+	}
+}
+
+// Legacy drawMouseCrossHairs — still used by drawData full path (draws on main ctx)
 function drawMouseCrossHairs(mouseX, mouseY, snapRadiusPixels, showSnapRadius = true, showMouseLines = true) {
-	//draw a vertical lin the height of the canvas at the mouse x location and draw a line the width of the canvas at the y location of the mouse. it should be color grey at 50% opacity
+	// When cursor overlay exists, draw on overlay instead of main canvas
+	if (cursorOverlayCtx) {
+		drawCursorOverlay(mouseX, mouseY);
+		return;
+	}
 	if (showMouseLines) {
 		ctx.lineWidth = 0.5;
 		ctx.beginPath();
@@ -28655,7 +28792,6 @@ function drawMouseCrossHairs(mouseX, mouseY, snapRadiusPixels, showSnapRadius = 
 		ctx.closePath();
 	}
 	if (showSnapRadius && snapRadiusPixels > 0) {
-		// Draw the snapping radius circle
 		ctx.beginPath();
 		ctx.arc(mouseX, mouseY, snapRadiusPixels, 0, 2 * Math.PI);
 		ctx.strokeStyle = darkModeEnabled ? "rgba(200, 200, 200, 0.6)" : "rgba(100, 100, 100, 0.6)";
@@ -28686,6 +28822,9 @@ function drawMouseCrossHairs(mouseX, mouseY, snapRadiusPixels, showSnapRadius = 
 
 // Main draw function
 function drawData(allBlastHoles, selectedHole) {
+
+	// Ensure cursor overlay canvas exists
+	if (!cursorOverlayCanvas) createCursorOverlay();
 
 	// Clear per-draw-cycle caches
 	window._downholeTimingRange2D = null;
@@ -29848,21 +29987,16 @@ function drawData(allBlastHoles, selectedHole) {
 			drawMouseCrossHairs(mouseX, mouseY, snapRadiusPixels, true, true);
 		}
 
-		// Draw crosshair indicator for Add Hole tool
-		if (isAddingHole) {
+		// Draw crosshair indicator for Add Hole tool (only on main ctx if no overlay)
+		if (isAddingHole && !cursorOverlayCtx) {
 			ctx.beginPath();
-			ctx.strokeStyle = "rgba(209, 0, 0, 0.8)"; // Red crosshair
+			ctx.strokeStyle = "rgba(209, 0, 0, 0.8)";
 			ctx.lineWidth = 2;
-
-			// Horizontal line
 			ctx.moveTo(mouseX - snapRadiusPixels * 1.5, mouseY);
 			ctx.lineTo(mouseX + snapRadiusPixels * 1.5, mouseY);
-			// Vertical line
 			ctx.moveTo(mouseX, mouseY - snapRadiusPixels * 1.5);
 			ctx.lineTo(mouseX, mouseY + snapRadiusPixels * 1.5);
 			ctx.stroke();
-
-			// Optional: Draw small circle at center
 			ctx.beginPath();
 			ctx.arc(mouseX, mouseY, 3, 0, Math.PI * 2);
 			ctx.fillStyle = "rgba(209, 0, 0, 0.6)";
@@ -35508,6 +35642,7 @@ window.addEventListener("resize", () => {
 	} else {
 		//drawing will handle
 	}
+	syncCursorOverlay();
 	if (Array.isArray(holeTimes)) {
 		timeChart();
 	}
@@ -49209,39 +49344,40 @@ function handleMouseMoveWithSnap(event) {
 // Visual feedback for snap highlights
 //TODO Need to call this in the DrawData() function.
 //TODO got fix this
-function drawSnapHighlight() {
+function drawSnapHighlight(targetCtx) {
 	if (!snapHighlight || !snapEnabled) return;
+	var c = targetCtx || (cursorOverlayCtx ? cursorOverlayCtx : ctx);
 
 	// Convert world coordinates to canvas
 	const [snapX, snapY] = worldToCanvas(snapHighlight.point.x, snapHighlight.point.y);
 
 	// Draw snap indicator
-	ctx.save();
-	ctx.strokeStyle = "#00ff00"; // Bright green
-	ctx.lineWidth = 2;
-	ctx.fillStyle = "rgba(0, 255, 0, 0.3)";
+	c.save();
+	c.strokeStyle = "#00ff00"; // Bright green
+	c.lineWidth = 2;
+	c.fillStyle = "rgba(0, 255, 0, 0.3)";
 
 	// Draw crosshair
 	const size = 8;
-	ctx.beginPath();
-	ctx.moveTo(snapX - size, snapY);
-	ctx.lineTo(snapX + size, snapY);
-	ctx.moveTo(snapX, snapY - size);
-	ctx.lineTo(snapX, snapY + size);
-	ctx.stroke();
+	c.beginPath();
+	c.moveTo(snapX - size, snapY);
+	c.lineTo(snapX + size, snapY);
+	c.moveTo(snapX, snapY - size);
+	c.lineTo(snapX, snapY + size);
+	c.stroke();
 
 	// Draw circle
-	ctx.beginPath();
-	ctx.arc(snapX, snapY, size * 0.7, 0, 2 * Math.PI);
-	ctx.stroke();
+	c.beginPath();
+	c.arc(snapX, snapY, size * 0.7, 0, 2 * Math.PI);
+	c.stroke();
 
 	// Enhanced tooltip with Z value
-	ctx.font = "10px Arial";
-	ctx.fillStyle = "#00ff00";
+	c.font = "10px Arial";
+	c.fillStyle = "#00ff00";
 	const zText = snapHighlight.point.z ? " (" + snapHighlight.point.z.toFixed(2) + "m RL)" : "";
-	ctx.fillText(snapHighlight.description + zText, snapX + 12, snapY - 8);
+	c.fillText(snapHighlight.description + zText, snapX + 12, snapY - 8);
 
-	ctx.restore();
+	c.restore();
 }
 
 // Settings for snap configuration
@@ -52586,9 +52722,8 @@ document.addEventListener("DOMContentLoaded", function () {
 		canvas.addEventListener("mousemove", handleMouseMove);
 		canvas.addEventListener("touchmove", handleTouchMove);
 	}
-	// Also add to document if you need tracking outside the canvas area.
-	document.addEventListener("mousemove", handleMouseMove);
-	document.addEventListener("touchmove", handleTouchMove);
+	// Document-level mouse tracking removed — only canvas needs mousemove for drawing/interaction.
+	// Document listeners caused handleMouseMove to fire twice per event and for out-of-canvas moves.
 	// Initialize overlay system automatically
 	setTimeout(() => {
 		if (typeof debugCorrectVariables === "function") {
