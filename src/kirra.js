@@ -421,7 +421,7 @@ import { printHeader, printFooter, printBlastStats, printBlastStatsSimple } from
 const appVersion = __APP_VERSION__;
 const buildDate = __BUILD_DATE__;
 const buildTime = __BUILD_TIME__;
-const buildVersion = appVersion + " | " + buildDate + " " + buildTime + " AWST";
+const buildVersion = "VERSION: " + appVersion + " | Build Date: " + buildDate + " | Build Time: " + buildTime + " AWST";
 window.buildVersion = buildVersion;
 window.appVersion = appVersion;
 window.buildDate = buildDate;
