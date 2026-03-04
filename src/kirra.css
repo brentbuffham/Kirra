@@ -212,6 +212,10 @@ body.dark-mode .light-mode-toggle-icon {
     opacity: 0.8;
 }
 
+body.dark-mode .theme-icon {
+    filter: invert(0.85);
+}
+
 #dark-mode-toggle input {
     display: none;
     width: 28px;
