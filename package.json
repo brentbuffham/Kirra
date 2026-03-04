@@ -1,6 +1,6 @@
 {
     "name": "kirra-vite",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Kirra",
     "main": "kirra.js",
     "scripts": {
@@ -45,6 +45,7 @@
         "three-mesh-bvh": "^0.9.7",
         "three.meshline": "^1.4.0",
         "triangle-wasm": "^1.0.0",
+        "trimesh-boolean": "^0.3.0",
         "troika-three-text": "^0.52.4"
     }
 }

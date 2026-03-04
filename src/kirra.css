@@ -1348,6 +1348,12 @@ body.dark-mode .file-import-btn:hover {
     /* Set the selected color */
 }
 
+/* Style the selected (checked) button with test highlight in blue */
+.toggle-buttons-custom input[type="checkbox"]:checked + .icon-button.testhighlight {
+    background-color: blue;
+    border-color: blue;
+}
+
 .icon {
     width: 20px;
     height: 20px;
@@ -3836,6 +3842,13 @@ body.dark-mode .toolbar-panel-content:hover::-webkit-scrollbar-thumb {
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* .testhighlight overrides: blue when checkbox checked */
+.toolbar-grid input[type="checkbox"]:checked + .icon-button.testhighlight,
+.toolbar-grid input[type="checkbox"]:checked + .toggle-buttons-custom.testhighlight {
+    background-color: #0066ff !important;
+    border-color: #0066ff !important;
+}
+
 /* Add hover state for checked buttons */
 .toolbar-grid input[type="checkbox"]:checked + .icon-button:hover,
 .toolbar-grid input[type="checkbox"]:checked + .toggle-buttons-custom:hover {
@@ -3921,6 +3934,15 @@ body.dark-mode .toolbar-grid input[type="checkbox"]:checked + .toggle-buttons-cu
     box-shadow: 0 0 5px rgba(255, 0, 0, 0.7);
 }
 
+/* Blue highlight for .testhighlight buttons in toolbars (hover) */
+.toolbar-grid .icon-button.testhighlight:hover,
+.toolbar-grid .toggle-buttons-custom.testhighlight:hover {
+    background-color: rgba(0, 102, 255, 0.3) !important;
+    border-color: #0066ff !important;
+    border-width: 2px;
+    box-shadow: 0 0 5px rgba(0, 102, 255, 0.7);
+}
+
 /* Active state for toolbar buttons (used by interactive tools like ReorderKAD) */
 .toolbar-grid .icon-button.active {
     background-color: var(--selected-colour, #ff4444) !important;
@@ -3936,6 +3958,37 @@ body.dark-mode .toolbar-grid input[type="checkbox"]:checked + .toggle-buttons-cu
     box-shadow:
         inset 0 2px 4px rgba(0, 0, 0, 0.3),
         0 0 4px rgba(255, 0, 0, 0.5);
+}
+
+/* Blue override for .testhighlight: active state and hover (must come after .icon-button.active) */
+.toolbar-grid .icon-button.testhighlight.active,
+.toolbar-grid .toggle-buttons-custom.testhighlight.active,
+.toolbar-grid .icon-button.testhighlight.active:hover,
+.toolbar-grid .toggle-buttons-custom.testhighlight.active:hover {
+    background-color: #0066ff !important;
+    border-color: #0066ff !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 5px rgba(0, 102, 255, 0.7);
+}
+
+/* Dark mode: blue for .testhighlight (override dark-mode red) */
+body.dark-mode .toolbar-grid .icon-button.testhighlight:hover,
+body.dark-mode .toolbar-grid .toggle-buttons-custom.testhighlight:hover,
+body.dark-mode .toolbar-grid .icon-button.testhighlight.active,
+body.dark-mode .toolbar-grid .toggle-buttons-custom.testhighlight.active,
+body.dark-mode .toolbar-grid .icon-button.testhighlight.active:hover,
+body.dark-mode .toolbar-grid .toggle-buttons-custom.testhighlight.active:hover {
+    background-color: #0066ff !important;
+    border-color: #0066ff !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 5px rgba(0, 102, 255, 0.7);
+}
+
+/* Fallback: ID selector ensures blue wins for trimeshBooleanBtn */
+#trimeshBooleanBtn:hover,
+#trimeshBooleanBtn.active,
+#trimeshBooleanBtn.active:hover {
+    background-color: #0066ff !important;
+    border-color: #0066ff !important;
+    box-shadow: 0 0 5px rgba(0, 102, 255, 0.7) !important;
 }
 
 /* Override accordion minus sign for toolbar buttons */

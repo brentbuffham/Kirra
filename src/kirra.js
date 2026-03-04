@@ -35818,6 +35818,21 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 });
 
+// Trimesh Boolean button handler
+document.addEventListener("DOMContentLoaded", function () {
+	var trimeshBtn = document.getElementById("trimeshBooleanBtn");
+	if (trimeshBtn) {
+		trimeshBtn.addEventListener("click", async function () {
+			try {
+				var { showTrimeshBooleanDialog } = await import("./dialog/popups/surface/TrimeshBooleanDialog.js");
+				showTrimeshBooleanDialog();
+			} catch (error) {
+				console.error("Failed to load Trimesh Boolean:", error);
+			}
+		});
+	}
+});
+
 // KAD Boolean button handler
 document.addEventListener("DOMContentLoaded", function () {
 	var kadBoolBtn = document.getElementById("kadBooleanBtn");
