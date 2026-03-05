@@ -50,7 +50,10 @@ function productSnapshot(product) {
         colorHex: product.colorHex || null,
         diameterMm: product.diameterMm || null,
         lengthMm: product.lengthMm || null,
-        massGrams: product.massGrams || null
+        massGrams: product.massGrams || null,
+        isCompressible: product.isCompressible || false,
+        limitingDensity: product.limitingDensity || null,
+        criticalDensity: product.criticalDensity || null
     };
 }
 
@@ -603,29 +606,47 @@ export function showDeckBuilderDialog(referenceHole) {
         if (deck.deckType === DECK_TYPES.DECOUPLED && deck.packageCount > 0) {
             qtyLabel = "<span>Qty: " + deck.packageCount + "</span>";
         }
-        row.innerHTML =
-            "<b>Deck " +
-            (index + 1) +
-            ":</b> " +
-            "<span>Type: " +
-            deck.deckType +
-            "</span>" +
-            "<span>Product: " +
-            (deck.product ? deck.product.name : "None") +
-            "</span>" +
-            "<span>Top: " +
-            deck.topDepth.toFixed(1) +
-            "m</span>" +
-            "<span>Base: " +
-            deck.baseDepth.toFixed(1) +
-            "m</span>" +
-            "<span>Length: " +
-            deck.length.toFixed(1) +
-            "m</span>" +
-            qtyLabel +
-            "<span>Density: " +
-            (deck.effectiveDensity || 0).toFixed(3) +
-            " g/cc</span>";
+        // Build DOM elements safely
+        row.textContent = "";
+        var b = document.createElement("b");
+        b.textContent = "Deck " + (index + 1) + ": ";
+        row.appendChild(b);
+        var fields = [
+            "Type: " + deck.deckType,
+            "Product: " + (deck.product ? deck.product.name : "None"),
+            "Top: " + deck.topDepth.toFixed(1) + "m",
+            "Base: " + deck.baseDepth.toFixed(1) + "m",
+            "Length: " + deck.length.toFixed(1) + "m"
+        ];
+        if (deck.deckType === DECK_TYPES.DECOUPLED && deck.packageCount > 0) {
+            fields.push("Qty: " + deck.packageCount);
+        }
+        fields.push("Density: " + (deck.effectiveDensity || 0).toFixed(3) + " g/cc");
+
+        for (var fi = 0; fi < fields.length; fi++) {
+            var span = document.createElement("span");
+            span.textContent = fields[fi];
+            row.appendChild(span);
+        }
+
+        // Compressible deck: show density range and critical depth warning
+        if (deck.isCompressible && deck.deckType === DECK_TYPES.COUPLED) {
+            var model = deck.getCompressibleModel ? deck.getCompressibleModel(workingCharging.holeDiameterMm) : null;
+            if (model) {
+                var rangeSpan = document.createElement("span");
+                rangeSpan.style.color = "#886600";
+                rangeSpan.textContent = "Cap: " + model.capDensity.toFixed(3) + " \u2192 Base: " + model.densityAtDepth(deck.length).toFixed(3) + " g/cc";
+                row.appendChild(rangeSpan);
+                var critD = model.criticalDepth(deck.length);
+                if (critD !== null) {
+                    var warnSpan = document.createElement("span");
+                    warnSpan.style.color = "#CC0000";
+                    warnSpan.style.fontWeight = "bold";
+                    warnSpan.textContent = "\u26A0 Critical at " + critD.toFixed(1) + "m depth";
+                    row.appendChild(warnSpan);
+                }
+            }
+        }
     }
 
     function updatePrimerInfo(primer, index) {
@@ -876,7 +897,16 @@ function setupDragDrop(canvas, sectionView, workingCharging, refHole, configTrac
         var topD = Math.max(minD, dropDepth - halfLen);
         var baseD = Math.min(maxD, topD + defaultDeckLength);
 
-        workingCharging.fillInterval(parseFloat(topD.toFixed(2)), parseFloat(baseD.toFixed(2)), deckType, productSnapshot(fullProduct));
+        var compressibleOpts = null;
+        if (fullProduct.isCompressible) {
+            compressibleOpts = {
+                isCompressible: true,
+                capDensity: fullProduct.density || null,
+                limitingDensity: fullProduct.limitingDensity || null,
+                criticalDensity: fullProduct.criticalDensity || null
+            };
+        }
+        workingCharging.fillInterval(parseFloat(topD.toFixed(2)), parseFloat(baseD.toFixed(2)), deckType, productSnapshot(fullProduct), compressibleOpts);
 
         sectionView.setData(workingCharging);
         if (formulaPanel) formulaPanel.refreshIndexedVars();
@@ -1954,7 +1984,9 @@ function showSaveAsRuleDialog(workingCharging, configTracker) {
     for (var di = 0; di < workingCharging.decks.length; di++) {
         var deck = workingCharging.decks[di];
         var productName = deck.product ? deck.product.name : "Empty";
-        var deckLabel = "[" + (di + 1) + "] " + deck.deckType + " - " + productName;
+        // Truncate long product names to keep labels readable
+        var shortName = productName.length > 10 ? productName.substring(0, 10) + ".." : productName;
+        var deckLabel = "[" + (di + 1) + "] " + deck.deckType.substring(0, 3) + " " + shortName;
 
         if (deck.deckType === DECK_TYPES.SPACER) {
             // Spacer: only top field (base derived from product length)
@@ -2047,12 +2079,12 @@ function showSaveAsRuleDialog(workingCharging, configTracker) {
         if (workingCharging.decks[sc].deckType === DECK_TYPES.SPACER) spacerCount++;
     }
     var nonSpacerCount = deckCount - spacerCount;
-    var saveDialogHeight = 220 + nonSpacerCount * 80 + spacerCount * 40 + deckCount * 40 + primerCount * 50;
+    var saveDialogHeight = Math.min(700, 220 + nonSpacerCount * 80 + spacerCount * 40 + deckCount * 40 + primerCount * 50);
 
     var dialog = new FloatingDialog({
         title: "Save as Rule",
         content: formContent,
-        width: 420,
+        width: 480,
         height: saveDialogHeight,
         showConfirm: true,
         confirmText: "Save",

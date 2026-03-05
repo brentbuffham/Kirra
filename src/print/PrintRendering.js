@@ -2,6 +2,7 @@
 
 import { printCanvas, printCtx, getPrintBoundary, printMode } from "./PrintSystem.js";
 import * as SVG from "./SVGBuilder.js";
+import { buildMassLabels } from "../draw/canvas2DDrawing.js";
 
 const magnifyFont = 1.7;
 
@@ -1686,6 +1687,19 @@ export function printHoleTextsAndConnectors(hole, x, y, lineEndX, lineEndY, prin
     }
     if (displayOptions.measuredComment) {
         printText(rightSideCollar, middleSideCollar, hole.measuredComment, "rgb(70, 0, 0)", context);
+    }
+    if (displayOptions.massPerHole) {
+        var mLabels = buildMassLabels(hole);
+        if (mLabels.perHole) {
+            printRightAlignedText(leftSideCollar, middleSideToe, mLabels.perHole, "#FF0000", context);
+        }
+    }
+    if (displayOptions.massPerDeck) {
+        var dLabels = buildMassLabels(hole);
+        var lineSpacing = context.currentFontSize || 10;
+        for (var ml = 0; ml < dLabels.perDeck.length; ml++) {
+            printRightAlignedText(leftSideCollar, middleSideToe + ml * lineSpacing, dLabels.perDeck[ml], "#FF0000", context);
+        }
     }
 }
 

@@ -2,6 +2,8 @@
 // Handles charging CSV export format selection and routing to BlastHoleCSVWriter
 // Created: 2026-02-15
 
+import { chargingKey } from "../../../charging/HoleCharging.js";
+
 /**
  * Show charging CSV export dialog with radio buttons for format and filename input.
  * Uses BlastHoleCSVWriter with charging formats (summary, detail, primers, timing).
@@ -17,7 +19,7 @@ export function showChargingExportDialog() {
 	var chargedCount = 0;
 	var visibleHoles = window.allBlastHoles.filter(function(h) { return window.isHoleVisible(h); });
 	for (var i = 0; i < visibleHoles.length; i++) {
-		if (window.loadedCharging.has(visibleHoles[i].holeID)) {
+		if (window.loadedCharging.has(chargingKey(visibleHoles[i]))) {
 			chargedCount++;
 		}
 	}

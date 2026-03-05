@@ -381,7 +381,7 @@ function showAddProductDialog(onSave) {
 		title: "Add Product",
 		content: contentDiv,
 		width: 400,
-		height: 500,
+		height: 530,
 		showConfirm: true,
 		showCancel: true,
 		confirmText: "Add",
@@ -448,7 +448,7 @@ function showEditProductDialog(product, onSave) {
 		title: "Edit Product: " + product.name,
 		content: contentDiv,
 		width: 400,
-		height: 500,
+		height: 530,
 		showConfirm: true,
 		showCancel: true,
 		confirmText: "Save",
@@ -496,11 +496,12 @@ function getFieldsForCategory(category, existingData) {
 			{ label: "Compressible", name: "isCompressible", type: "checkbox", checked: d.isCompressible || false },
 			{ label: "Min Density (g/cc)", name: "minDensity", type: "number", value: d.minDensity || "", step: "0.01" },
 			{ label: "Max Density (g/cc)", name: "maxDensity", type: "number", value: d.maxDensity || "", step: "0.01" },
+			{ label: "Limiting Density (g/cc)", name: "limitingDensity", type: "number", value: d.limitingDensity || "", step: "0.01" },
+			{ label: "Critical Density (g/cc)", name: "criticalDensity", type: "number", value: d.criticalDensity || "", step: "0.01" },
 			{ label: "VOD (m/s)", name: "vodMs", type: "number", value: d.vodMs || "", step: "1" },
 			{ label: "RE (kJ/kg)", name: "reKjKg", type: "number", value: d.reKjKg || "", step: "1" },
 			{ label: "RWS (%)", name: "rws", type: "number", value: d.rws || "", step: "1" },
-			{ label: "Water Resistant", name: "waterResistant", type: "checkbox", checked: d.waterResistant || false },
-			{ label: "Damp Resistant", name: "dampResistant", type: "checkbox", checked: d.dampResistant || false }
+			{ label: "Water Resistant", name: "waterResistant", type: "checkbox", checked: d.waterResistant || false }
 		);
 	} else if (category === "HighExplosive") {
 		fields.push(
@@ -593,11 +594,12 @@ function createProductFromFormData(data) {
 			opts.isCompressible = data.isCompressible === "true" || data.isCompressible === true;
 			opts.minDensity = data.minDensity ? parseFloat(data.minDensity) : null;
 			opts.maxDensity = data.maxDensity ? parseFloat(data.maxDensity) : null;
+			opts.limitingDensity = data.limitingDensity ? parseFloat(data.limitingDensity) : null;
+			opts.criticalDensity = data.criticalDensity ? parseFloat(data.criticalDensity) : null;
 			opts.vodMs = data.vodMs ? parseFloat(data.vodMs) : null;
 			opts.reKjKg = data.reKjKg ? parseFloat(data.reKjKg) : null;
 			opts.rws = data.rws ? parseFloat(data.rws) : null;
 			opts.waterResistant = data.waterResistant === "true" || data.waterResistant === true;
-			opts.dampResistant = data.dampResistant === "true" || data.dampResistant === true;
 			return new BulkExplosiveProduct(opts);
 
 		case "HighExplosive":

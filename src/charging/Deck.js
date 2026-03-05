@@ -4,6 +4,7 @@
 
 import { DECK_TYPES, DECK_SCALING_MODES, VALIDATION_MESSAGES } from "./ChargingConstants.js";
 import { DecoupledContent } from "./DecoupledContent.js";
+import { createCompressibleModel } from "./CompressibleDensityModel.js";
 
 export function generateUUID() {
 	if (crypto && crypto.randomUUID) {
@@ -31,6 +32,9 @@ export class Deck {
 		this.averageDensity = options.averageDensity || null;
 		this.capDensity = options.capDensity || null;
 		this.maxCompressibleDensity = options.maxCompressibleDensity || null;
+		this.limitingDensity = options.limitingDensity || null;   // Matrix density (g/cc)
+		this.criticalDensity = options.criticalDensity || null;   // Dead-pressing threshold (g/cc)
+		this.waterHeadM = options.waterHeadM || 0;               // Water above explosive (m)
 
 		// Scaling flags — control how this deck behaves when hole length changes
 		this.isFixedLength = options.isFixedLength || false;
@@ -71,8 +75,34 @@ export class Deck {
 	}
 
 	get effectiveDensity() {
-		if (this.isCompressible && this.averageDensity) return this.averageDensity;
+		if (this.isCompressible) {
+			// Use compressible model average if we have the parameters
+			var model = this.getCompressibleModel();
+			if (model) return model.averageDensity(this.length);
+			if (this.averageDensity) return this.averageDensity;
+		}
 		return this.product ? (this.product.density || 0) : 0;
+	}
+
+	/**
+	 * Build a CompressibleDensityModel for this deck if compressible parameters are available.
+	 * Reads limitingDensity/criticalDensity from deck overrides or from product defaults.
+	 * @param {number} [diameterMm] - Optional override for hole diameter
+	 * @returns {Object|null} Model object or null if insufficient parameters
+	 */
+	getCompressibleModel(diameterMm) {
+		if (!this.isCompressible) return null;
+		var cap = this.capDensity || (this.product ? this.product.density : null);
+		var limiting = this.limitingDensity || (this.product ? this.product.limitingDensity : null);
+		if (!cap || !limiting) return null;
+		var critical = this.criticalDensity || (this.product ? this.product.criticalDensity : null);
+		return createCompressibleModel({
+			limitingDensity: limiting,
+			capDensity: cap,
+			criticalDensity: critical,
+			waterHeadM: this.waterHeadM || 0,
+			holeDiameterMm: diameterMm || 115
+		});
 	}
 
 	/** Number of whole packages that fit in this deck (simple stacking) */
@@ -168,6 +198,11 @@ export class Deck {
 			}
 		}
 		// COUPLED / INERT / SPACER — use hole diameter (original behaviour)
+		// For compressible COUPLED decks, use integrated mass from density model
+		if (this.isCompressible && this.deckType === DECK_TYPES.COUPLED) {
+			var model = this.getCompressibleModel(holeDiameterMm);
+			if (model) return model.totalMass(this.length);
+		}
 		return this.calculateVolume(holeDiameterMm) * this.effectiveDensity * 1000;
 	}
 
@@ -203,6 +238,9 @@ export class Deck {
 			averageDensity: this.averageDensity,
 			capDensity: this.capDensity,
 			maxCompressibleDensity: this.maxCompressibleDensity,
+			limitingDensity: this.limitingDensity,
+			criticalDensity: this.criticalDensity,
+			waterHeadM: this.waterHeadM,
 			isFixedLength: this.isFixedLength,
 			isFixedMass: this.isFixedMass,
 			isVariable: this.isVariable,

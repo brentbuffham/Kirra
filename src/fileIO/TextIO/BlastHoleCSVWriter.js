@@ -12,6 +12,7 @@
 // Step 7) Updated: 2026-02-15 - Added charging CSV formats (summary, detail, primers, timing)
 
 import BaseWriter from "../BaseWriter.js";
+import { chargingKey } from "../../charging/HoleCharging.js";
 
 // Step 5) BlastHoleCSVWriter class
 class BlastHoleCSVWriter extends BaseWriter {
@@ -453,7 +454,7 @@ class BlastHoleCSVWriter extends BaseWriter {
 
 		for (var i = 0; i < holes.length; i++) {
 			var hole = holes[i];
-			var charging = chargingMap ? chargingMap.get(hole.holeID) : null;
+			var charging = chargingMap ? chargingMap.get(chargingKey(hole)) : null;
 
 			var totalMass = 0;
 			var deckCount = 0;
@@ -527,7 +528,7 @@ class BlastHoleCSVWriter extends BaseWriter {
 
 		for (var i = 0; i < holes.length; i++) {
 			var hole = holes[i];
-			var charging = chargingMap ? chargingMap.get(hole.holeID) : null;
+			var charging = chargingMap ? chargingMap.get(chargingKey(hole)) : null;
 
 			if (!charging) continue;
 
@@ -573,7 +574,7 @@ class BlastHoleCSVWriter extends BaseWriter {
 
 		for (var i = 0; i < holes.length; i++) {
 			var hole = holes[i];
-			var charging = chargingMap ? chargingMap.get(hole.holeID) : null;
+			var charging = chargingMap ? chargingMap.get(chargingKey(hole)) : null;
 
 			if (!charging) continue;
 
@@ -618,7 +619,7 @@ class BlastHoleCSVWriter extends BaseWriter {
 
 		for (var i = 0; i < holes.length; i++) {
 			var hole = holes[i];
-			var charging = chargingMap ? chargingMap.get(hole.holeID) : null;
+			var charging = chargingMap ? chargingMap.get(chargingKey(hole)) : null;
 
 			if (!charging) continue;
 

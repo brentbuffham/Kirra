@@ -15,6 +15,7 @@
  */
 
 import { DECK_TYPES, DECK_COLORS, NON_EXPLOSIVE_TYPES, BULK_EXPLOSIVE_TYPES, DECOUPLED_CONTENT_CATEGORIES } from "../ChargingConstants.js";
+import { createCompressibleModel } from "../CompressibleDensityModel.js";
 
 /**
  * Get the fill color for a deck based on its type and product
@@ -243,15 +244,12 @@ export class HoleSectionView {
     _setupZoomControls() {
         var self = this;
         if (!this._scrollWrapper) return;
-        var parent = this._scrollWrapper.parentElement;
-        if (!parent) return;
 
-        // Ensure parent is positioned for absolute children
-        var parentPos = window.getComputedStyle(parent).position;
-        if (parentPos === "static") parent.style.position = "relative";
+        // Position relative to the scroll wrapper (the hole section view area)
+        this._scrollWrapper.style.position = "relative";
 
         var overlay = document.createElement("div");
-        overlay.style.cssText = "position:absolute;top:40px;right:10px;display:flex;flex-direction:column;gap:2px;z-index:10;";
+        overlay.style.cssText = "position:absolute;top:4px;left:50%;transform:translateX(-50%);display:flex;flex-direction:row;gap:2px;z-index:10;";
 
         var zoomIn = document.createElement("img");
         zoomIn.src = "icons/zoom-in.png";
@@ -271,7 +269,7 @@ export class HoleSectionView {
 
         overlay.appendChild(zoomIn);
         overlay.appendChild(zoomOut);
-        parent.appendChild(overlay);
+        this._scrollWrapper.appendChild(overlay);
         this._zoomOverlay = overlay;
     }
 
@@ -434,6 +432,9 @@ export class HoleSectionView {
         ctx.fillStyle = theme.holeWallFill;
         ctx.fillRect(holeX, holeY, holeW, holeH);
 
+        // Reset compression warning hit-test regions
+        this._compressionWarnings = [];
+
         // Draw decks
         for (var di = 0; di < hc.decks.length; di++) {
             this._drawDeck(hc.decks[di], di, theme, cssW);
@@ -540,6 +541,11 @@ export class HoleSectionView {
             // Fill deck rectangle
             ctx.fillStyle = fillColor;
             ctx.fillRect(drawX, y1, drawW, deckH);
+        }
+
+        // Draw compression gradient bar for compressible decks
+        if (deck.isCompressible && deck.deckType === DECK_TYPES.COUPLED && deckH > 8) {
+            this._drawCompressionBar(deck, drawX, y1, drawW, deckH, theme);
         }
 
         // Draw embedded content items (Physical packages inside INERT decks)
@@ -729,6 +735,110 @@ export class HoleSectionView {
         ctx.font = this._scaledFont(8);
         ctx.fillStyle = theme.textSecondary;
         ctx.fillText(density.toFixed(2) + "g/cc " + deckLen.toFixed(2) + "m " + mass.toFixed(1) + "kg", popX - 2, centerY + 5);
+    }
+
+    /**
+     * Draw a compression gradient bar on the left edge of a compressible deck.
+     * Shows density increasing with depth as a green-yellow-red gradient.
+     * Draws a dashed critical density line where dead-pressing may occur.
+     * Also draws a warning triangle if critical density is exceeded within the deck.
+     */
+    _drawCompressionBar(deck, drawX, y1, drawW, deckH, theme) {
+        var ctx = this.ctx;
+        var model = deck.getCompressibleModel ? deck.getCompressibleModel(this.holeDiameterMm) : null;
+        if (!model) return;
+
+        var barW = 6;
+        var barX = drawX + 2;
+        var barY = y1 + 2;
+        var barH = deckH - 4;
+        if (barH < 4) return;
+
+        var columnLength = deck.length;
+        var critRatio = model.criticalRatio();
+
+        // Draw gradient bar: green (safe) -> yellow (warning) -> red (critical)
+        var steps = Math.max(4, Math.min(Math.floor(barH), 40));
+        var stepH = barH / steps;
+
+        for (var i = 0; i < steps; i++) {
+            var depthFrac = i / steps;
+            var depthM = depthFrac * columnLength;
+            var ratio = model.compressionRatio(depthM);
+
+            // Color: green (0) -> yellow (0.5) -> red (1.0)
+            var r, g, b;
+            if (ratio < 0.5) {
+                var t = ratio * 2;
+                r = Math.round(80 + 175 * t);
+                g = Math.round(200 - 20 * t);
+                b = Math.round(80 - 60 * t);
+            } else {
+                var t2 = (ratio - 0.5) * 2;
+                r = Math.round(255);
+                g = Math.round(180 - 180 * t2);
+                b = Math.round(20 - 20 * t2);
+            }
+
+            ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+            ctx.fillRect(barX, barY + i * stepH, barW, stepH + 0.5);
+        }
+
+        // Border around bar
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(barX, barY, barW, barH);
+
+        // Draw critical density line if within the column
+        if (critRatio !== null) {
+            var critDepthM = model.criticalDepth(columnLength);
+            if (critDepthM !== null && critDepthM < columnLength) {
+                var critFrac = critDepthM / columnLength;
+                var critY = barY + critFrac * barH;
+
+                // Dashed red line across the full deck width
+                ctx.strokeStyle = "#FF0000";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 2]);
+                ctx.beginPath();
+                ctx.moveTo(drawX, critY);
+                ctx.lineTo(drawX + drawW, critY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Warning triangle at left edge
+                var triSize = 8;
+                var triX = drawX - triSize - 2;
+                var triY2 = critY;
+                ctx.fillStyle = "#FFCC00";
+                ctx.strokeStyle = "#CC0000";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(triX, triY2 + triSize / 2);
+                ctx.lineTo(triX + triSize / 2, triY2 - triSize / 2);
+                ctx.lineTo(triX + triSize, triY2 + triSize / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Exclamation mark
+                ctx.fillStyle = "#CC0000";
+                ctx.font = this._scaledFont(7, "bold");
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("!", triX + triSize / 2, triY2 + 1);
+
+                // Store hit-test region for tooltip
+                if (this._compressionWarnings) {
+                    this._compressionWarnings.push({
+                        x: triX + triSize / 2,
+                        y: triY2,
+                        depth: critDepthM,
+                        criticalDensity: model.criticalDensity
+                    });
+                }
+            }
+        }
     }
 
     /**
@@ -1133,6 +1243,12 @@ export class HoleSectionView {
                 lowerDeck.topDepth = parseFloat(newDepth.toFixed(3));
             }
 
+            // Clear stale formulas on dragged decks — user has overridden with manual positions
+            upperDeck.baseDepthFormula = null;
+            upperDeck.lengthFormula = null;
+            lowerDeck.topDepthFormula = null;
+            lowerDeck.lengthFormula = null;
+
             this.draw();
             return;
         }
@@ -1149,6 +1265,23 @@ export class HoleSectionView {
             }
         }
         this.canvas.style.cursor = overBoundary ? "ns-resize" : "default";
+
+        // Check if hovering over a compression warning triangle
+        var tooltip = "";
+        if (this._compressionWarnings) {
+            for (var wi = 0; wi < this._compressionWarnings.length; wi++) {
+                var w = this._compressionWarnings[wi];
+                if (Math.abs(pos.x - w.x) < 12 && Math.abs(pos.y - w.y) < 12) {
+                    tooltip = "Critical density (" + w.criticalDensity.toFixed(2) + " g/cc) exceeded at " +
+                        w.depth.toFixed(1) + "m depth.\n\n" +
+                        "Altering the column cap, limiting or critical density can\n" +
+                        "reduce this warning however please consult the product\n" +
+                        "supplier as this may cause safety related issues.";
+                    break;
+                }
+            }
+        }
+        this.canvas.title = tooltip;
     }
 
     _handleMouseUp(e) {

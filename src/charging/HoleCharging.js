@@ -135,7 +135,10 @@ export class HoleCharging {
 			isCompressible: options ? options.isCompressible : false,
 			averageDensity: options ? options.averageDensity : null,
 			capDensity: options ? options.capDensity : null,
-			maxCompressibleDensity: options ? options.maxCompressibleDensity : null
+			maxCompressibleDensity: options ? options.maxCompressibleDensity : null,
+			limitingDensity: options ? options.limitingDensity : null,
+			criticalDensity: options ? options.criticalDensity : null,
+			waterHeadM: options ? options.waterHeadM : 0
 		});
 		return this.insertDeck(newDeck);
 	}

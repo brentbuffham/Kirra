@@ -13127,6 +13127,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	const snapToleranceSlider = document.getElementById("snapToleranceSlider");
 	snapToleranceSlider.addEventListener("input", function () {
 		snapRadiusPixels = parseFloat(this.value);
+		window.snapRadiusPixels = snapRadiusPixels; // Sync to window so 3D cursor picks up the new value
 		document.getElementById("snapToleranceLabel").textContent = "Snap Tolerance: " + snapRadiusPixels + "px";
 
 		// Save to localStorage
@@ -27963,6 +27964,18 @@ function calculateHoleGeometry(clickedHole, newValue, modeLAB) {
 		hole.endYLocation = startY + horizontalProjectionOfHoleLength * Math.sin(radBearing);
 		hole.endZLocation = startZ - hole.holeLengthCalculated * cosAngle;
 	}
+	// Auto-recalculate charging if geometry changed (length, diameter, subdrill, benchHeight)
+	if (window.loadedCharging && (modeLAB === 1 || modeLAB === 7 || modeLAB === 8 || modeLAB === 9)) {
+		var chKey = (hole.entityName || "") + ":::" + (hole.holeID || "");
+		var hc = window.loadedCharging.get(chKey);
+		if (hc && hc.autoRecalculate !== false && typeof hc.updateDimensions === "function") {
+			hc.updateDimensions(hole);
+			if (typeof debouncedSaveCharging === "function") {
+				debouncedSaveCharging();
+			}
+		}
+	}
+
 	debouncedUpdateTreeView(); // Use debounced version
 	if (typeof debouncedSaveHoles === "function") {
 		debouncedSaveHoles(); // Save changes to IndexedDB
@@ -39018,6 +39031,75 @@ const HOLE_FIELD_MAPPING = {
 			return true;
 		},
 	},
+	// Charging-derived fields (computed from window.loadedCharging at export time)
+	designExplosiveMassKg: {
+		property: "designExplosiveMassKg", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designExplosiveMassPerDeck: {
+		property: "designExplosiveMassPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designPrimerMassKg: {
+		property: "designPrimerMassKg", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designPrimerMassPerDeck: {
+		property: "designPrimerMassPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designDetonatorCount: {
+		property: "designDetonatorCount", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designDetonatorCountPerDeck: {
+		property: "designDetonatorCountPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designLengthPerDeck: {
+		property: "designLengthPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designStemmingLengthM: {
+		property: "designStemmingLengthM", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designStemmingMassKg: {
+		property: "designStemmingMassKg", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designStemmingLengthPerDeck: {
+		property: "designStemmingLengthPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designStemmingMassPerDeck: {
+		property: "designStemmingMassPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designAirLengthM: {
+		property: "designAirLengthM", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designAirLengthPerDeck: {
+		property: "designAirLengthPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designWaterLengthM: {
+		property: "designWaterLengthM", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designWaterMassKg: {
+		property: "designWaterMassKg", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designWaterLengthPerDeck: {
+		property: "designWaterLengthPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
+	designWaterMassPerDeck: {
+		property: "designWaterMassPerDeck", type: "derived", default: "",
+		validation: function () { return true; },
+	},
 };
 
 /**
@@ -47425,6 +47507,7 @@ if (document.getElementById("snapToleranceSlider")) {
 // Single event listener for snap tolerance
 document.getElementById("snapToleranceSlider")?.addEventListener("input", function () {
 	snapRadiusPixels = parseFloat(this.value);
+	window.snapRadiusPixels = snapRadiusPixels; // Sync to window so 3D cursor picks up the new value
 	// console.log("Snap Tolerance updated: " + snapRadiusPixels + "px");
 	updateStatusMessage("Snap Tolerance: " + snapRadiusPixels + "px");
 	setTimeout(() => updateStatusMessage(""), 1500);

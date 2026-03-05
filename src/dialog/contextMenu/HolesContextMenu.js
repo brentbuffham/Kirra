@@ -563,14 +563,73 @@ export function showHolePropertyEditor(hole) {
 				}
 			}
 
-			summaryDiv.innerHTML =
-				"<b>Charging Summary</b><br>" +
-				"Decks: " + deckCount + "<br>" +
-				"Primers: " + primerCount + "<br>" +
-				"Explosive Mass: <b>" + totalMass.toFixed(1) + " kg</b><br>" +
-				"Powder Factor: <b>" + powderFactor.toFixed(3) + " kg/m\u00B3</b><br>" +
-				"Products: " + (productNames.length > 0 ? productNames.join(", ") : "None") + "<br>" +
-				(detDelay ? "Det Delay: " + detDelay + "<br>" : "");
+			// Build summary using safe DOM methods
+			summaryDiv.textContent = "";
+
+			function addSummaryLine(parent, text, bold) {
+				if (bold) {
+					var b = document.createElement("b");
+					b.textContent = text;
+					parent.appendChild(b);
+				} else {
+					parent.appendChild(document.createTextNode(text));
+				}
+				parent.appendChild(document.createElement("br"));
+			}
+
+			function addLabelValue(parent, label, value) {
+				parent.appendChild(document.createTextNode(label));
+				var b = document.createElement("b");
+				b.textContent = value;
+				parent.appendChild(b);
+				parent.appendChild(document.createElement("br"));
+			}
+
+			addSummaryLine(summaryDiv, "Charging Summary", true);
+			addSummaryLine(summaryDiv, "Decks: " + deckCount, false);
+			addSummaryLine(summaryDiv, "Primers: " + primerCount, false);
+			addLabelValue(summaryDiv, "Explosive Mass: ", totalMass.toFixed(1) + " kg");
+			addLabelValue(summaryDiv, "Powder Factor: ", powderFactor.toFixed(3) + " kg/m\u00B3");
+			addSummaryLine(summaryDiv, "Products: " + (productNames.length > 0 ? productNames.join(", ") : "None"), false);
+			if (detDelay) {
+				addSummaryLine(summaryDiv, "Det Delay: " + detDelay, false);
+			}
+
+			// Compression profile warnings for compressible decks
+			if (holeCharging.decks) {
+				let hasCompressible = false;
+				for (let ci = 0; ci < holeCharging.decks.length; ci++) {
+					let cd = holeCharging.decks[ci];
+					if (cd.isCompressible && cd.deckType === "COUPLED" && typeof cd.getCompressibleModel === "function") {
+						let cModel = cd.getCompressibleModel(singleHole.holeDiameter || 115);
+						if (cModel) {
+							if (!hasCompressible) {
+								summaryDiv.appendChild(document.createElement("br"));
+								var compTitle = document.createElement("b");
+								compTitle.style.color = "#ffcc00";
+								compTitle.textContent = "Compression Profile";
+								summaryDiv.appendChild(compTitle);
+								summaryDiv.appendChild(document.createElement("br"));
+								hasCompressible = true;
+							}
+							var densLine = document.createElement("span");
+							densLine.style.fontSize = "10px";
+							densLine.textContent = "Deck " + (ci + 1) + ": " + cModel.capDensity.toFixed(2) + " \u2192 " + cModel.densityAtDepth(cd.length).toFixed(2) + " g/cc";
+							summaryDiv.appendChild(densLine);
+							summaryDiv.appendChild(document.createElement("br"));
+
+							var cDepth = cModel.criticalDepth(cd.length);
+							if (cDepth !== null) {
+								var critLine = document.createElement("span");
+								critLine.style.cssText = "color:#ff4444;font-weight:bold;font-size:10px;";
+								critLine.textContent = "\u26A0 Critical at " + cDepth.toFixed(1) + "m";
+								summaryDiv.appendChild(critLine);
+								summaryDiv.appendChild(document.createElement("br"));
+							}
+						}
+					}
+				}
+			}
 
 			loadingRow.appendChild(summaryDiv);
 			loadingPanel.appendChild(loadingRow);

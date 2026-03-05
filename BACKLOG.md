@@ -5,23 +5,24 @@ Ideas and potential tasks to discuss or implement later.
 ## Contents (ordered: quick wins → high effort/risk)
 
 1. ~~KAD Entity Validation & Sorting~~ — **COMPLETED** (2026-02-26)
-2. Charging System UI Improvements — _low risk, small UI tweaks_
-3. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
-4. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
-5. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
-6. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
-7. Charging — Formula Builder UI — _medium risk, new UI component_
-8. ~~KAD Modification Tools~~ — **COMPLETED** (2026-03-03)
-8b. KAD Extend/Trim Segment to Segment ("T-Junction") Tool — _low risk, new tool_
-8c. CSG Solid Boolean — Normals Alignment Warning — _quick win, UI-only_
-9. TreeView Revamp — _low-medium risk, medium effort_
-10. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
-11. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
-12. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
-13. Electronic Timing Tools — _medium risk, new feature area_
-14. Performance & Large Dataset Scalability — _medium-high risk, high effort_
-15. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
-16. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
+2. **🔴 Charging Deck Builder Pipeline Audit** — _CRITICAL, thorough end-to-end verification_
+3. Charging System UI Improvements — _low risk, small UI tweaks_
+4. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
+5. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
+6. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
+7. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
+8. Charging — Formula Builder UI — _medium risk, new UI component_
+9. ~~KAD Modification Tools~~ — **COMPLETED** (2026-03-03)
+9b. KAD Extend/Trim Segment to Segment ("T-Junction") Tool — _low risk, new tool_
+9c. CSG Solid Boolean — Normals Alignment Warning — _quick win, UI-only_
+10. TreeView Revamp — _low-medium risk, medium effort_
+11. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
+12. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
+13. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
+14. Electronic Timing Tools — _medium risk, new feature area_
+15. Performance & Large Dataset Scalability — _medium-high risk, high effort_
+16. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
+17. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
 
 ## Under Consideration
 
@@ -79,6 +80,15 @@ Ideas and potential tasks to discuss or implement later.
   - Should show a live preview of the projected intersection point before confirming
   - Works with line and poly entity types
   - Uses the existing Select Pointer + KAD pick pattern for interactive segment/endpoint selection
+
+- **🔴 CRITICAL — Charging Deck Builder Pipeline Audit** — The charging Deck Builder needs a thorough end-to-end pipeline check. Verify data flow integrity across: product selection → productSnapshot → deck construction → formula evaluation → mass/density calculation → compressible model → UI rendering (HoleSectionView, DeckBuilderDialog, HolesContextMenu). Ensure all properties propagate correctly through every stage, especially after recent additions (compressible density model, limitingDensity/criticalDensity, compression warning bar, auto-recalculate on geometry changes, formula persistence/clearing). Test scenarios: (2026-03-05)
+  - Create new charging config from scratch, apply rule, verify all decks
+  - Change hole geometry (diameter, length, subdrill, benchHeight) and verify auto-recalculate
+  - Drag deck boundaries and verify formula clearing + Save as Rule accuracy
+  - Test compressible products: compression bar rendering, density range, critical depth warnings
+  - Import/export KAP templates with compressible product fields
+  - Reload page and verify all charging state persists correctly from IndexedDB
+  - Multi-hole patterns: apply rule across pattern, verify consistency
 
 - **Charging System UI Improvements** — Enhance the deck/charging interface for better usability: (2026-02-25)
   - **Right-click context menu on deck** — Right-click a deck to edit it, link to deck-base above, or link to deck-top below
