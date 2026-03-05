@@ -5,7 +5,8 @@
     "main": "kirra.js",
     "scripts": {
         "dev": "cross-env BROWSER=Chrome vite --open /kirra.html",
-        "build": "vite build"
+        "build": "vite build",
+        "test": "node src/charging/__tests__/charging-pipeline.test.js && node src/three/__tests__/performance.test.js"
     },
     "keywords": [],
     "author": "Brent Buffham",

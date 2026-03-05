@@ -6,23 +6,24 @@ Ideas and potential tasks to discuss or implement later.
 
 1. ~~KAD Entity Validation & Sorting~~ — **COMPLETED** (2026-02-26)
 2. **🔴 Charging Deck Builder Pipeline Audit** — _CRITICAL, thorough end-to-end verification_
-3. Charging System UI Improvements — _low risk, small UI tweaks_
-4. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
-5. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
-6. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
-7. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
-8. Charging — Formula Builder UI — _medium risk, new UI component_
-9. ~~KAD Modification Tools~~ — **COMPLETED** (2026-03-03)
-9b. KAD Extend/Trim Segment to Segment ("T-Junction") Tool — _low risk, new tool_
-9c. CSG Solid Boolean — Normals Alignment Warning — _quick win, UI-only_
-10. TreeView Revamp — _low-medium risk, medium effort_
-11. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
-12. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
-13. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
-14. Electronic Timing Tools — _medium risk, new feature area_
-15. Performance & Large Dataset Scalability — _medium-high risk, high effort_
-16. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
-17. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
+3. Expand Unit Test Coverage — _low risk, incremental, high value_
+4. Charging System UI Improvements — _low risk, small UI tweaks_
+5. ~~Surface Contour Line Generation~~ — **COMPLETED** (2026-02-26)
+6. Offset and Radii Undo/Redo Deletion — _low risk, extends existing undo system_
+7. Charging Tools — Temperature Recording from Hole Conditions — _low risk, extends existing code_
+8. Charging — Hole Conditions / Swap Editor — _low risk, new dialog_
+9. Charging — Formula Builder UI — _medium risk, new UI component_
+10. ~~KAD Modification Tools~~ — **COMPLETED** (2026-03-03)
+10b. KAD Extend/Trim Segment to Segment ("T-Junction") Tool — _low risk, new tool_
+10c. CSG Solid Boolean — Normals Alignment Warning — _quick win, UI-only_
+11. TreeView Revamp — _low-medium risk, medium effort_
+12. Undo/Redo for Surface Deletion — _medium risk, large data + persistence concerns_
+13. Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer) — _medium risk, complex algorithm debugging_
+14. Improve 3D Draw Calls & Interaction Response — _medium risk, medium-high effort_
+15. Electronic Timing Tools — _medium risk, new feature area_
+16. Performance & Large Dataset Scalability — _medium-high risk, high effort_
+17. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
+18. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
 
 ## Under Consideration
 
@@ -89,6 +90,16 @@ Ideas and potential tasks to discuss or implement later.
   - Import/export KAP templates with compressible product fields
   - Reload page and verify all charging state persists correctly from IndexedDB
   - Multi-hole patterns: apply rule across pattern, verify consistency
+
+- **Expand Unit Test Coverage** — Build out standalone Node.js test suites across the codebase. Currently have: charging pipeline (65 tests), 3D performance (10 tests). Run via `npm test`. Priority areas to add: (2026-03-06)
+  - **FormulaEvaluator** — `fx:` formula parsing, variable resolution, conditional expressions, edge cases (division by zero, missing vars)
+  - **ConfigImportExport** — KAP CSV export → re-parse roundtrip, template product fields (limitingDensity, criticalDensity)
+  - **Primer** — placement validation, depth formula evaluation, deck assignment
+  - **Product classes** — BulkExplosive/HighExplosive/NonExplosive construction, toJSON/fromJSON roundtrip
+  - **Blast hole geometry** — `calculateHoleGeometry()` modes (angle, bearing, subdrill, benchHeight, grade calculations)
+  - **Swap engine** — condition code matching, product replacement, multi-rule chains
+  - **Charging rule application** — apply config to various hole sizes, verify deck positions match formulas
+  - **File parsers** — DTM, STR, DXF parse known reference files and verify point/triangle counts
 
 - **Charging System UI Improvements** — Enhance the deck/charging interface for better usability: (2026-02-25)
   - **Right-click context menu on deck** — Right-click a deck to edit it, link to deck-base above, or link to deck-top below
