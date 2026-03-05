@@ -52,10 +52,14 @@ function updatePreview(entity, params, color) {
 	clearPreview();
 	if (!window.threeRenderer || !window.threeRenderer.scene) return;
 
-	previewGroup = createPreviewMesh(entity, params, color);
-	if (previewGroup) {
-		window.threeRenderer.scene.add(previewGroup);
-		window.threeRenderer.render();
+	try {
+		previewGroup = createPreviewMesh(entity, params, color);
+		if (previewGroup) {
+			window.threeRenderer.scene.add(previewGroup);
+			window.threeRenderer.render();
+		}
+	} catch (e) {
+		console.error("ExtrudeKAD: preview failed:", e.message);
 	}
 }
 
@@ -257,9 +261,14 @@ export function showExtrudeKADDialog() {
 
 			saveSettings(params);
 
-			var surfaceId = applyExtrusion(entity, params);
-			if (surfaceId) {
-				console.log("Extrude KAD applied: " + surfaceId);
+			try {
+				var surfaceId = applyExtrusion(entity, params);
+				if (surfaceId) {
+					console.log("Extrude KAD applied: " + surfaceId);
+				}
+			} catch (e) {
+				console.error("ExtrudeKAD: extrusion failed:", e);
+				showInfoDialog("Extrusion failed: " + e.message);
 			}
 		},
 		onCancel: function () {
@@ -309,9 +318,12 @@ function getAllClosedPolys() {
 	var result = [];
 	if (window.allKADDrawingsMap && window.allKADDrawingsMap.size > 0) {
 		window.allKADDrawingsMap.forEach(function (entity, entityName) {
-			if (entity.entityType === "poly" && entity.data && entity.data.length >= 3) {
-				var firstPt = entity.data[0];
-				if (firstPt && (firstPt.closed === true || firstPt.closed === undefined)) {
+			if (entity.data && entity.data.length >= 3) {
+				// entityType "poly" is always closed by definition;
+				// for lines, check any point's closed flag (STR sets it on last point)
+				var isClosed = entity.entityType === "poly" ||
+					entity.data.some(function (pt) { return pt.closed === true; });
+				if (isClosed) {
 					result.push({
 						name: entityName,
 						pointCount: entity.data.length
@@ -326,8 +338,9 @@ function getAllClosedPolys() {
 function isClosedPoly(entityName) {
 	var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
 	if (!entity || !entity.data || entity.data.length < 3) return false;
-	var firstPt = entity.data[0];
-	return firstPt && (firstPt.closed === true || firstPt.closed === undefined);
+	// entityType "poly" is always closed; for lines, check any point's closed flag
+	return entity.entityType === "poly" ||
+		entity.data.some(function (pt) { return pt.closed === true; });
 }
 
 function isDarkMode() {

@@ -64,20 +64,25 @@ export function buildExtrudeGeometry(entity, params) {
 		n = verts.length;
 	}
 
-	// Step 2b) Remove consecutive duplicate / near-coincident vertices
-	// KAD polygons imported from DXF/shapefiles can have duplicate points
-	// that cause Delaunator to crash.
+	// Step 2b) Remove ALL duplicate / near-coincident vertices (not just consecutive).
+	// DXF polygons can have non-consecutive duplicates (e.g. point 14 and 16 identical
+	// with a different point 15 between them). Constrainautor infinite-loops on these.
 	var DEDUP_TOL = 0.001;
-	var cleaned = [verts[0]];
-	for (var di = 1; di < n; di++) {
-		var prev = cleaned[cleaned.length - 1];
+	var cleaned = [];
+	for (var di = 0; di < n; di++) {
 		var cur = verts[di];
-		if (Math.abs(cur.x - prev.x) < DEDUP_TOL &&
-			Math.abs(cur.y - prev.y) < DEDUP_TOL &&
-			Math.abs(cur.z - prev.z) < DEDUP_TOL) {
-			continue; // skip duplicate
+		var isDuplicate = false;
+		for (var dj = 0; dj < cleaned.length; dj++) {
+			if (Math.abs(cur.x - cleaned[dj].x) < DEDUP_TOL &&
+				Math.abs(cur.y - cleaned[dj].y) < DEDUP_TOL &&
+				Math.abs(cur.z - cleaned[dj].z) < DEDUP_TOL) {
+				isDuplicate = true;
+				break;
+			}
 		}
-		cleaned.push(cur);
+		if (!isDuplicate) {
+			cleaned.push(cur);
+		}
 	}
 	// Also check that the last cleaned vertex isn't a duplicate of the first
 	if (cleaned.length > 1) {
@@ -136,28 +141,28 @@ export function buildExtrudeGeometry(entity, params) {
 		// Solid extrusion: top cap + bottom cap + side walls
 
 		// Top cap (at original Z per vertex)
-		// CCW winding viewed from above → outward normal points up
+		// Delaunator produces CW in Y-up coords, so reverse to get outward normal +Z (up)
 		for (var f = 0; f < faceIndices.length; f++) {
 			var a = faceIndices[f][0];
 			var b = faceIndices[f][1];
 			var c = faceIndices[f][2];
 			positions.push(
 				verts[a].x, verts[a].y, verts[a].z,
-				verts[b].x, verts[b].y, verts[b].z,
-				verts[c].x, verts[c].y, verts[c].z
+				verts[c].x, verts[c].y, verts[c].z,
+				verts[b].x, verts[b].y, verts[b].z
 			);
 		}
 
 		// Bottom cap (at Z + signedDepth per vertex)
-		// Reversed winding → outward normal points down
+		// Keep Delaunator CW winding → outward normal -Z (down)
 		for (var f = 0; f < faceIndices.length; f++) {
 			var a = faceIndices[f][0];
 			var b = faceIndices[f][1];
 			var c = faceIndices[f][2];
 			positions.push(
-				verts[c].x, verts[c].y, verts[c].z + signedDepth,
+				verts[a].x, verts[a].y, verts[a].z + signedDepth,
 				verts[b].x, verts[b].y, verts[b].z + signedDepth,
-				verts[a].x, verts[a].y, verts[a].z + signedDepth
+				verts[c].x, verts[c].y, verts[c].z + signedDepth
 			);
 		}
 
@@ -277,12 +282,15 @@ export function createPreviewMesh(entity, params, color) {
  * @returns {string | null} - Surface ID of created surface, or null on failure
  */
 export function applyExtrusion(entity, params) {
+	console.time("extrude:buildGeometry");
 	var result = buildExtrudeGeometry(entity, params);
+	console.timeEnd("extrude:buildGeometry");
 	if (!result) return null;
 
 	var geometry = result.geometry;
 
 	// Step 1) Extract vertex positions (geometry is non-indexed from manual build)
+	console.time("extrude:convertCoords");
 	var positions = geometry.attributes.position.array;
 	var worldPoints = [];
 	var triangles = [];
@@ -307,6 +315,7 @@ export function applyExtrusion(entity, params) {
 			]
 		});
 	}
+	console.timeEnd("extrude:convertCoords");
 
 	// Step 4) Compute bounds
 	var bounds = computeBounds(worldPoints);
@@ -335,6 +344,7 @@ export function applyExtrusion(entity, params) {
 	};
 
 	// Step 6) Store in loadedSurfaces
+	console.log("extrude:store surface " + surfaceId);
 	window.loadedSurfaces.set(surfaceId, surface);
 
 	// Step 6a) Add to layer's entity set
@@ -348,17 +358,22 @@ export function applyExtrusion(entity, params) {
 	}
 
 	// Step 7) Save to IndexedDB
+	console.log("extrude:saving to DB");
 	if (typeof window.saveSurfaceToDB === "function") {
 		window.saveSurfaceToDB(surfaceId).catch(function (err) {
 			console.error("Failed to save extruded surface to DB:", err);
 		});
 	}
 
-	// Step 8) Trigger redraw
-	window.threeKADNeedsRebuild = true;
+	// Step 8) Trigger redraw — only surfaces changed, no KAD rebuild needed
+	console.log("extrude:triggering drawData");
+	if (typeof window.invalidateSurfaceCache === "function") {
+		window.invalidateSurfaceCache(surfaceId);
+	}
 	if (typeof window.drawData === "function") {
 		window.drawData(window.allBlastHoles, window.selectedHole);
 	}
+	console.log("extrude:drawData complete");
 	if (typeof window.debouncedUpdateTreeView === "function") {
 		window.debouncedUpdateTreeView();
 	}

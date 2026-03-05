@@ -206,6 +206,7 @@ export function exitKADPickMode() {
 function isClosedPoly(entityName) {
 	var entity = window.allKADDrawingsMap ? window.allKADDrawingsMap.get(entityName) : null;
 	if (!entity || !entity.data || entity.data.length < 3) return false;
-	var firstPt = entity.data[0];
-	return firstPt && (firstPt.closed === true || firstPt.closed === undefined);
+	// entityType "poly" is always closed; for lines, check any point's closed flag
+	return entity.entityType === "poly" ||
+		entity.data.some(function (pt) { return pt.closed === true; });
 }

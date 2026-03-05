@@ -7,7 +7,9 @@
 import { computeSurfaceStatistics, classifyNormalDirection, flipSurfaceNormals, alignSurfaceNormals, setSurfaceNormalsDirection } from "../../helpers/SurfaceNormalHelper.js";
 import { extractTriangles } from "../../helpers/SurfaceIntersectionHelper.js";
 import { detectMeshProblems, countUnweldedVertices, weldVertices, weldedToSoup, extractBoundaryLoops, triangulateLoop, capBoundaryLoopsSequential, closeMeshIndexed, cleanCrossingTriangles, removeDegenerateTriangles } from "../../helpers/MeshRepairHelper.js";
+import { fillOpenEdgeLoops } from "trimesh-boolean";
 import * as THREE from "three";
+import { MeshLine, MeshLineMaterial } from "../../helpers/meshLineModified.js";
 
 // Module-level group for mesh check highlights — cleared on dialog close
 var meshCheckGroup = null;
@@ -562,6 +564,19 @@ function showSurfaceStatsDialog(stats, surface) {
 			repairCloseOpenEdges(surface, getRefs());
 		});
 
+		// Add "Fill" button (trimesh-boolean fillOpenEdgeLoops) next to "Close"
+		var fillBtn = document.createElement("button");
+		fillBtn.textContent = "Fill";
+		fillBtn.title = "Fill open loops using trimesh-boolean (winding-aware fan fill)";
+		fillBtn.className = "floating-dialog-btn";
+		fillBtn.style.padding = "3px 8px";
+		fillBtn.style.minWidth = "60px";
+		fillBtn.style.maxHeight = "18px";
+		openRow.repairBtn.parentNode.insertBefore(fillBtn, openRow.repairBtn);
+		fillBtn.addEventListener("click", function () {
+			repairFillOpenEdges(surface, getRefs());
+		});
+
 		var nmRow = createCheckRow("Non-Manifold Edges", "meshChkNonManifold", "Remove");
 		nonManifoldCheckbox = nmRow.checkbox;
 		nonManifoldCountSpan = nmRow.countSpan;
@@ -871,34 +886,44 @@ function runMeshCheck(surface, openCb, nonManifoldCb, degenerateCb,
 
 	var toLocal = typeof window.worldToThreeLocal === "function" ? window.worldToThreeLocal : null;
 
-	// Step 4a) Edge highlight helper — builds LineSegments from edge array
+	// Step 4a) Edge highlight helper — builds MeshLine fat lines (always on top)
 	function buildEdgeHighlight(edges) {
 		if (edges.length === 0) return null;
-		var positions = new Float32Array(edges.length * 6);
+		var edgeGroup = new THREE.Group();
+		edgeGroup.renderOrder = 999;
+		edgeGroup.frustumCulled = false;
+
 		for (var i = 0; i < edges.length; i++) {
 			var e = edges[i];
 			var p0 = toLocal ? toLocal(e.v0.x, e.v0.y) : { x: e.v0.x, y: e.v0.y };
 			var p1 = toLocal ? toLocal(e.v1.x, e.v1.y) : { x: e.v1.x, y: e.v1.y };
-			positions[i * 6] = p0.x;
-			positions[i * 6 + 1] = p0.y;
-			positions[i * 6 + 2] = e.v0.z;
-			positions[i * 6 + 3] = p1.x;
-			positions[i * 6 + 4] = p1.y;
-			positions[i * 6 + 5] = e.v1.z;
+
+			var points = [
+				new THREE.Vector3(p0.x, p0.y, e.v0.z),
+				new THREE.Vector3(p1.x, p1.y, e.v1.z)
+			];
+
+			var line = new MeshLine();
+			var geom = new THREE.BufferGeometry().setFromPoints(points);
+			line.setGeometry(geom);
+
+			var material = new MeshLineMaterial({
+				color: new THREE.Color(0xFF00FF),
+				lineWidth: 3,
+				resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+				depthTest: false,
+				depthWrite: false,
+				transparent: true,
+				opacity: 1.0,
+				sizeAttenuation: false
+			});
+
+			var mesh = new THREE.Mesh(line, material);
+			mesh.renderOrder = 999;
+			mesh.frustumCulled = false;
+			edgeGroup.add(mesh);
 		}
-		var geom = new THREE.BufferGeometry();
-		geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-		var mat = new THREE.LineBasicMaterial({
-			color: 0xFF00FF,
-			linewidth: 2,
-			depthTest: false,
-			depthWrite: false,
-			transparent: true
-		});
-		var lines = new THREE.LineSegments(geom, mat);
-		lines.renderOrder = 999;
-		lines.frustumCulled = false;
-		return lines;
+		return edgeGroup;
 	}
 
 	// Step 4b) Triangle highlight helper — builds Mesh from degenerate tris
@@ -1135,6 +1160,34 @@ function repairCloseOpenEdges(surface, refs) {
 		" tris, added " + totalCapTris + " cap tris)");
 
 	applyRepairAndRecheck(surface, tris, refs);
+}
+
+/**
+ * Repair: fill open edge loops using trimesh-boolean's fillOpenEdgeLoops.
+ * Uses winding-aware fan fill from the adjacent triangle's half-edge direction.
+ */
+function repairFillOpenEdges(surface, refs) {
+	if (!lastCheckProblems) {
+		console.warn("Mesh Repair: run Check first");
+		return;
+	}
+	if (lastCheckProblems.openEdges.length === 0) {
+		console.log("Mesh Repair: no open edges to fill");
+		return;
+	}
+
+	var tris = extractTriangles(surface);
+	var before = tris.length;
+
+	try {
+		var filled = fillOpenEdgeLoops(tris);
+		var added = filled.length - before;
+		console.log("Mesh Repair (trimesh): fill open edges (" + before + " → " + filled.length +
+			" tris, added " + added + " fill tris)");
+		applyRepairAndRecheck(surface, filled, refs);
+	} catch (e) {
+		console.error("Mesh Repair (trimesh): fillOpenEdgeLoops failed:", e);
+	}
 }
 
 /**
