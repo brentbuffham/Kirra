@@ -2568,6 +2568,11 @@ export function drawKADLeadingLineThreeJSV2(fromWorldX, fromWorldY, fromWorldZ, 
 
 	// Step 8) Add to connectorsGroup - SAME as ruler
 	connectorsGroup.add(line);
+
+	// Step 9) Request render so the line is visible on next frame
+	if (window.threeRenderer && typeof window.threeRenderer.requestRender === "function") {
+		window.threeRenderer.requestRender();
+	}
 }
 
 // clearKADLeadingLineThreeJSV2 - Clean up V2 leading lines

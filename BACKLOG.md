@@ -127,13 +127,16 @@ Ideas and potential tasks to discuss or implement later.
   - **Polyline/polygon to timing contour** — Draw a polyline or polygon entity and convert it to a timing contour
   - **Triangulated timing surface** — Use two or more points, lines, or polys at an elevation, build a triangulation between them, then use the resulting surface as a timing contour. Assign downhole times to blast holes by interpolating timing values from the triangulated surface at each hole's XY location
 
-- **Improve 3D Draw Calls & Interaction Response** — 3D performance is very poor with multiple surfaces loaded (4 FPS at 728K triangles, 21 surfaces, 32 draw calls, ~550ms avg frame time). Investigate and fix: (2026-02-25)
+- **Improve 3D Draw Calls & Interaction Response** — 3D performance is very poor with multiple surfaces loaded (4 FPS at 728K triangles, 21 surfaces, 32 draw calls, ~550ms avg frame time). Investigate and fix: (2026-02-25, updated 2026-03-06)
   - **Frustum culling** — skip rendering surfaces/objects outside the camera view
   - **Geometry merging** — merge static surfaces into fewer draw calls where possible
   - **LOD / decimation** — reduce triangle count for distant surfaces
   - **Throttle raycasting** — interaction (mouse move, hover) may be triggering expensive raycasts every frame
   - **KAD line batching** — 20,932 lines across 2 KADs may benefit from merging into fewer BufferGeometry objects
   - **Render-on-demand** — only re-render when camera moves or data changes, not every frame
+  - **KAD segment selection is haphazard in 3D** — picking individual line/poly segments is unreliable; needs tighter hit-testing or priority logic to match 2D selection accuracy
+  - **3D surface vertex snapping inferior to 2D** — snapping to surface vertices in 3D is less precise/responsive than the 2D equivalent; investigate snap radius, priority, and candidate filtering
+  - ~~**3D KAD leading lines missing**~~ — Fixed 2026-03-06: draw call was removed from mouse move handler, Z coordinate missing after backspace, V1/V2 clear mismatch
 
 - **Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer Scenario)** — Surface boolean operations fail when both input meshes are open (e.g., a tea cup intersected with a saucer — two open shells). Works perfectly on open mesh vs closed solid, and closed solid vs closed solid. Investigate edge cases in the boolean pipeline for dual-open-mesh inputs. (2026-02-25)
 

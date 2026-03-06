@@ -153,19 +153,31 @@ export function computeSurfaceStatistics(surface) {
 		pointCount = Object.keys(seen).length;
 	}
 
-	var edgeCount = countUniqueEdges(tris);
+	var edgeInfo = countEdges(tris);
+	var edgeCount = edgeInfo.total;
 	var faceCount = tris.length;
-	var xyArea = computeProjectedArea(tris, "xy");
-	var yzArea = computeProjectedArea(tris, "yz");
-	var xzArea = computeProjectedArea(tris, "xz");
 	var surfaceArea = compute3DSurfaceArea(tris);
 
 	// Use existing global functions for volume and closed check
 	var volume = 0;
 	var isClosed = false;
+	var openEdgeCount = edgeInfo.boundary;
 	if (surface.triangles && surface.triangles.length > 0) {
 		volume = computeVolumeFromTris(tris);
 		isClosed = typeof window.isSurfaceClosed === "function" && window.isSurfaceClosed(surface);
+	}
+
+	var hasOpenEdges = openEdgeCount > 0;
+
+	// Projected areas: Method B (sum all, /2 for closed) with Method A fallback
+	var xyResult = computeProjectedArea(tris, "xy", isClosed, hasOpenEdges);
+	var yzResult = computeProjectedArea(tris, "yz", isClosed, hasOpenEdges);
+	var xzResult = computeProjectedArea(tris, "xz", isClosed, hasOpenEdges);
+
+	// Log warning if falling back to Method A
+	if (isClosed && hasOpenEdges) {
+		console.warn("[SurfaceStats] " + (surface.name || surface.id) +
+			": Closed with " + openEdgeCount + " open edges — using Method A (normal filtering) for projected area");
 	}
 
 	var normalDir = classifyNormalDirection(tris, isClosed, volume);
@@ -176,20 +188,27 @@ export function computeSurfaceStatistics(surface) {
 		edges: edgeCount,
 		faces: faceCount,
 		normalDirection: normalDir,
-		xyArea: xyArea,
-		yzArea: yzArea,
-		xzArea: xzArea,
+		xyArea: xyResult.area,
+		yzArea: yzResult.area,
+		xzArea: xzResult.area,
+		xyAreaMethod: xyResult.method,
 		surfaceArea: surfaceArea,
 		volume: Math.abs(volume),
-		closed: isClosed ? "Yes" : "No"
+		closed: isClosed ? "Yes" : "No",
+		openEdgeCount: openEdgeCount
 	};
 }
 
 /**
- * Count unique edges from triangle soup.
+ * Count unique edges and open (boundary) edges from triangle soup.
+ * An edge shared by exactly 2 triangles is interior (watertight).
+ * An edge shared by 1 triangle is a boundary (open) edge.
+ * An edge shared by >2 triangles is non-manifold.
+ *
+ * @returns {{ total: number, boundary: number, nonManifold: number }}
  */
-function countUniqueEdges(tris) {
-	var edgeSet = {};
+function countEdges(tris) {
+	var edgeCounts = {};
 	var PREC = 6;
 
 	function vKey(v) {
@@ -206,11 +225,20 @@ function countUniqueEdges(tris) {
 			var ka = keys[e];
 			var kb = keys[ne];
 			var ek = ka < kb ? ka + "|" + kb : kb + "|" + ka;
-			edgeSet[ek] = true;
+			edgeCounts[ek] = (edgeCounts[ek] || 0) + 1;
 		}
 	}
 
-	return Object.keys(edgeSet).length;
+	var total = 0, boundary = 0, nonManifold = 0;
+	var edgeKeys = Object.keys(edgeCounts);
+	total = edgeKeys.length;
+	for (var j = 0; j < edgeKeys.length; j++) {
+		var count = edgeCounts[edgeKeys[j]];
+		if (count === 1) boundary++;
+		else if (count > 2) nonManifold++;
+	}
+
+	return { total: total, boundary: boundary, nonManifold: nonManifold };
 }
 
 /**
@@ -305,17 +333,30 @@ export function classifyNormalDirection(tris, isClosed, signedVolume) {
 /**
  * Compute projected footprint area onto a plane.
  *
- * Only includes front-facing triangles (normals facing the projection direction)
- * to avoid double-counting both sides of a closed solid.
- *   XY: faces with normal.z > 0 (looking down from above)
- *   YZ: faces with normal.x > 0 (looking from East)
- *   XZ: faces with normal.y > 0 (looking from North)
+ * Method B (primary) — Projected Triangle Method:
+ *   Sum |cross-product component| / 2 for ALL triangles.
+ *   For a closed solid, top+bottom+sides all contribute, so divide by 2.
+ *   Robust to mixed normals since |cz| is independent of winding direction.
+ *
+ * Method A (fallback) — Normal-Direction Filtering:
+ *   Only count triangles whose normal faces the projection direction.
+ *   No /2 correction needed. Used when mesh claims closed but has open edges
+ *   (where the /2 in Method B would overcorrect).
  *
  * @param {Array} tris - Triangle soup
  * @param {string} plane - "xy", "yz", or "xz"
- * @returns {number} Projected footprint area
+ * @param {boolean} isClosed - Whether the mesh is a closed solid
+ * @param {boolean} hasOpenEdges - If true and isClosed, falls back to Method A
+ * @returns {{ area: number, method: string }} Projected area and method used
  */
-export function computeProjectedArea(tris, plane) {
+export function computeProjectedArea(tris, plane, isClosed, hasOpenEdges) {
+	// Fallback to Method A if mesh claims closed but has open edges
+	if (isClosed && hasOpenEdges) {
+		var areaA = computeProjectedAreaByNormals(tris, plane);
+		return { area: areaA, method: "A" };
+	}
+
+	// Method B: sum |cross-component|/2 for all triangles
 	var area = 0;
 
 	for (var i = 0; i < tris.length; i++) {
@@ -323,21 +364,54 @@ export function computeProjectedArea(tris, plane) {
 		var v1 = tris[i].v1;
 		var v2 = tris[i].v2;
 
-		// Compute face normal to determine facing direction
+		// Edge vectors from v0
+		var dx1 = v1.x - v0.x, dy1 = v1.y - v0.y, dz1 = v1.z - v0.z;
+		var dx2 = v2.x - v0.x, dy2 = v2.y - v0.y, dz2 = v2.z - v0.z;
+
+		if (plane === "xy") {
+			var cz = dx1 * dy2 - dy1 * dx2;
+			area += Math.abs(cz) / 2.0;
+		} else if (plane === "yz") {
+			var cx = dy1 * dz2 - dz1 * dy2;
+			area += Math.abs(cx) / 2.0;
+		} else if (plane === "xz") {
+			var cy = dz1 * dx2 - dx1 * dz2;
+			area += Math.abs(cy) / 2.0;
+		}
+	}
+
+	// For a closed solid, both sides contribute, so divide by 2
+	if (isClosed) {
+		area /= 2.0;
+	}
+
+	return { area: area, method: "B" };
+}
+
+/**
+ * Method A — Normal-direction filtering (fallback).
+ * Only counts triangles whose face normal points toward the projection direction.
+ * No /2 correction needed since only one side is counted.
+ */
+function computeProjectedAreaByNormals(tris, plane) {
+	var area = 0;
+
+	for (var i = 0; i < tris.length; i++) {
+		var v0 = tris[i].v0;
+		var v1 = tris[i].v1;
+		var v2 = tris[i].v2;
+
 		var n = triNormal(tris[i]);
 
 		if (plane === "xy") {
-			// Only include faces with upward-facing normals (z > 0)
 			if (n.z <= 0) continue;
 			var cross2d = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
 			area += Math.abs(cross2d) / 2.0;
 		} else if (plane === "yz") {
-			// Only include faces with normals pointing in +X direction
 			if (n.x <= 0) continue;
 			var cross2d = (v1.y - v0.y) * (v2.z - v0.z) - (v2.y - v0.y) * (v1.z - v0.z);
 			area += Math.abs(cross2d) / 2.0;
 		} else if (plane === "xz") {
-			// Only include faces with normals pointing in +Y direction
 			if (n.y <= 0) continue;
 			var cross2d = (v1.x - v0.x) * (v2.z - v0.z) - (v2.x - v0.x) * (v1.z - v0.z);
 			area += Math.abs(cross2d) / 2.0;
@@ -373,29 +447,43 @@ export function compute3DSurfaceArea(tris) {
 
 /**
  * Compute signed mesh volume from triangle soup using divergence theorem.
+ *
+ * Signed Tetrahedron Method:
+ *   Each triangle forms a tetrahedron with the origin.
+ *   signedVol = V0 . (V1 x V2) / 6  (scalar triple product)
+ *   Sum across all triangles, take abs() for enclosed volume.
+ *
+ * Step 1) Translate to bounding box midpoint for floating-point precision
+ *         with large UTM coordinates (origin-independent for closed meshes,
+ *         but centering minimises error for nearly-closed meshes with tiny gaps).
  */
 function computeVolumeFromTris(tris) {
 	if (tris.length === 0) return 0;
 
-	// Translate to local centroid to avoid floating-point issues with large UTM coordinates.
-	// The divergence theorem is origin-independent for a perfectly closed mesh,
-	// but with tiny gaps the error is proportional to distance from origin.
-	// Centering keeps errors proportional to mesh size, not UTM offset.
-	var cx = 0, cy = 0, cz = 0;
+	// Step 1) Compute bounding box midpoint for centering
+	var minX = Infinity, minY = Infinity, minZ = Infinity;
+	var maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 	var n = tris.length;
 	for (var c = 0; c < n; c++) {
-		cx += tris[c].v0.x + tris[c].v1.x + tris[c].v2.x;
-		cy += tris[c].v0.y + tris[c].v1.y + tris[c].v2.y;
-		cz += tris[c].v0.z + tris[c].v1.z + tris[c].v2.z;
+		var t = tris[c];
+		var verts = [t.v0, t.v1, t.v2];
+		for (var v = 0; v < 3; v++) {
+			var p = verts[v];
+			if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+			if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+			if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+		}
 	}
-	var inv = 1.0 / (n * 3);
-	cx *= inv; cy *= inv; cz *= inv;
+	var ox = (minX + maxX) / 2;
+	var oy = (minY + maxY) / 2;
+	var oz = (minZ + maxZ) / 2;
 
+	// Step 2) Scalar triple product: V0 . (V1 x V2) / 6
 	var vol = 0;
 	for (var i = 0; i < n; i++) {
-		var x0 = tris[i].v0.x - cx, y0 = tris[i].v0.y - cy, z0 = tris[i].v0.z - cz;
-		var x1 = tris[i].v1.x - cx, y1 = tris[i].v1.y - cy, z1 = tris[i].v1.z - cz;
-		var x2 = tris[i].v2.x - cx, y2 = tris[i].v2.y - cy, z2 = tris[i].v2.z - cz;
+		var x0 = tris[i].v0.x - ox, y0 = tris[i].v0.y - oy, z0 = tris[i].v0.z - oz;
+		var x1 = tris[i].v1.x - ox, y1 = tris[i].v1.y - oy, z1 = tris[i].v1.z - oz;
+		var x2 = tris[i].v2.x - ox, y2 = tris[i].v2.y - oy, z2 = tris[i].v2.z - oz;
 
 		vol += (x0 * (y1 * z2 - y2 * z1)
 			- x1 * (y0 * z2 - y2 * z0)

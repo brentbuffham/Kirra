@@ -259,18 +259,20 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 		title: currentSurface.name || "Surface Properties",
 		content: formContent,
 		layoutType: "compact",
-		width: 370,
+		width: 450,
 		height: 300,
 		showConfirm: true, // "Ok" button
 		showCancel: true, // "Cancel" button
 		showOption1: true, // "Delete" button
 		showOption2: true, // "Hide" button
 		showOption3: true, // "Statistics" button
+		showOption4: true, // "Clean Mesh" button
 		confirmText: "Ok",
 		cancelText: "Cancel",
 		option1Text: "Delete",
 		option2Text: currentSurface.visible ? "Hide" : "Show",
 		option3Text: "Statistics",
+		option4Text: "Clean",
 		onConfirm: function () {
 			// Step 7a) Get form values and commit changes
 			var formData = window.getFormData ? window.getFormData(formContent) : {};
@@ -362,6 +364,12 @@ export function showSurfaceContextMenu(x, y, surfaceId = null) {
 			// Step 7e) Show statistics dialog
 			var stats = computeSurfaceStatistics(currentSurface);
 			showSurfaceStatsDialog(stats, currentSurface);
+		},
+		onOption4: function () {
+			// Step 7f) Show clean mesh dialog
+			if (typeof window.showCleanMeshDialog === "function") {
+				window.showCleanMeshDialog(currentSurface.id);
+			}
 		}
 	});
 
@@ -432,13 +440,27 @@ function showSurfaceStatsDialog(stats, surface) {
 	var table = document.createElement("table");
 	table.className = "stats-table";
 
+	// Build closed status with open edge count
+	var closedLabel = stats.closed;
+	if (stats.closed === "Yes" && stats.openEdgeCount > 0) {
+		closedLabel = "Yes (" + stats.openEdgeCount + " open edges)";
+	} else if (stats.closed === "No" && stats.openEdgeCount > 0) {
+		closedLabel = "No (" + stats.openEdgeCount + " open)";
+	}
+
+	// Add method indicator if fallback was used
+	var xyLabel = "XY Area (m\u00B2)";
+	if (stats.xyAreaMethod === "A") {
+		xyLabel = "XY Area (m\u00B2) *";
+	}
+
 	var rows = [
 		["Points (pts)", formatCount(stats.points)],
 		["Edges (segs)", formatCount(stats.edges)],
 		["Faces (tris)", formatCount(stats.faces)],
 		["Normal Dir.", stats.normalDirection],
-		["Closed", stats.closed],
-		["XY Area (m\u00B2)", formatValue(stats.xyArea)],
+		["Closed", closedLabel],
+		[xyLabel, formatValue(stats.xyArea)],
 		["YZ Area (m\u00B2)", formatValue(stats.yzArea)],
 		["XZ Area (m\u00B2)", formatValue(stats.xzArea)],
 		["3D Area (m\u00B2)", formatValue(stats.surfaceArea)],

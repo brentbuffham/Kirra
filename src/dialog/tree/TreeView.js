@@ -28,10 +28,11 @@ function computeMeshVolume(surface) {
 
 	var pts = surface.points;
 
-	// Step 1) First pass: extract vertices and compute centroid.
-	// Centering avoids floating-point errors with large UTM coordinates.
+	// Step 1) First pass: extract vertices and compute bounding box midpoint.
+	// Centering on bbox midpoint avoids floating-point errors with large UTM coordinates.
 	var verts = [];
-	var cx = 0, cy = 0, cz = 0;
+	var minX = Infinity, minY = Infinity, minZ = Infinity;
+	var maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
 	for (var i = 0; i < tris.length; i++) {
 		var tri = tris[i];
@@ -45,15 +46,20 @@ function computeMeshVolume(surface) {
 		}
 		if (!v0 || !v1 || !v2) continue;
 		verts.push(v0, v1, v2);
-		cx += v0.x + v1.x + v2.x;
-		cy += v0.y + v1.y + v2.y;
-		cz += v0.z + v1.z + v2.z;
+		var triVerts = [v0, v1, v2];
+		for (var tv = 0; tv < 3; tv++) {
+			var p = triVerts[tv];
+			if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+			if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+			if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+		}
 	}
 
 	var n = verts.length / 3;
 	if (n === 0) return { volume: 0, normalsConsistent: true };
-	var inv = 1.0 / (n * 3);
-	cx *= inv; cy *= inv; cz *= inv;
+	var cx = (minX + maxX) / 2;
+	var cy = (minY + maxY) / 2;
+	var cz = (minZ + maxZ) / 2;
 
 	// Step 2) Second pass: divergence theorem with centered coordinates.
 	// Also accumulate absolute per-triangle volume for consistency check.
@@ -82,9 +88,14 @@ function computeMeshVolume(surface) {
 }
 
 /**
- * Compute the XY footprint area of an open surface (sum of projected triangle areas).
+ * Compute the XY footprint area of a surface (sum of projected triangle areas).
+ * For open surfaces: sum |cz|/2 for all triangles.
+ * For closed solids: divide by 2 since both sides contribute the footprint.
+ *
+ * @param {Object} surface - Surface object
+ * @param {boolean} isClosed - Whether the mesh is a closed solid
  */
-function computeFootprintArea(surface) {
+function computeFootprintArea(surface, isClosed) {
 	var tris = surface.triangles;
 	if (!tris || tris.length === 0) return 0;
 
@@ -102,11 +113,14 @@ function computeFootprintArea(surface) {
 			continue;
 		}
 		if (!v0 || !v1 || !v2) continue;
-		// Shoelace formula for projected XY triangle area
-		area += Math.abs(
-			(v1.x - v0.x) * (v2.y - v0.y) -
-			(v2.x - v0.x) * (v1.y - v0.y)
-		) / 2.0;
+		// Z-component of cross product = projected area onto XY plane
+		var cz = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
+		area += Math.abs(cz) / 2.0;
+	}
+
+	// For closed solids, top+bottom both contribute, so divide by 2
+	if (isClosed) {
+		area /= 2.0;
 	}
 
 	return area;
@@ -2349,7 +2363,7 @@ export class TreeView {
 				statExtra = ", " + formatNumber(Math.abs(volResult.volume)) + " m\u00B3";
 				normalsOk = volResult.normalsConsistent;
 			} else {
-				var area = computeFootprintArea(surface);
+				var area = computeFootprintArea(surface, false);
 				if (area > 0) {
 					statExtra = ", " + formatNumber(area) + " m\u00B2";
 				}

@@ -61,6 +61,14 @@ import { startTransformMode, cancelTransformMode } from "./tools/TransformTool.j
 //=================================================
 import "./tools/MeshEditTool.js";
 //=================================================
+// Clean Mesh Dialog — lazy import via window.showCleanMeshDialog
+//=================================================
+window.showCleanMeshDialog = function (surfaceId) {
+	import("./dialog/popups/surface/CleanMeshDialog.js").then(function (mod) {
+		mod.showCleanMeshDialog(surfaceId);
+	});
+};
+//=================================================
 // Three.js Renderer Selection (MUST BE EARLY!)
 //=================================================
 // CRITICAL: Load renderer preference from localStorage IMMEDIATELY
@@ -842,13 +850,13 @@ function exposeGlobalsToWindow() {
 	window.loadedProducts = loadedProducts;
 	window.loadedCharging = loadedCharging;
 	window.loadedChargeConfigs = loadedChargeConfigs;
-	window.debouncedSaveProducts = function() { debouncedSaveProducts(db, loadedProducts); };
-	window.debouncedSaveCharging = function() { debouncedSaveCharging(db, window.loadedCharging || loadedCharging); };
-	window.debouncedSaveConfigs = function() { debouncedSaveConfigs(db, loadedChargeConfigs); };
+	window.debouncedSaveProducts = function () { debouncedSaveProducts(db, loadedProducts); };
+	window.debouncedSaveCharging = function () { debouncedSaveCharging(db, window.loadedCharging || loadedCharging); };
+	window.debouncedSaveConfigs = function () { debouncedSaveConfigs(db, loadedChargeConfigs); };
 	window.showProductManagerDialog = showProductManagerDialog;
 	window.showDeckBuilderDialog = showDeckBuilderDialog;
 	window.applyChargeRule = applyChargeRule;
-	window.recalcMassPerHole = function() { recalcMassPerHole(allBlastHoles, window.loadedCharging); };
+	window.recalcMassPerHole = function () { recalcMassPerHole(allBlastHoles, window.loadedCharging); };
 	window.bumpDataVersion = bumpDataVersion;
 	window.invalidate3DAnalysisCaches = invalidate3DAnalysisCaches;
 
@@ -860,7 +868,7 @@ function exposeGlobalsToWindow() {
 
 	window.remapChargingKeys = remapChargingKeys;
 	window.exportBaseConfigTemplate = exportBaseConfigTemplate;
-	window.exportCurrentConfig = function() { exportCurrentConfig(loadedProducts, loadedChargeConfigs); };
+	window.exportCurrentConfig = function () { exportCurrentConfig(loadedProducts, loadedChargeConfigs); };
 	window.importConfigFromZip = importConfigFromZip;
 	window.buildSurfaceConnectorPresets = buildSurfaceConnectorPresets;
 	window.clearAllProducts = clearAllProducts;
@@ -939,9 +947,9 @@ function exposeGlobalsToWindow() {
 	window.saveHolesToDB = saveHolesToDB;
 	window.saveKADToDB = saveKADToDB;
 	window.saveLayersToDB = saveLayersToDB;
-	window.saveProductsNow = function() { saveProductsToDB(db, loadedProducts); };
-	window.saveChargingNow = function() { saveChargingToDB(db, loadedCharging); };
-	window.saveConfigsNow = function() { saveChargeConfigsToDB(db, loadedChargeConfigs); };
+	window.saveProductsNow = function () { saveProductsToDB(db, loadedProducts); };
+	window.saveChargingNow = function () { saveChargingToDB(db, loadedCharging); };
+	window.saveConfigsNow = function () { saveChargeConfigsToDB(db, loadedChargeConfigs); };
 
 	// Step 6g) Expose UndoManager and action classes for undo/redo operations
 	window.undoManager = undoManager;
@@ -3823,11 +3831,11 @@ function handle3DMouseMove(event) {
 				}
 				// Dispose children if it's a group
 				if (obj.isGroup) {
-					obj.traverse(function(child) {
+					obj.traverse(function (child) {
 						if (child.geometry) child.geometry.dispose();
 						if (child.material) {
 							if (Array.isArray(child.material)) {
-								child.material.forEach(function(mat) { mat.dispose(); });
+								child.material.forEach(function (mat) { mat.dispose(); });
 							} else {
 								child.material.dispose();
 							}
@@ -3862,11 +3870,11 @@ function handle3DMouseMove(event) {
 				}
 				// Dispose children if it's a group
 				if (obj.isGroup) {
-					obj.traverse(function(child) {
+					obj.traverse(function (child) {
 						if (child.geometry) child.geometry.dispose();
 						if (child.material) {
 							if (Array.isArray(child.material)) {
-								child.material.forEach(function(mat) { mat.dispose(); });
+								child.material.forEach(function (mat) { mat.dispose(); });
 							} else {
 								child.material.dispose();
 							}
@@ -3925,9 +3933,17 @@ function handle3DMouseMove(event) {
 		}
 
 
-		// Step 13f.8a) REMOVED - Leading line is now drawn ONLY in drawData() at line ~28758
-		// This duplicate code was being overwritten by drawData() anyway
-		// The drawData() version uses currentMouseIndicatorX/Y/Z which correctly tracks the cursor
+		// Step 13f.8a) Draw KAD leading line in 3D - must be here (mouse move) for real-time cursor tracking
+		// drawData() is NOT called on every mouse move, so leading line must be drawn here
+		drawKADLeadingLineThreeJSV2(
+			lastKADDrawPoint.x,
+			lastKADDrawPoint.y,
+			lastKADDrawPoint.z || drawZ,
+			currentMouseIndicatorX,
+			currentMouseIndicatorY,
+			currentMouseIndicatorZ,
+			leadingLineColor
+		);
 
 		// Step 13f.8b) Show distance overlay for drawing tools with tool-specific color
 		var drawDx = currentMouseWorldX - lastKADDrawPoint.x;
@@ -9006,11 +9022,11 @@ document.querySelectorAll(".kad-input-btn").forEach(function (button) {
 					var parseResult = Papa.parse(event.target.result, { delimiter: "", skipEmptyLines: true, trimHeaders: true });
 					var dataRows = parseResult.data || [];
 					if (dataRows.length > 0) {
-					var proceedWithImport = await checkCoordinateDeltaBeforeImport({ kadRows: dataRows }, file.name);
-					if (!proceedWithImport) return;
-					if (proceedWithImport === "cleanReplace" && typeof window.performCleanAndReplaceBeforeImport === "function") {
-						await window.performCleanAndReplaceBeforeImport();
-					}
+						var proceedWithImport = await checkCoordinateDeltaBeforeImport({ kadRows: dataRows }, file.name);
+						if (!proceedWithImport) return;
+						if (proceedWithImport === "cleanReplace" && typeof window.performCleanAndReplaceBeforeImport === "function") {
+							await window.performCleanAndReplaceBeforeImport();
+						}
 					}
 					parseKADFile(event.target.result);
 					// Update TreeView to show imported KAD entities
@@ -12308,89 +12324,89 @@ document.querySelectorAll(".las-input-btn").forEach(function (button) {
 
 							console.log("LAS import completed: " + result.successCount + " points");
 
-							} else if (result.dataType === "pointcloud_typed" && result.typedPointCloud) {
-								// Large point cloud — stored as typed arrays for memory efficiency
-								var tpc = result.typedPointCloud;
-								var pcId = "LAS_" + file.name.replace(/[^a-zA-Z0-9]/g, "_") + "_" + Date.now();
+						} else if (result.dataType === "pointcloud_typed" && result.typedPointCloud) {
+							// Large point cloud — stored as typed arrays for memory efficiency
+							var tpc = result.typedPointCloud;
+							var pcId = "LAS_" + file.name.replace(/[^a-zA-Z0-9]/g, "_") + "_" + Date.now();
 
-								// Store typed arrays in a dedicated point cloud map
-								if (!window.loadedPointClouds) window.loadedPointClouds = new Map();
-								window.loadedPointClouds.set(pcId, {
-									id: pcId,
-									name: file.name,
-									count: tpc.count,
-									x: tpc.x,
-									y: tpc.y,
-									z: tpc.z,
-									classification: tpc.classification,
-									intensity: tpc.intensity,
-									returnNumber: tpc.returnNumber,
-									numberOfReturns: tpc.numberOfReturns,
-									hasRgb: tpc.hasRgb,
-									r: tpc.r,
-									g: tpc.g,
-									b: tpc.b,
-									statistics: result.statistics,
+							// Store typed arrays in a dedicated point cloud map
+							if (!window.loadedPointClouds) window.loadedPointClouds = new Map();
+							window.loadedPointClouds.set(pcId, {
+								id: pcId,
+								name: file.name,
+								count: tpc.count,
+								x: tpc.x,
+								y: tpc.y,
+								z: tpc.z,
+								classification: tpc.classification,
+								intensity: tpc.intensity,
+								returnNumber: tpc.returnNumber,
+								numberOfReturns: tpc.numberOfReturns,
+								hasRgb: tpc.hasRgb,
+								r: tpc.r,
+								g: tpc.g,
+								b: tpc.b,
+								statistics: result.statistics,
+								visible: true
+							});
+
+							// Create decimated KAD preview for 2D/3D rendering
+							var previewMax = 500000;
+							var previewStride = Math.max(1, Math.floor(tpc.count / previewMax));
+							var previewEntityName = "LAS_" + file.name.replace(/\.[^.]+$/, "");
+							var previewData = [];
+							var st = result.statistics;
+							var zRange = st.maxZ - st.minZ;
+
+							for (var pi = 0; pi < tpc.count; pi += previewStride) {
+								var pColor;
+								if (tpc.hasRgb && (tpc.r[pi] || tpc.g[pi] || tpc.b[pi])) {
+									pColor = "#" + tpc.r[pi].toString(16).padStart(2, "0") + tpc.g[pi].toString(16).padStart(2, "0") + tpc.b[pi].toString(16).padStart(2, "0");
+								} else {
+									var ratio = zRange > 0.001 ? Math.max(0, Math.min(1, (tpc.z[pi] - st.minZ) / zRange)) : 0.5;
+									var cr, cg, cb;
+									if (ratio < 0.25) { cr = 0; cg = Math.floor(ratio * 4 * 255); cb = 255; }
+									else if (ratio < 0.5) { cr = 0; cg = 255; cb = Math.floor(255 - (ratio - 0.25) * 4 * 255); }
+									else if (ratio < 0.75) { cr = Math.floor((ratio - 0.5) * 4 * 255); cg = 255; cb = 0; }
+									else { cr = 255; cg = Math.floor(255 - (ratio - 0.75) * 4 * 255); cb = 0; }
+									pColor = "#" + cr.toString(16).padStart(2, "0") + cg.toString(16).padStart(2, "0") + cb.toString(16).padStart(2, "0");
+								}
+								previewData.push({
+									entityName: previewEntityName,
+									entityType: "point",
+									pointID: pi,
+									pointXLocation: tpc.x[pi],
+									pointYLocation: tpc.y[pi],
+									pointZLocation: tpc.z[pi],
+									lineWidth: 1,
+									color: pColor,
+									connected: false,
+									closed: false,
 									visible: true
 								});
+							}
 
-								// Create decimated KAD preview for 2D/3D rendering
-								var previewMax = 500000;
-								var previewStride = Math.max(1, Math.floor(tpc.count / previewMax));
-								var previewEntityName = "LAS_" + file.name.replace(/\.[^.]+$/, "");
-								var previewData = [];
-								var st = result.statistics;
-								var zRange = st.maxZ - st.minZ;
+							// Add preview as KAD entity
+							var lasLayer = window.getOrCreateLayerForImport("drawing", file.name);
+							var lasLayerId = lasLayer ? lasLayer.layerId : null;
+							var previewEntity = { entityName: previewEntityName, entityType: "point", data: previewData, layerId: lasLayerId, pointCloudId: pcId };
+							window.allKADDrawingsMap.set(previewEntityName, previewEntity);
+							if (lasLayer) lasLayer.entities.add(previewEntityName);
 
-								for (var pi = 0; pi < tpc.count; pi += previewStride) {
-									var pColor;
-									if (tpc.hasRgb && (tpc.r[pi] || tpc.g[pi] || tpc.b[pi])) {
-										pColor = "#" + tpc.r[pi].toString(16).padStart(2, "0") + tpc.g[pi].toString(16).padStart(2, "0") + tpc.b[pi].toString(16).padStart(2, "0");
-									} else {
-										var ratio = zRange > 0.001 ? Math.max(0, Math.min(1, (tpc.z[pi] - st.minZ) / zRange)) : 0.5;
-										var cr, cg, cb;
-										if (ratio < 0.25) { cr = 0; cg = Math.floor(ratio * 4 * 255); cb = 255; }
-										else if (ratio < 0.5) { cr = 0; cg = 255; cb = Math.floor(255 - (ratio - 0.25) * 4 * 255); }
-										else if (ratio < 0.75) { cr = Math.floor((ratio - 0.5) * 4 * 255); cg = 255; cb = 0; }
-										else { cr = 255; cg = Math.floor(255 - (ratio - 0.75) * 4 * 255); cb = 0; }
-										pColor = "#" + cr.toString(16).padStart(2, "0") + cg.toString(16).padStart(2, "0") + cb.toString(16).padStart(2, "0");
-									}
-									previewData.push({
-										entityName: previewEntityName,
-										entityType: "point",
-										pointID: pi,
-										pointXLocation: tpc.x[pi],
-										pointYLocation: tpc.y[pi],
-										pointZLocation: tpc.z[pi],
-										lineWidth: 1,
-										color: pColor,
-										connected: false,
-										closed: false,
-										visible: true
-									});
-								}
+							updateCentroids();
+							window.threeDataNeedsRebuild = true;
+							window.drawData(window.allBlastHoles, window.selectedHole);
 
-								// Add preview as KAD entity
-								var lasLayer = window.getOrCreateLayerForImport("drawing", file.name);
-								var lasLayerId = lasLayer ? lasLayer.layerId : null;
-								var previewEntity = { entityName: previewEntityName, entityType: "point", data: previewData, layerId: lasLayerId, pointCloudId: pcId };
-								window.allKADDrawingsMap.set(previewEntityName, previewEntity);
-								if (lasLayer) lasLayer.entities.add(previewEntityName);
+							if (typeof debouncedSaveKAD === "function") debouncedSaveKAD();
+							if (window.debouncedSaveLayers) window.debouncedSaveLayers();
+							if (window.debouncedUpdateTreeView) window.debouncedUpdateTreeView();
 
-								updateCentroids();
-								window.threeDataNeedsRebuild = true;
-								window.drawData(window.allBlastHoles, window.selectedHole);
-
-								if (typeof debouncedSaveKAD === "function") debouncedSaveKAD();
-								if (window.debouncedSaveLayers) window.debouncedSaveLayers();
-								if (window.debouncedUpdateTreeView) window.debouncedUpdateTreeView();
-
-								showModalMessage(
-									"Import Successful",
-									"Imported " + tpc.count.toLocaleString() + " points from " + file.name + " (Preview: " + previewData.length.toLocaleString() + " points)",
-									"success"
-								);
-								console.log("LAS typed array import: " + tpc.count + " points, preview: " + previewData.length);
+							showModalMessage(
+								"Import Successful",
+								"Imported " + tpc.count.toLocaleString() + " points from " + file.name + " (Preview: " + previewData.length.toLocaleString() + " points)",
+								"success"
+							);
+							console.log("LAS typed array import: " + tpc.count + " points, preview: " + previewData.length);
 
 						} else {
 							showModalMessage("Import Error", "Unexpected data format from LAS parser", "error");
@@ -14357,7 +14373,7 @@ async function parseK2Dcsv(data, filename) {
 	var progressDialog = null;
 	if (filename && typeof showImportProgressDialog === "function") {
 		progressDialog = showImportProgressDialog(filename, {
-			onCancel: function() {
+			onCancel: function () {
 				window.holeGenerationCancelled = true;
 			}
 		});
@@ -14380,7 +14396,7 @@ async function parseK2Dcsv(data, filename) {
 		if (!holes || holes.length === 0) {
 			console.warn("No holes found in CSV");
 			// Check if there were unsupported column count warnings
-			var hasUnsupportedFormat = warnings.some(function(w) {
+			var hasUnsupportedFormat = warnings.some(function (w) {
 				return w.includes("unsupported column count");
 			});
 			var errorMsg = hasUnsupportedFormat
@@ -14555,7 +14571,7 @@ async function parseK2Dcsv(data, filename) {
 				if (!importMetrics && typeof window.calculateDetailedMetrics === "function") {
 					// Build row arrays for metrics calculation
 					var rowMap = new Map();
-					entityHoles.forEach(function(hole, index) {
+					entityHoles.forEach(function (hole, index) {
 						var rowID = hole.rowID || 0;
 						if (!rowMap.has(rowID)) rowMap.set(rowID, []);
 						rowMap.get(rowID).push(index);
@@ -14896,8 +14912,8 @@ async function createImageSurfaceFromParser(result) {
 		var imageId = "image_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 
 		// BONUS FIX: Generate blob from canvas for KAP export
-		var blob = await new Promise(function(resolve) {
-			result.canvas.toBlob(function(b) { resolve(b); }, "image/png");
+		var blob = await new Promise(function (resolve) {
+			result.canvas.toBlob(function (b) { resolve(b); }, "image/png");
 		});
 
 		// Step 2) Store in loadedImages Map
@@ -15622,274 +15638,274 @@ function rebuildTexturedMesh(surfaceId) {
 	}
 
 	// CRITICAL: Return a Promise so KAPParser can await completion
-	return new Promise(function(resolveRebuild, rejectRebuild) {
+	return new Promise(function (resolveRebuild, rejectRebuild) {
 		try {
 			// Step 2) Create texture URLs from stored blobs
 			var textureURLs = {};
 			var blobURLs = [];
 
-		if (surface.textureBlobs) {
-			console.log("🎨 REBUILD: Found " + Object.keys(surface.textureBlobs).length + " texture blob(s) for " + surfaceId);
-			Object.keys(surface.textureBlobs).forEach(function (texName) {
-				var blob = surface.textureBlobs[texName];
-				if (blob) {
-					console.log("🎨 REBUILD: Creating URL for texture: " + texName + ", blob size: " + blob.size + " bytes");
-					var url = URL.createObjectURL(blob);
-					textureURLs[texName] = url;
-					blobURLs.push(url);
-				}
+			if (surface.textureBlobs) {
+				console.log("🎨 REBUILD: Found " + Object.keys(surface.textureBlobs).length + " texture blob(s) for " + surfaceId);
+				Object.keys(surface.textureBlobs).forEach(function (texName) {
+					var blob = surface.textureBlobs[texName];
+					if (blob) {
+						console.log("🎨 REBUILD: Creating URL for texture: " + texName + ", blob size: " + blob.size + " bytes");
+						var url = URL.createObjectURL(blob);
+						textureURLs[texName] = url;
+						blobURLs.push(url);
+					}
+				});
+			}
+			else {
+				console.warn("🚨 REBUILD: NO TEXTURE BLOBS found for " + surfaceId + " - mesh will have no textures!");
+			}
+
+			// Step 3) Pre-load all textures into a map (same approach as initial load)
+			var textureLoader = new THREE.TextureLoader();
+			var loadedTextures = {};
+			var texturePromises = [];
+
+			Object.keys(textureURLs).forEach(function (texName) {
+				var texturePromise = new Promise(function (resolveTexture) {
+					textureLoader.load(
+						textureURLs[texName],
+						function (texture) {
+							texture.wrapS = THREE.RepeatWrapping;
+							texture.wrapT = THREE.RepeatWrapping;
+							texture.flipY = true;
+							// CRITICAL: Set sRGB encoding for correct color space
+							texture.colorSpace = THREE.SRGBColorSpace;
+							texture.needsUpdate = true;
+							loadedTextures[texName] = texture;
+							loadedTextures[texName.toLowerCase()] = texture;
+
+							// DIAGNOSTIC: Check if image data is valid
+							if (texture.image) {
+								console.log("🎨 REBUILD TEXTURE: Image loaded - width: " + texture.image.width + ", height: " + texture.image.height + ", complete: " + texture.image.complete);
+
+								// CRITICAL DIAGNOSTIC: Check if image is actually black (corrupted blob)
+								if (texture.image.complete && texture.image.naturalWidth > 0) {
+									var testCanvas = document.createElement('canvas');
+									testCanvas.width = Math.min(10, texture.image.width);
+									testCanvas.height = Math.min(10, texture.image.height);
+									var testCtx = testCanvas.getContext('2d');
+									testCtx.drawImage(texture.image, 0, 0, testCanvas.width, testCanvas.height);
+									var imgData = testCtx.getImageData(0, 0, testCanvas.width, testCanvas.height);
+									var hasColor = imgData.data.some(function (val) { return val !== 0; });
+									console.log("🎨 REBUILD TEXTURE: Pixel check - hasNonZeroPixels=" + hasColor);
+									if (!hasColor) {
+										console.error("🚨 REBUILD TEXTURE: Image is ALL BLACK - blob may be corrupted!");
+									}
+								}
+							} else {
+								console.error("🚨 REBUILD TEXTURE: No image data in texture!");
+							}
+
+							resolveTexture();
+						},
+						undefined,
+						function (error) {
+							console.warn("🚨 Failed to pre-load texture during rebuild: " + texName, error);
+							resolveTexture();
+						}
+					);
+				});
+				texturePromises.push(texturePromise);
 			});
-		}
-		else {
-			console.warn("🚨 REBUILD: NO TEXTURE BLOBS found for " + surfaceId + " - mesh will have no textures!");
-		}
 
-		// Step 3) Pre-load all textures into a map (same approach as initial load)
-		var textureLoader = new THREE.TextureLoader();
-		var loadedTextures = {};
-		var texturePromises = [];
+			// Step 4) Wait for ALL textures to pre-load before proceeding
+			Promise.all(texturePromises).then(function () {
+				try {
+					// Step 5) Parse OBJ WITHOUT materials (we'll apply materials manually from stored properties)
+					var objLoader = new OBJLoader();
+					var object3D = objLoader.parse(surface.objContent);
+					object3D.name = surface.name;
 
-		Object.keys(textureURLs).forEach(function (texName) {
-			var texturePromise = new Promise(function (resolveTexture) {
-				textureLoader.load(
-					textureURLs[texName],
-					function (texture) {
-						texture.wrapS = THREE.RepeatWrapping;
-						texture.wrapT = THREE.RepeatWrapping;
-						texture.flipY = true;
-						// CRITICAL: Set sRGB encoding for correct color space
-						texture.colorSpace = THREE.SRGBColorSpace;
-						texture.needsUpdate = true;
-						loadedTextures[texName] = texture;
-						loadedTextures[texName.toLowerCase()] = texture;
+					// Step 5a) CRITICAL FIX: Transform OBJ vertices from world coordinates to mesh-centered coordinates
+					// The OBJ file stores vertices in world coordinates (UTM)
+					// We need to center them around the mesh origin (like OBJLoader does on first load)
+					// Then the mesh group will be positioned at mesh center in local Three.js space
+					var meshCenterX = surface.meshBounds ? (surface.meshBounds.minX + surface.meshBounds.maxX) / 2 : 0;
+					var meshCenterY = surface.meshBounds ? (surface.meshBounds.minY + surface.meshBounds.maxY) / 2 : 0;
 
-						// DIAGNOSTIC: Check if image data is valid
-						if (texture.image) {
-							console.log("🎨 REBUILD TEXTURE: Image loaded - width: " + texture.image.width + ", height: " + texture.image.height + ", complete: " + texture.image.complete);
+					console.log("🎨 REBUILD: Centering OBJ vertices around mesh center: (" + meshCenterX.toFixed(2) + ", " + meshCenterY.toFixed(2) + ")");
 
-							// CRITICAL DIAGNOSTIC: Check if image is actually black (corrupted blob)
-							if (texture.image.complete && texture.image.naturalWidth > 0) {
-								var testCanvas = document.createElement('canvas');
-								testCanvas.width = Math.min(10, texture.image.width);
-								testCanvas.height = Math.min(10, texture.image.height);
-								var testCtx = testCanvas.getContext('2d');
-								testCtx.drawImage(texture.image, 0, 0, testCanvas.width, testCanvas.height);
-								var imgData = testCtx.getImageData(0, 0, testCanvas.width, testCanvas.height);
-								var hasColor = imgData.data.some(function(val) { return val !== 0; });
-								console.log("🎨 REBUILD TEXTURE: Pixel check - hasNonZeroPixels=" + hasColor);
-								if (!hasColor) {
-									console.error("🚨 REBUILD TEXTURE: Image is ALL BLACK - blob may be corrupted!");
+					object3D.traverse(function (child) {
+						if (child.isMesh && child.geometry) {
+							var positions = child.geometry.attributes.position;
+							if (positions) {
+								var posArray = positions.array;
+								// Transform each vertex: subtract mesh center from X and Y to center around origin
+								for (var i = 0; i < posArray.length; i += 3) {
+									posArray[i] -= meshCenterX;     // X coordinate
+									posArray[i + 1] -= meshCenterY;  // Y coordinate
+									// Z coordinate stays as-is (elevation)
+								}
+								positions.needsUpdate = true;
+								child.geometry.computeBoundingSphere(); // Recompute bounding sphere after transform
+								console.log("🎨 REBUILD: Centered " + (posArray.length / 3) + " vertices around mesh origin");
+							}
+
+							// DIAGNOSTIC: Check if geometry has UV coordinates
+							var hasUV = child.geometry.attributes.uv !== undefined;
+							console.log("🎨 REBUILD: Mesh geometry hasUV: " + hasUV + ", uvCount: " + (hasUV ? child.geometry.attributes.uv.count : 0));
+						}
+					});
+
+					// Step 5a) Create materials from stored properties + texture blobs
+					// This is more reliable than MTLLoader which expects file URLs
+					var materialMap = {};
+					console.log("🎨 REBUILD: surface.materialProperties exists: " + !!surface.materialProperties);
+					if (surface.materialProperties) {
+						console.log("🎨 REBUILD: materialProperties keys: " + Object.keys(surface.materialProperties).length);
+					}
+					if (surface.materialProperties && Object.keys(surface.materialProperties).length > 0) {
+						console.log("🎨 Creating materials from stored properties");
+						Object.keys(surface.materialProperties).forEach(function (matName) {
+							var matProps = surface.materialProperties[matName];
+							var textureName = matProps.map_Kd;
+							// Find texture from already-loaded textures map (textures loaded from blobs above)
+							var texture = null;
+							if (textureName && loadedTextures[textureName]) {
+								texture = loadedTextures[textureName];
+							} else if (textureName && loadedTextures[textureName.toLowerCase()]) {
+								texture = loadedTextures[textureName.toLowerCase()];
+							} else {
+								// Use first available texture
+								var firstTexKey = Object.keys(loadedTextures)[0];
+								if (firstTexKey) {
+									texture = loadedTextures[firstTexKey];
+									console.log("🎨 Using first available loaded texture: " + firstTexKey);
 								}
 							}
-						} else {
-							console.error("🚨 REBUILD TEXTURE: No image data in texture!");
-						}
 
-						resolveTexture();
-					},
-					undefined,
-					function (error) {
-						console.warn("🚨 Failed to pre-load texture during rebuild: " + texName, error);
-						resolveTexture();
-					}
-				);
-			});
-			texturePromises.push(texturePromise);
-		});
-
-		// Step 4) Wait for ALL textures to pre-load before proceeding
-		Promise.all(texturePromises).then(function () {
-			try {
-			// Step 5) Parse OBJ WITHOUT materials (we'll apply materials manually from stored properties)
-			var objLoader = new OBJLoader();
-			var object3D = objLoader.parse(surface.objContent);
-			object3D.name = surface.name;
-
-			// Step 5a) CRITICAL FIX: Transform OBJ vertices from world coordinates to mesh-centered coordinates
-			// The OBJ file stores vertices in world coordinates (UTM)
-			// We need to center them around the mesh origin (like OBJLoader does on first load)
-			// Then the mesh group will be positioned at mesh center in local Three.js space
-			var meshCenterX = surface.meshBounds ? (surface.meshBounds.minX + surface.meshBounds.maxX) / 2 : 0;
-			var meshCenterY = surface.meshBounds ? (surface.meshBounds.minY + surface.meshBounds.maxY) / 2 : 0;
-
-			console.log("🎨 REBUILD: Centering OBJ vertices around mesh center: (" + meshCenterX.toFixed(2) + ", " + meshCenterY.toFixed(2) + ")");
-
-			object3D.traverse(function (child) {
-				if (child.isMesh && child.geometry) {
-					var positions = child.geometry.attributes.position;
-					if (positions) {
-						var posArray = positions.array;
-						// Transform each vertex: subtract mesh center from X and Y to center around origin
-						for (var i = 0; i < posArray.length; i += 3) {
-							posArray[i] -= meshCenterX;     // X coordinate
-							posArray[i + 1] -= meshCenterY;  // Y coordinate
-							// Z coordinate stays as-is (elevation)
-						}
-						positions.needsUpdate = true;
-						child.geometry.computeBoundingSphere(); // Recompute bounding sphere after transform
-						console.log("🎨 REBUILD: Centered " + (posArray.length / 3) + " vertices around mesh origin");
-					}
-
-					// DIAGNOSTIC: Check if geometry has UV coordinates
-					var hasUV = child.geometry.attributes.uv !== undefined;
-					console.log("🎨 REBUILD: Mesh geometry hasUV: " + hasUV + ", uvCount: " + (hasUV ? child.geometry.attributes.uv.count : 0));
-				}
-			});
-
-			// Step 5a) Create materials from stored properties + texture blobs
-			// This is more reliable than MTLLoader which expects file URLs
-			var materialMap = {};
-			console.log("🎨 REBUILD: surface.materialProperties exists: " + !!surface.materialProperties);
-			if (surface.materialProperties) {
-				console.log("🎨 REBUILD: materialProperties keys: " + Object.keys(surface.materialProperties).length);
-			}
-			if (surface.materialProperties && Object.keys(surface.materialProperties).length > 0) {
-				console.log("🎨 Creating materials from stored properties");
-				Object.keys(surface.materialProperties).forEach(function (matName) {
-					var matProps = surface.materialProperties[matName];
-					var textureName = matProps.map_Kd;
-					// Find texture from already-loaded textures map (textures loaded from blobs above)
-					var texture = null;
-					if (textureName && loadedTextures[textureName]) {
-						texture = loadedTextures[textureName];
-					} else if (textureName && loadedTextures[textureName.toLowerCase()]) {
-						texture = loadedTextures[textureName.toLowerCase()];
-					} else {
-						// Use first available texture
-						var firstTexKey = Object.keys(loadedTextures)[0];
-						if (firstTexKey) {
-							texture = loadedTextures[firstTexKey];
-							console.log("🎨 Using first available loaded texture: " + firstTexKey);
-						}
-					}
-
-					console.log("🎨 REBUILD: Created " + Object.keys(materialMap).length + " material(s) from properties");
-					materialMap[matName] = createMaterialFromProperties(matProps, texture, textureName);
-					console.log("🎨 Created material '" + matName + "' with texture: " + (texture ? textureName : "none"));
-				});
-			} else {
-				// Fallback: Create default material with first available loaded texture
-				console.warn("🚨 No material properties found, creating default material");
-				var firstTexKey = Object.keys(loadedTextures)[0];
-				var firstTexture = firstTexKey ? loadedTextures[firstTexKey] : null;
-				materialMap["default"] = createMaterialFromProperties(null, firstTexture, firstTexKey);
-			}
-
-			// Step 7) Apply materials to mesh (from materialMap created from stored properties)
-			var texturesApplied = 0;
-			var texturesFailed = 0;
-			object3D.traverse(function (child) {
-				if (child.isMesh) {
-					// Find matching material from materialMap
-					var materialName = child.name || "default";
-					var material = materialMap[materialName] || materialMap["default"] || materialMap[Object.keys(materialMap)[0]];
-
-					if (material) {
-						// CRITICAL FIX: Don't clone - preserve texture reference
-						// Each mesh child can share the same material instance
-						child.material = material;
-						child.material.side = THREE.DoubleSide;
-						console.log("🎨 REBUILD: Applied material to mesh child");
-						console.log("🎨 REBUILD: Material type: " + child.material.type);
-						console.log("🎨 REBUILD: Material color: rgb(" + (child.material.color.r * 255).toFixed(0) + ", " + (child.material.color.g * 255).toFixed(0) + ", " + (child.material.color.b * 255).toFixed(0) + ")");
-						console.log("🎨 REBUILD: Has map: " + !!child.material.map + ", map colorSpace: " + (child.material.map ? child.material.map.colorSpace : "N/A"));
-						console.log("🎨 REBUILD: Has emissive: " + child.material.emissive.getHexString() + ", emissiveIntensity: " + (child.material.emissiveIntensity || 1));
-						if (child.material.type === "MeshPhongMaterial") {
-							console.log("🎨 REBUILD: Phong shininess: " + child.material.shininess + ", specular: " + child.material.specular.getHexString());
-							console.log("🎨 REBUILD: Phong emissiveMap: " + !!child.material.emissiveMap + ", lightMap: " + !!child.material.lightMap);
-						}
-						console.log("🎨 REBUILD: Material side: " + child.material.side + ", depthTest: " + child.material.depthTest + ", depthWrite: " + child.material.depthWrite);
-						texturesApplied++;
-					} else {
-						// Fallback: use default material (MeshPhongMaterial to match MTLLoader)
-						child.material = new THREE.MeshPhongMaterial({
-							color: 0xffffff,
-							side: THREE.DoubleSide,
+							console.log("🎨 REBUILD: Created " + Object.keys(materialMap).length + " material(s) from properties");
+							materialMap[matName] = createMaterialFromProperties(matProps, texture, textureName);
+							console.log("🎨 Created material '" + matName + "' with texture: " + (texture ? textureName : "none"));
 						});
-						texturesFailed++;
+					} else {
+						// Fallback: Create default material with first available loaded texture
+						console.warn("🚨 No material properties found, creating default material");
+						var firstTexKey = Object.keys(loadedTextures)[0];
+						var firstTexture = firstTexKey ? loadedTextures[firstTexKey] : null;
+						materialMap["default"] = createMaterialFromProperties(null, firstTexture, firstTexKey);
 					}
-				}
-			});
 
-			// Step 8) Remove old mesh from scene if it exists (ensures new mesh with textures replaces old one)
-			if (window.threeRenderer && window.threeRenderer.surfaceMeshMap) {
-				var oldMesh = window.threeRenderer.surfaceMeshMap.get(surfaceId);
-				if (oldMesh) {
-					// Remove old mesh from scene
-					if (window.threeRenderer.surfacesGroup) {
-						window.threeRenderer.surfacesGroup.remove(oldMesh);
-					}
-					// Dispose old mesh to free resources
-					oldMesh.traverse(function (child) {
-						if (child.geometry) child.geometry.dispose();
-						if (child.material) {
-							if (Array.isArray(child.material)) {
-								child.material.forEach(function (mat) {
-									mat.dispose();
-								});
+					// Step 7) Apply materials to mesh (from materialMap created from stored properties)
+					var texturesApplied = 0;
+					var texturesFailed = 0;
+					object3D.traverse(function (child) {
+						if (child.isMesh) {
+							// Find matching material from materialMap
+							var materialName = child.name || "default";
+							var material = materialMap[materialName] || materialMap["default"] || materialMap[Object.keys(materialMap)[0]];
+
+							if (material) {
+								// CRITICAL FIX: Don't clone - preserve texture reference
+								// Each mesh child can share the same material instance
+								child.material = material;
+								child.material.side = THREE.DoubleSide;
+								console.log("🎨 REBUILD: Applied material to mesh child");
+								console.log("🎨 REBUILD: Material type: " + child.material.type);
+								console.log("🎨 REBUILD: Material color: rgb(" + (child.material.color.r * 255).toFixed(0) + ", " + (child.material.color.g * 255).toFixed(0) + ", " + (child.material.color.b * 255).toFixed(0) + ")");
+								console.log("🎨 REBUILD: Has map: " + !!child.material.map + ", map colorSpace: " + (child.material.map ? child.material.map.colorSpace : "N/A"));
+								console.log("🎨 REBUILD: Has emissive: " + child.material.emissive.getHexString() + ", emissiveIntensity: " + (child.material.emissiveIntensity || 1));
+								if (child.material.type === "MeshPhongMaterial") {
+									console.log("🎨 REBUILD: Phong shininess: " + child.material.shininess + ", specular: " + child.material.specular.getHexString());
+									console.log("🎨 REBUILD: Phong emissiveMap: " + !!child.material.emissiveMap + ", lightMap: " + !!child.material.lightMap);
+								}
+								console.log("🎨 REBUILD: Material side: " + child.material.side + ", depthTest: " + child.material.depthTest + ", depthWrite: " + child.material.depthWrite);
+								texturesApplied++;
 							} else {
-								child.material.dispose();
+								// Fallback: use default material (MeshPhongMaterial to match MTLLoader)
+								child.material = new THREE.MeshPhongMaterial({
+									color: 0xffffff,
+									side: THREE.DoubleSide,
+								});
+								texturesFailed++;
 							}
 						}
 					});
-					// Remove from map
-					window.threeRenderer.surfaceMeshMap.delete(surfaceId);
-					console.log("🧹 Removed old mesh from scene - will be re-added with textures on next render");
+
+					// Step 8) Remove old mesh from scene if it exists (ensures new mesh with textures replaces old one)
+					if (window.threeRenderer && window.threeRenderer.surfaceMeshMap) {
+						var oldMesh = window.threeRenderer.surfaceMeshMap.get(surfaceId);
+						if (oldMesh) {
+							// Remove old mesh from scene
+							if (window.threeRenderer.surfacesGroup) {
+								window.threeRenderer.surfacesGroup.remove(oldMesh);
+							}
+							// Dispose old mesh to free resources
+							oldMesh.traverse(function (child) {
+								if (child.geometry) child.geometry.dispose();
+								if (child.material) {
+									if (Array.isArray(child.material)) {
+										child.material.forEach(function (mat) {
+											mat.dispose();
+										});
+									} else {
+										child.material.dispose();
+									}
+								}
+							});
+							// Remove from map
+							window.threeRenderer.surfaceMeshMap.delete(surfaceId);
+							console.log("🧹 Removed old mesh from scene - will be re-added with textures on next render");
+						}
+					}
+
+					// Step 8a) Store rebuilt mesh
+					surface.threeJSMesh = object3D;
+
+					console.log("🎨 Rebuilt textured mesh: " + surfaceId);
+
+					// Step 8a) CRITICAL: Force gradient to "texture" for textured meshes (overrides any saved gradient)
+					// Textured meshes MUST use "texture" gradient to show JPG textures, not color gradients
+					var oldGradient = surface.gradient;
+					if (surface.gradient !== "texture") {
+						surface.gradient = "texture";
+						console.log("🔻 FORCED gradient to 'texture' for rebuilt textured mesh: " + surfaceId + " (was: " + (oldGradient || "default") + ")");
+					}
+
+					// Step 8b) Mesh is rebuilt - it will render automatically on next drawData call
+					// Don't force redraw here to avoid excessive redraws - let natural rendering cycle handle it
+
+					// Step 9) Cleanup blob URLs after delay
+					setTimeout(function () {
+						blobURLs.forEach(function (url) {
+							URL.revokeObjectURL(url);
+						});
+					}, 5000);
+
+					// Step 10) Recreate flattened image for 2D canvas
+					// This is now called AFTER textures are loaded
+					// Step 10a) Check if we have a saved flattened image first
+					if (surface.flattenedImageDataURL && surface.flattenedImageBounds && surface.flattenedImageDimensions) {
+						console.log("🏞️ Reusing saved flattened image for: " + surfaceId);
+						loadFlattenedImageFromData(surfaceId, surface.flattenedImageDataURL, surface.flattenedImageBounds, surface.flattenedImageDimensions, surface.name);
+					} else if (surface.meshBounds && threeInitialized && !threeInitializationFailed) {
+						// Step 10b) Only flatten if ThreeJS is initialized and no saved image exists
+						console.log("🏞️  Creating new flattened image for: " + surfaceId);
+						flattenTexturedMeshToImage(surfaceId, object3D, surface.meshBounds, surface.name);
+					} else if (!threeInitialized || threeInitializationFailed) {
+						console.warn("🚨 Skipping texture flattening - ThreeJS not available, will retry when ThreeJS initializes");
+					}
+
+					// CRITICAL: Resolve promise after mesh is fully rebuilt
+					resolveRebuild(surfaceId);
+
+				} catch (innerError) {
+					console.error("❌ Error during mesh rebuild (inner):", innerError);
+					rejectRebuild(innerError);
 				}
-			}
-
-			// Step 8a) Store rebuilt mesh
-			surface.threeJSMesh = object3D;
-
-			console.log("🎨 Rebuilt textured mesh: " + surfaceId);
-
-			// Step 8a) CRITICAL: Force gradient to "texture" for textured meshes (overrides any saved gradient)
-			// Textured meshes MUST use "texture" gradient to show JPG textures, not color gradients
-			var oldGradient = surface.gradient;
-			if (surface.gradient !== "texture") {
-				surface.gradient = "texture";
-				console.log("🔻 FORCED gradient to 'texture' for rebuilt textured mesh: " + surfaceId + " (was: " + (oldGradient || "default") + ")");
-			}
-
-			// Step 8b) Mesh is rebuilt - it will render automatically on next drawData call
-			// Don't force redraw here to avoid excessive redraws - let natural rendering cycle handle it
-
-			// Step 9) Cleanup blob URLs after delay
-			setTimeout(function () {
-				blobURLs.forEach(function (url) {
-					URL.revokeObjectURL(url);
-				});
-			}, 5000);
-
-			// Step 10) Recreate flattened image for 2D canvas
-			// This is now called AFTER textures are loaded
-			// Step 10a) Check if we have a saved flattened image first
-			if (surface.flattenedImageDataURL && surface.flattenedImageBounds && surface.flattenedImageDimensions) {
-				console.log("🏞️ Reusing saved flattened image for: " + surfaceId);
-				loadFlattenedImageFromData(surfaceId, surface.flattenedImageDataURL, surface.flattenedImageBounds, surface.flattenedImageDimensions, surface.name);
-			} else if (surface.meshBounds && threeInitialized && !threeInitializationFailed) {
-				// Step 10b) Only flatten if ThreeJS is initialized and no saved image exists
-				console.log("🏞️  Creating new flattened image for: " + surfaceId);
-				flattenTexturedMeshToImage(surfaceId, object3D, surface.meshBounds, surface.name);
-			} else if (!threeInitialized || threeInitializationFailed) {
-				console.warn("🚨 Skipping texture flattening - ThreeJS not available, will retry when ThreeJS initializes");
-			}
-
-			// CRITICAL: Resolve promise after mesh is fully rebuilt
-			resolveRebuild(surfaceId);
-
-		} catch (innerError) {
-			console.error("❌ Error during mesh rebuild (inner):", innerError);
-			rejectRebuild(innerError);
+			}).catch(function (textureError) {
+				console.error("❌ Error loading textures:", textureError);
+				rejectRebuild(textureError);
+			});
+		} catch (error) {
+			console.error("❌ Error rebuilding textured mesh:", error);
+			rejectRebuild(error);
 		}
-		}).catch(function(textureError) {
-			console.error("❌ Error loading textures:", textureError);
-			rejectRebuild(textureError);
-		});
-	} catch (error) {
-		console.error("❌ Error rebuilding textured mesh:", error);
-		rejectRebuild(error);
-	}
 	});
 }
 
@@ -16107,7 +16123,7 @@ function flattenTexturedMeshToImage(surfaceId, mesh, meshBounds, fileName) {
 			imageCtx.drawImage(img, 0, 0);
 
 			// BONUS FIX: Generate blob from canvas for KAP export
-			imageCanvas.toBlob(function(blob) {
+			imageCanvas.toBlob(function (blob) {
 				// Step 11) Create georeferenced image entry for loadedImages
 				var imageEntry = {
 					id: imageId,
@@ -28092,10 +28108,10 @@ function timeChart() {
 
 	const times = holeTimes.map((time) => time[1]);
 	// const maxTime = Math.max(...times); //no good
-	let maxTime = 0;                                                                                 
-  	for (let i = 0; i < times.length; i++) {                                                         
-		if (times[i] > maxTime) maxTime = times[i];                                                  
-	} 
+	let maxTime = 0;
+	for (let i = 0; i < times.length; i++) {
+		if (times[i] > maxTime) maxTime = times[i];
+	}
 	const timeRange = parseInt(document.getElementById("timeRange").value);
 	const timeOffset = parseInt(document.getElementById("timeOffset").value);
 
@@ -28244,10 +28260,10 @@ function timeChart() {
 	const currentYLabel = currentLayout?.yaxis?.title?.text;
 	const preserveYRange = currentYLabel === newYLabel;
 
-	let maxYValue = 0;                                                                               
-	for (let i = 0; i < yValues.length; i++) {                                                       
-		if (yValues[i] > maxYValue) maxYValue = yValues[i];                                          
-	}                                                                                                
+	let maxYValue = 0;
+	for (let i = 0; i < yValues.length; i++) {
+		if (yValues[i] > maxYValue) maxYValue = yValues[i];
+	}
 	maxYValue += 1;
 
 	// Step 1) Extract numeric range values to avoid circular references
@@ -33029,17 +33045,17 @@ async function saveSurfaceToDB(surfaceId) {
 				surfaceRecord.isAnalysisSurface = true;
 				surfaceRecord.analysisModelName = surface.analysisModelName || null;
 				// Strip non-serializable fields (_deckData contains THREE.DataTexture with event listeners)
-			if (surface.analysisParams) {
-				var cleanParams = {};
-				for (var key in surface.analysisParams) {
-					if (key !== "_deckData") {
-						cleanParams[key] = surface.analysisParams[key];
+				if (surface.analysisParams) {
+					var cleanParams = {};
+					for (var key in surface.analysisParams) {
+						if (key !== "_deckData") {
+							cleanParams[key] = surface.analysisParams[key];
+						}
 					}
+					surfaceRecord.analysisParams = cleanParams;
+				} else {
+					surfaceRecord.analysisParams = null;
 				}
-				surfaceRecord.analysisParams = cleanParams;
-			} else {
-				surfaceRecord.analysisParams = null;
-			}
 				surfaceRecord.analysisUVBounds = surface.analysisUVBounds || null;
 				if (surface.analysisGLB) {
 					surfaceRecord.analysisGLB = surface.analysisGLB;  // ArrayBuffer
@@ -33151,14 +33167,14 @@ async function loadSurfaceIntoMemory(surfaceId) {
 
 						if (surfaceData.analysisGLB) {
 							// Rebuild baked analysis mesh from GLB asynchronously
-							setTimeout(function() {
-								import("./helpers/AnalysisTextureRebuilder.js").then(function(module) {
+							setTimeout(function () {
+								import("./helpers/AnalysisTextureRebuilder.js").then(function (module) {
 									module.rebuildAnalysisFromGLB(surfaceData.id, surfaceData.analysisGLB, {
 										modelName: surfaceData.analysisModelName,
 										params: surfaceData.analysisParams,
 										uvBounds: surfaceData.analysisUVBounds
 									});
-								}).catch(function(err) {
+								}).catch(function (err) {
 									console.error("Failed to rebuild analysis GLB:", err);
 								});
 							}, 200);
@@ -33419,10 +33435,10 @@ async function loadAllSurfacesIntoMemory() {
 								params: surfaceData.analysisParams,
 								uvBounds: surfaceData.analysisUVBounds
 							};
-							setTimeout(function() {
-								import("./helpers/AnalysisTextureRebuilder.js").then(function(module) {
+							setTimeout(function () {
+								import("./helpers/AnalysisTextureRebuilder.js").then(function (module) {
 									module.rebuildAnalysisFromGLB(capturedId, capturedGLB, capturedParams);
-								}).catch(function(err) {
+								}).catch(function (err) {
 									console.error("Failed to rebuild analysis GLB:", err);
 								});
 							}, 200);
@@ -35714,7 +35730,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				const { showBlastAnalysisShaderDialog } = await import("./dialog/popups/analytics/BlastAnalysisShaderDialog.js");
 				const { applyBlastAnalysisShader } = await import("./helpers/BlastAnalysisShaderHelper.js");
 
-				showBlastAnalysisShaderDialog(function(config) {
+				showBlastAnalysisShaderDialog(function (config) {
 					applyBlastAnalysisShader(config);
 
 					// Redraw to show shader
@@ -35738,7 +35754,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				const { showFlyrockShroudDialog } = await import("./dialog/popups/analytics/FlyrockShroudDialog.js");
 				const { applyFlyrockShroud } = await import("./helpers/FlyrockShroudHelper.js");
 
-				showFlyrockShroudDialog(function(config) {
+				showFlyrockShroudDialog(function (config) {
 					applyFlyrockShroud(config);
 				});
 			} catch (error) {
@@ -35757,7 +35773,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				var { showSurfaceIntersectionDialog } = await import("./dialog/popups/surface/SurfaceIntersectionDialog.js");
 				var { computeSurfaceIntersections } = await import("./helpers/SurfaceIntersectionHelper.js");
 
-				showSurfaceIntersectionDialog(async function(config) {
+				showSurfaceIntersectionDialog(async function (config) {
 					await computeSurfaceIntersections(config);
 				});
 			} catch (error) {
@@ -35776,12 +35792,23 @@ document.addEventListener("DOMContentLoaded", function () {
 				var { showContourDialog } = await import("./dialog/popups/surface/ContourDialog.js");
 				var { generateContours } = await import("./helpers/ContourHelper.js");
 
-				showContourDialog(function(config) {
+				showContourDialog(function (config) {
 					generateContours(config);
 				});
 			} catch (error) {
 				console.error("Failed to load Surface Contours:", error);
 			}
+		});
+	}
+});
+
+// Clean Mesh button handler
+document.addEventListener("DOMContentLoaded", function () {
+	var cleanMeshBtn = document.getElementById("cleanMeshBtn");
+	if (cleanMeshBtn) {
+		cleanMeshBtn.addEventListener("click", function () {
+			// Dialog has its own pick row — just open it, it'll pick first visible
+			window.showCleanMeshDialog();
 		});
 	}
 });
@@ -52904,7 +52931,7 @@ function showRenumberHolesDialog() {
 		cancelText: "Cancel",
 		width: 350,
 		height: 200,
-		onConfirm: function() {
+		onConfirm: function () {
 			var formData = getFormData(formContent);
 			var startNumber = formData.startNumber || "1";
 			var entityName = formData.entityName;
@@ -52948,7 +52975,7 @@ function renumberSelectedHoles(startNumber) {
 		var currentLetter = alphaMatch[1];
 		var currentNumber = parseInt(alphaMatch[2]);
 
-		selectedHoles.forEach(function(hole) {
+		selectedHoles.forEach(function (hole) {
 			var oldHoleID = hole.holeID;
 			var newHoleID = currentLetter + currentNumber;
 			if (oldHoleID !== newHoleID) {
@@ -52960,7 +52987,7 @@ function renumberSelectedHoles(startNumber) {
 	} else {
 		var currentNum = parseInt(startValue) || 1;
 
-		selectedHoles.forEach(function(hole) {
+		selectedHoles.forEach(function (hole) {
 			var oldHoleID = hole.holeID;
 			var newHoleID = currentNum.toString();
 			if (oldHoleID !== newHoleID) {
@@ -52974,12 +53001,12 @@ function renumberSelectedHoles(startNumber) {
 	// Update fromHoleID references (fromHoleID is a plain holeID, not composite)
 	// Build a plain oldID->newID lookup from the composite key map
 	var plainIdRemap = new Map();
-	oldToNewHoleIDMap.forEach(function(newComposite, oldComposite) {
+	oldToNewHoleIDMap.forEach(function (newComposite, oldComposite) {
 		var oldPlain = oldComposite.split(":::")[1] || oldComposite;
 		var newPlain = newComposite.split(":::")[1] || newComposite;
 		plainIdRemap.set(oldPlain, newPlain);
 	});
-	window.allBlastHoles.forEach(function(hole) {
+	window.allBlastHoles.forEach(function (hole) {
 		if (hole.fromHoleID && plainIdRemap.has(hole.fromHoleID)) {
 			hole.fromHoleID = plainIdRemap.get(hole.fromHoleID);
 		}
@@ -53059,7 +53086,7 @@ function showReorderRowsDialog() {
 		cancelText: "Cancel",
 		width: 380,
 		height: 280,
-		onConfirm: function() {
+		onConfirm: function () {
 			var formData = getFormData(formContent);
 			var entityName = formData.entityName;
 			var rowBearing = parseFloat(formData.rowBearing) || 90;
@@ -53095,11 +53122,11 @@ function reorderRowsByBearing(entityName, rowBearing, renumberAfter, startID) {
 	var burdenBearingRadians = rowBearingRadians - Math.PI / 2; // Perpendicular to row
 
 	// Project each hole onto burden axis (perpendicular to row) and spacing axis (along row)
-	entityHoles.forEach(function(hole) {
+	entityHoles.forEach(function (hole) {
 		hole._burdenProj = hole.startXLocation * Math.cos(burdenBearingRadians) +
-		                   hole.startYLocation * Math.sin(burdenBearingRadians);
+			hole.startYLocation * Math.sin(burdenBearingRadians);
 		hole._spacingProj = hole.startXLocation * Math.cos(rowBearingRadians) +
-		                    hole.startYLocation * Math.sin(rowBearingRadians);
+			hole.startYLocation * Math.sin(rowBearingRadians);
 	});
 
 	// Sort by burden projection (row grouping)
@@ -53128,15 +53155,15 @@ function reorderRowsByBearing(entityName, rowBearing, renumberAfter, startID) {
 	rows.push(currentRow);
 
 	// Assign rowID and posID
-	rows.forEach(function(row, rowIndex) {
-		row.forEach(function(hole, posIndex) {
+	rows.forEach(function (row, rowIndex) {
+		row.forEach(function (hole, posIndex) {
 			hole.rowID = rowIndex + 1;
 			hole.posID = posIndex + 1;
 		});
 	});
 
 	// Clean up temporary properties
-	entityHoles.forEach(function(hole) {
+	entityHoles.forEach(function (hole) {
 		delete hole._burdenProj;
 		delete hole._spacingProj;
 	});
@@ -53163,7 +53190,7 @@ function startReorderKADMode() {
 	// Check if there are any line/poly entities
 	var kadEntities = window.allKADDrawingsMap || new Map();
 	var hasLineOrPoly = false;
-	kadEntities.forEach(function(entity) {
+	kadEntities.forEach(function (entity) {
 		if (entity.entityType === "line" || entity.entityType === "poly") {
 			hasLineOrPoly = true;
 		}
@@ -53271,7 +53298,7 @@ function showReorderKADWindingDialog() {
 		cancelText: "Cancel",
 		width: 320,
 		height: 150,
-		onConfirm: function() {
+		onConfirm: function () {
 			var formData = getFormData(formContent);
 			var winding = formData.winding;
 
@@ -53279,7 +53306,7 @@ function showReorderKADWindingDialog() {
 			dialog.close();
 			cancelReorderKADMode();
 		},
-		onCancel: function() {
+		onCancel: function () {
 			cancelReorderKADMode();
 		}
 	});
@@ -53316,7 +53343,7 @@ function executeReorderKAD(winding) {
 	}
 
 	// Reassign pointIDs starting from 1
-	reordered.forEach(function(point, index) {
+	reordered.forEach(function (point, index) {
 		point.pointID = index + 1;
 	});
 
@@ -53343,7 +53370,7 @@ function executeReorderKAD(winding) {
 	if (window.drawData) window.drawData(window.allBlastHoles, window.selectedHole);
 
 	updateStatusMessage("Reordered " + n + " points successfully");
-	setTimeout(function() { updateStatusMessage(""); }, 3000);
+	setTimeout(function () { updateStatusMessage(""); }, 3000);
 }
 
 /**
@@ -53410,7 +53437,7 @@ function reorderKADPoints(entityName, direction) {
 	}
 
 	// Reassign pointIDs based on new order
-	points.forEach(function(point, index) {
+	points.forEach(function (point, index) {
 		point.pointID = index + 1;
 	});
 
