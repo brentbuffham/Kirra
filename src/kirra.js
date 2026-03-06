@@ -69,6 +69,14 @@ window.showCleanMeshDialog = function (surfaceId) {
 	});
 };
 //=================================================
+// XLSX Print Template — lazy import via window.showTemplatePrintDialog
+//=================================================
+window.showTemplatePrintDialog = function (options) {
+	import("./print/template/TemplateDialog.js").then(function (mod) {
+		mod.showTemplatePrintDialog(options);
+	});
+};
+//=================================================
 // Three.js Renderer Selection (MUST BE EARLY!)
 //=================================================
 // CRITICAL: Load renderer preference from localStorage IMMEDIATELY

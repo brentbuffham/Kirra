@@ -1367,6 +1367,17 @@ export function setupPrintEventHandlers(contextOrGetter) {
 			printToPDF(printContext);
 		});
 	}
+
+	var printFromTemplateBtn = document.getElementById("printFromTemplateBtn");
+	if (printFromTemplateBtn) {
+		printFromTemplateBtn.addEventListener("click", function () {
+			if (typeof window.showTemplatePrintDialog === "function") {
+				window.showTemplatePrintDialog({
+					scale: printCanvas ? printCanvas.scale : 0
+				});
+			}
+		});
+	}
 }
 
 // #endregion PRINT

@@ -11,7 +11,7 @@
  *   - Delete / rename saved templates
  */
 
-import FloatingDialog, { createEnhancedFormContent, getFormData } from "../../dialog/FloatingDialog.js";
+import { FloatingDialog, createEnhancedFormContent, getFormData } from "../../dialog/FloatingDialog.js";
 import {
 	loadTemplate,
 	evaluateTemplate,
@@ -53,67 +53,108 @@ export function showTemplatePrintDialog(options) {
 		entityOptions.push({ value: entityNames[j], label: entityNames[j] });
 	}
 
-	// Build form content
+	// Build form content (file type not supported by createEnhancedFormContent, added manually)
 	var formFields = [
 		{ name: "savedTemplate", label: "Saved Template", type: "select", options: [{ value: "", label: "-- Select or import --" }], value: "" },
-		{ name: "templateFile", label: "Import Template (.xlsx)", type: "file" },
 		{ name: "blastName", label: "Blast Name", type: "text", value: "" },
 		{ name: "designer", label: "Designer", type: "text", value: "" },
 		{ name: "entityFilter", label: "Entity Filter", type: "select", options: entityOptions, value: "" },
 		{ name: "outputFormat", label: "Output Format", type: "select", options: [
-			{ value: "xlsx", label: "XLSX (Populated Spreadsheet)" },
-			{ value: "pdf", label: "PDF (Rendered Document)" }
-		], value: "xlsx" }
+			{ value: "pdf", label: "PDF (Rendered Document)" },
+			{ value: "xlsx", label: "XLSX (Populated Spreadsheet)" }
+		], value: "pdf" }
 	];
 
 	var formContent = createEnhancedFormContent(formFields);
 
-	// Add template info area and buttons below form
+	// Insert file input manually after the saved template select
+	var fileRow = document.createElement("div");
+	fileRow.style.cssText = "display:flex;align-items:center;gap:8px;margin:6px 0;padding:0 4px;";
+	var fileLabel = document.createElement("label");
+	fileLabel.textContent = "Import Template (.xlsx)";
+	fileLabel.style.cssText = "font-size:12px;min-width:140px;";
+	var fileInput = document.createElement("input");
+	fileInput.type = "file";
+	fileInput.name = "templateFile";
+	fileInput.accept = ".xlsx,.xls";
+	fileInput.style.cssText = "font-size:12px;flex:1;";
+	fileRow.appendChild(fileLabel);
+	fileRow.appendChild(fileInput);
+	// Insert after first child (savedTemplate row)
+	var firstRow = formContent.querySelector('[name="savedTemplate"]');
+	if (firstRow && firstRow.parentElement && firstRow.parentElement.nextSibling) {
+		formContent.insertBefore(fileRow, firstRow.parentElement.nextSibling);
+	} else {
+		formContent.insertBefore(fileRow, formContent.firstChild);
+	}
+
+	// Add template info area below form
 	var infoArea = document.createElement("div");
 	infoArea.id = "templateInfoArea";
 	infoArea.style.cssText = "margin-top:8px;padding:8px;background:#f0f0f0;border-radius:4px;font-size:12px;min-height:40px;";
 	infoArea.textContent = "No template loaded. Import an .xlsx file or select a saved template.";
 	formContent.appendChild(infoArea);
 
-	// Button row for template management
-	var btnRow = document.createElement("div");
-	btnRow.style.cssText = "display:flex;gap:6px;margin-top:8px;";
-
-	var saveBtn = document.createElement("button");
-	saveBtn.textContent = "Save to Library";
-	saveBtn.style.cssText = "padding:4px 10px;font-size:12px;cursor:pointer;";
-	saveBtn.disabled = true;
-
-	var deleteBtn = document.createElement("button");
-	deleteBtn.textContent = "Delete Selected";
-	deleteBtn.style.cssText = "padding:4px 10px;font-size:12px;cursor:pointer;color:#c00;";
-	deleteBtn.disabled = true;
-
-	var helpBtn = document.createElement("button");
-	helpBtn.textContent = "Formula Reference";
-	helpBtn.style.cssText = "padding:4px 10px;font-size:12px;cursor:pointer;";
-
-	var downloadRefBtn = document.createElement("button");
-	downloadRefBtn.textContent = "Download Reference Template";
-	downloadRefBtn.style.cssText = "padding:4px 10px;font-size:12px;cursor:pointer;background:#e8f4e8;";
-
-	btnRow.appendChild(saveBtn);
-	btnRow.appendChild(deleteBtn);
-	btnRow.appendChild(helpBtn);
-	btnRow.appendChild(downloadRefBtn);
-	formContent.appendChild(btnRow);
-
-	// Create dialog
+	// Create dialog with footer buttons via FloatingDialog options
 	var dialog = new FloatingDialog({
-		title: "Print from Template",
+		title: "Print PDF from Template",
 		content: formContent,
 		width: 480,
-		height: 520,
+		height: 460,
 		showConfirm: true,
-		confirmText: "Generate",
+		confirmText: "Print",
 		showCancel: true,
+		showOption1: true,
+		option1Text: "Save to Library",
+		showOption2: true,
+		option2Text: "Formulas",
+		showOption3: true,
+		option3Text: "Reference XLSX",
+		showOption4: true,
+		option4Text: "Delete",
 		onConfirm: function () {
 			handleGenerate();
+		},
+		onOption1: function () {
+			// Save to Library
+			if (!loadedTemplate || !loadedTemplateData) {
+				infoArea.textContent = "Load a template first before saving.";
+				return false; // Don't close dialog
+			}
+			var name = prompt("Template name:", loadedTemplate.fileName.replace(/\.xlsx$/i, ""));
+			if (!name) return false;
+			saveTemplate(name, loadedTemplateData).then(function () {
+				refreshSavedTemplates();
+				infoArea.textContent = "Template saved as: " + name;
+			});
+			return false; // Don't close dialog
+		},
+		onOption2: function () {
+			// Formula Reference
+			showFormulaReference();
+			return false; // Don't close dialog
+		},
+		onOption3: function () {
+			// Download Reference XLSX
+			var blob = generateReferenceXLSX();
+			downloadBlob(blob, "Kirra_Template_Reference.xlsx");
+			return false; // Don't close dialog
+		},
+		onOption4: function () {
+			// Delete Selected
+			var name = savedSelect ? savedSelect.value : "";
+			if (!name) {
+				infoArea.textContent = "Select a saved template first.";
+				return false;
+			}
+			if (!confirm("Delete template '" + name + "'?")) return false;
+			deleteSavedTemplate(name).then(function () {
+				refreshSavedTemplates();
+				loadedTemplate = null;
+				loadedTemplateData = null;
+				infoArea.textContent = "Template deleted.";
+			});
+			return false; // Don't close dialog
 		}
 	});
 
@@ -121,22 +162,18 @@ export function showTemplatePrintDialog(options) {
 
 	// ── Wire up interactions ──
 
-	// Get references to form elements
 	var savedSelect = formContent.querySelector('[name="savedTemplate"]');
-	var fileInput = formContent.querySelector('[name="templateFile"]');
 
 	// Load saved templates list
 	refreshSavedTemplates();
 
-	// File import handler
-	if (fileInput) {
-		fileInput.addEventListener("change", function () {
-			if (fileInput.files && fileInput.files.length > 0) {
-				var file = fileInput.files[0];
-				loadTemplateFromFile(file);
-			}
-		});
-	}
+	// File import handler (fileInput created manually above)
+	fileInput.addEventListener("change", function () {
+		if (fileInput.files && fileInput.files.length > 0) {
+			var file = fileInput.files[0];
+			loadTemplateFromFile(file);
+		}
+	});
 
 	// Saved template selection
 	if (savedSelect) {
@@ -144,49 +181,9 @@ export function showTemplatePrintDialog(options) {
 			var name = savedSelect.value;
 			if (name) {
 				loadTemplateFromSaved(name);
-				deleteBtn.disabled = false;
-			} else {
-				deleteBtn.disabled = true;
 			}
 		});
 	}
-
-	// Save button
-	saveBtn.addEventListener("click", function () {
-		if (!loadedTemplate || !loadedTemplateData) return;
-		var name = prompt("Template name:", loadedTemplate.fileName.replace(/\.xlsx$/i, ""));
-		if (!name) return;
-		saveTemplate(name, loadedTemplateData).then(function () {
-			refreshSavedTemplates();
-			infoArea.textContent = "Template saved as: " + name;
-		});
-	});
-
-	// Delete button
-	deleteBtn.addEventListener("click", function () {
-		var name = savedSelect ? savedSelect.value : "";
-		if (!name) return;
-		if (!confirm("Delete template '" + name + "'?")) return;
-		deleteSavedTemplate(name).then(function () {
-			refreshSavedTemplates();
-			loadedTemplate = null;
-			loadedTemplateData = null;
-			infoArea.textContent = "Template deleted.";
-			saveBtn.disabled = true;
-			deleteBtn.disabled = true;
-		});
-	});
-
-	// Help button
-	helpBtn.addEventListener("click", function () {
-		showFormulaReference();
-	});
-
-	// Download reference template
-	downloadRefBtn.addEventListener("click", function () {
-		var blob = generateReferenceXLSX();
-		downloadBlob(blob, "Kirra_Template_Reference.xlsx");
-	});
 
 	// ── Internal functions ──
 
@@ -218,7 +215,6 @@ export function showTemplatePrintDialog(options) {
 			loadedTemplate = template;
 			loadedTemplate.fileName = file.name;
 			updateInfoArea(template);
-			saveBtn.disabled = false;
 		}).catch(function (err) {
 			infoArea.textContent = "Error loading template: " + err.message;
 			console.error("Template load error:", err);
@@ -247,7 +243,6 @@ export function showTemplatePrintDialog(options) {
 					loadedTemplate = template;
 					loadedTemplate.fileName = name + ".xlsx";
 					updateInfoArea(template);
-					saveBtn.disabled = false;
 				}).catch(function (err) {
 					infoArea.textContent = "Error parsing template: " + err.message;
 				});
