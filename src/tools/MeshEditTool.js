@@ -658,6 +658,14 @@ function raycastSurface(event) {
 	var hit = intersects[0];
 	if (!hit.point) return -1;
 
+	// Use Three.js faceIndex directly via the meshFaceToSoupIndex mapping.
+	// This selects the exact triangle hit rather than the nearest centroid,
+	// which fixes selection of slivers and narrow triangles.
+	if (hit.faceIndex !== undefined && hit.faceIndex < meshFaceToSoupIndex.length) {
+		return meshFaceToSoupIndex[hit.faceIndex];
+	}
+
+	// Fallback: point-in-triangle test against soup using the world hit point
 	var ox = window.threeLocalOriginX || 0;
 	var oy = window.threeLocalOriginY || 0;
 	var hitWorldX = hit.point.x + ox;
