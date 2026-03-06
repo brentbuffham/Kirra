@@ -24,6 +24,8 @@ Ideas and potential tasks to discuss or implement later.
 16. Performance & Large Dataset Scalability — _medium-high risk, high effort_
 17. Update trimesh-boolean library with Kirra insights — _medium risk, library enhancement + demo_
 18. UI/UX Overhaul — Align with Kirra Scheduler — _highest risk, highest effort_
+19. Print Template Engine — Custom Print Templates — _medium risk, medium effort_
+20. Pattern Library — Blast Pattern Presets from Templates — _medium risk, medium effort_
 
 ## Under Consideration
 
@@ -137,6 +139,25 @@ Ideas and potential tasks to discuss or implement later.
   - **KAD segment selection is haphazard in 3D** — picking individual line/poly segments is unreliable; needs tighter hit-testing or priority logic to match 2D selection accuracy
   - **3D surface vertex snapping inferior to 2D** — snapping to surface vertices in 3D is less precise/responsive than the 2D equivalent; investigate snap radius, priority, and candidate filtering
   - ~~**3D KAD leading lines missing**~~ — Fixed 2026-03-06: draw call was removed from mouse move handler, Z coordinate missing after backspace, V1/V2 clear mismatch
+
+- **Print Template Engine — XLSX Print Templates** — Users design templates in Excel or Google Sheets, Kirra evaluates `fx:` formulas against blast data. Phase 1 COMPLETE (2026-03-06). Files: `src/print/template/TemplateEngine.js`, `TemplateFormulaEvaluator.js`, `TemplateVariables.js`, `TemplateDialog.js`. Key features:
+  - **XLSX as template** — user creates layout in Excel/Google Sheets with merged cells, borders, fonts, images. `fx:` prefix won't trigger spreadsheet formulas.
+  - **Comprehensive formula language** — aggregation (sum, count, avg, min, max, median, stdev), grouping (groupCount, groupSum, sortCount), string concat (`&`), rounding (round, roundup, rounddown), dates (today, now, dateformat), conditionals, string functions
+  - **Blast data access** — all hole fields via `field[i]` iteration, charging data (totalMass, deckCount, productList, productMass), connector data (connectorList, connectorCount), per-entity stats
+  - **Special render tokens** — fx:legend(type,orient), fx:northArrow, fx:scale, fx:logo, fx:mapView, fx:connectorCount, fx:sectionView(holeID)
+  - **Sheet name = page config** — "A3-Landscape", "A4-Portrait", etc. Multiple sheets = multiple pages
+  - **Template persistence** — save/load to IndexedDB, template library with dropdown selection
+  - **Reference XLSX generator** — built-in downloadable reference with how-to guide, formula list, and sample template
+  - **Output formats** — populated XLSX download or rendered PDF via jsPDF
+  - **TODO Phase 2**: Wire into File menu, render callbacks for graphics (legend, north arrow, map capture), default shipped templates, image embedding improvements
+
+- **Pattern Library — Blast Pattern Presets from Templates** — Allow users to build, store, and recall blast pattern configurations. Modelled after the Kirra Scheduler pattern library. Key goals: (2026-03-06)
+  - **Pattern data model** — store pattern geometry (rectangular, staggered, polygon, line), hole parameters (diameter, angle, bearing, burden, spacing, subdrill, benchHeight, holeType), and charging config reference
+  - **IndexedDB persistence** — store pattern library in a dedicated object store; import/export as JSON files
+  - **Library browser dialog** — list saved patterns with preview thumbnail, search/filter, rename, delete
+  - **Load from library** — when user goes to Pattern > Add Pattern, provide an option to "Load from Library" which pre-populates the pattern dialog fields from the selected template
+  - **Save to library** — after creating a pattern, option to "Save as Template" to store current settings for reuse
+  - **Charging config link** — optionally associate a charging config (KAP template) with a pattern so the full blast design (geometry + loading) can be recalled in one step
 
 - **Surface Boolean Fails on Dual Open Mesh (Tea Cup–Saucer Scenario)** — Surface boolean operations fail when both input meshes are open (e.g., a tea cup intersected with a saucer — two open shells). Works perfectly on open mesh vs closed solid, and closed solid vs closed solid. Investigate edge cases in the boolean pipeline for dual-open-mesh inputs. (2026-02-25)
 

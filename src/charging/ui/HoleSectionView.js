@@ -180,6 +180,7 @@ export class HoleSectionView {
         this.onDeckResize = options.onDeckResize || null;
         this.onPrimerSelect = options.onPrimerSelect || null;
         this.onContentSelect = options.onContentSelect || null;
+        this.onContextMenu = options.onContextMenu || null;
         this._fontSizeOffset = options.fontSizeOffset || 0;
 
         this.holeCharging = null;
@@ -207,6 +208,16 @@ export class HoleSectionView {
 
         // Decoupled inset ratio (fraction of hole width to inset on each side)
         this._decoupledInset = 0.2;
+
+        // Preload warning icon for compression warnings
+        this._warningIcon = new Image();
+        this._tintedWarningIcon = null;
+        var self = this;
+        this._warningIcon.onload = function() {
+            self._tintedWarningIcon = null; // reset cache so it gets re-tinted
+            if (self.holeCharging) self.draw();
+        };
+        this._warningIcon.src = "icons/alert-triangle-filled.png";
 
         // ResizeObserver for sharp rendering
         this._resizeObserver = null;
@@ -806,33 +817,51 @@ export class HoleSectionView {
                 ctx.stroke();
                 ctx.setLineDash([]);
 
-                // Warning triangle at left edge
-                var triSize = 8;
-                var triX = drawX - triSize - 2;
-                var triY2 = critY;
-                ctx.fillStyle = "#FFCC00";
-                ctx.strokeStyle = "#CC0000";
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(triX, triY2 + triSize / 2);
-                ctx.lineTo(triX + triSize / 2, triY2 - triSize / 2);
-                ctx.lineTo(triX + triSize, triY2 + triSize / 2);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // Exclamation mark
-                ctx.fillStyle = "#CC0000";
-                ctx.font = this._scaledFont(7, "bold");
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("!", triX + triSize / 2, triY2 + 1);
+                // Warning icon at left edge (CSS pixels - DPR handled by canvas transform)
+                var iconSize = 24;
+                var iconX = drawX - iconSize - 2;
+                var iconY = critY - iconSize / 2;
+                if (this._warningIcon && this._warningIcon.complete && this._warningIcon.naturalWidth > 0) {
+                    // Tint the icon yellow-orange using an offscreen canvas
+                    if (!this._tintedWarningIcon) {
+                        var offscreen = document.createElement("canvas");
+                        offscreen.width = this._warningIcon.naturalWidth;
+                        offscreen.height = this._warningIcon.naturalHeight;
+                        var offCtx = offscreen.getContext("2d");
+                        offCtx.drawImage(this._warningIcon, 0, 0);
+                        offCtx.globalCompositeOperation = "source-atop";
+                        offCtx.fillStyle = "#FF9800";
+                        offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
+                        this._tintedWarningIcon = offscreen;
+                    }
+                    ctx.drawImage(this._tintedWarningIcon, iconX, iconY, iconSize, iconSize);
+                } else {
+                    // Fallback: simple triangle if icon not loaded
+                    var triSize = 8;
+                    var triX = drawX - triSize - 2;
+                    var triY2 = critY;
+                    ctx.fillStyle = "#FF9800";
+                    ctx.strokeStyle = "#CC0000";
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(triX, triY2 + triSize / 2);
+                    ctx.lineTo(triX + triSize / 2, triY2 - triSize / 2);
+                    ctx.lineTo(triX + triSize, triY2 + triSize / 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = "#CC0000";
+                    ctx.font = this._scaledFont(7, "bold");
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText("!", triX + triSize / 2, triY2 + 1);
+                }
 
                 // Store hit-test region for tooltip
                 if (this._compressionWarnings) {
                     this._compressionWarnings.push({
-                        x: triX + triSize / 2,
-                        y: triY2,
+                        x: iconX + iconSize / 2,
+                        y: critY,
                         depth: critDepthM,
                         criticalDensity: model.criticalDensity
                     });
@@ -1032,6 +1061,9 @@ export class HoleSectionView {
         });
         canvas.addEventListener("mouseleave", function (e) {
             self._handleMouseUp(e);
+        });
+        canvas.addEventListener("contextmenu", function (e) {
+            self._handleContextMenu(e);
         });
     }
 
@@ -1295,6 +1327,69 @@ export class HoleSectionView {
         this._dragging = false;
         this._dragBoundaryIndex = -1;
         this.canvas.style.cursor = "default";
+    }
+
+    _handleContextMenu(e) {
+        if (!this.holeCharging || !this.onContextMenu) return;
+        e.preventDefault();
+        var pos = this._getCanvasCoords(e);
+        var hr = this._holeRect;
+        var decks = this.holeCharging.decks;
+
+        // Check primers first
+        var primers = this.holeCharging.primers;
+        for (var pi = 0; pi < primers.length; pi++) {
+            var primerY = this.depthToY(primers[pi].lengthFromCollar);
+            if (Math.abs(pos.y - primerY) < 10 && pos.x >= hr.x && pos.x <= hr.x + hr.w) {
+                this.selectedPrimerIndex = pi;
+                this.selectedDeckIndex = -1;
+                this._selectedContentIndex = -1;
+                this._selectedContentDeckIndex = -1;
+                this.draw();
+                this.onContextMenu("primer", primers[pi], pi, e.clientX, e.clientY);
+                return;
+            }
+        }
+
+        // Check embedded content
+        for (var edi = 0; edi < decks.length; edi++) {
+            var eDeck = decks[edi];
+            if (!eDeck.contains) continue;
+            for (var eci = 0; eci < eDeck.contains.length; eci++) {
+                var eContent = eDeck.contains[eci];
+                if (eContent.contentCategory !== DECOUPLED_CONTENT_CATEGORIES.PHYSICAL) continue;
+                if (!eContent.length || !eContent.diameter) continue;
+                var ecTop = this.depthToY(eContent.lengthFromCollar);
+                var ecBase = this.depthToY(eContent.lengthFromCollar + eContent.length);
+                var ecDiaRatio = eContent.diameter / (this.holeDiameterMm / 1000);
+                var ecW = hr.w * Math.min(ecDiaRatio, 0.9);
+                var ecX = hr.x + (hr.w - ecW) / 2;
+                if (pos.y >= ecTop && pos.y <= ecBase && pos.x >= ecX && pos.x <= ecX + ecW) {
+                    this._selectedContentDeckIndex = edi;
+                    this._selectedContentIndex = eci;
+                    this.selectedDeckIndex = -1;
+                    this.selectedPrimerIndex = -1;
+                    this.draw();
+                    this.onContextMenu("content", eContent, eci, e.clientX, e.clientY, edi);
+                    return;
+                }
+            }
+        }
+
+        // Check decks
+        for (var di = 0; di < decks.length; di++) {
+            var y1 = this.depthToY(decks[di].topDepth);
+            var y2 = this.depthToY(decks[di].baseDepth);
+            if (pos.y >= y1 && pos.y <= y2 && pos.x >= hr.x && pos.x <= hr.x + hr.w) {
+                this.selectedDeckIndex = di;
+                this.selectedPrimerIndex = -1;
+                this._selectedContentIndex = -1;
+                this._selectedContentDeckIndex = -1;
+                this.draw();
+                this.onContextMenu("deck", decks[di], di, e.clientX, e.clientY);
+                return;
+            }
+        }
     }
 
     /**

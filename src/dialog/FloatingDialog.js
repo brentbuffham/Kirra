@@ -598,6 +598,8 @@ function createEnhancedFormContent(fields, isMultiple, centerCheckboxes = false)
 	container.style.width = "100%";
 	container.style.marginTop = "2px";
 	container.style.marginBottom = "2px";
+	container.style.paddingRight = "10px";
+	container.style.boxSizing = "border-box";
 
 	fields.forEach(field => {
 		const row = document.createElement("div");
@@ -856,6 +858,15 @@ function createEnhancedFormContent(fields, isMultiple, centerCheckboxes = false)
 
 			// Step 37d) Replace input with container for slider
 			input = sliderContainer;
+		} else if (field.type === "formula") {
+			input = document.createElement("textarea");
+			input.rows = 2;
+			input.style.fontFamily = "monospace";
+			input.style.resize = "vertical";
+			input.style.lineHeight = "1.3";
+			input.style.minHeight = "28px";
+			input.style.maxHeight = "80px";
+			input.style.overflowY = "auto";
 		} else {
 			input = document.createElement("input");
 			input.type = field.type || "text";
@@ -896,7 +907,7 @@ function createEnhancedFormContent(fields, isMultiple, centerCheckboxes = false)
 		// Step 43) Standard input styling (for non-checkbox, non-slider, non-radio inputs)
 		if (field.type !== "color" && field.type !== "checkbox" && field.type !== "slider" && field.type !== "radio") {
 			input.style.fontSize = "11px";
-			input.style.height = "20px";
+			if (field.type !== "formula") input.style.height = "20px";
 			input.style.padding = "2px 4px";
 			input.style.width = "100%";
 			input.style.minWidth = "80px";
@@ -958,7 +969,7 @@ function createEnhancedFormContent(fields, isMultiple, centerCheckboxes = false)
 // Step 46) Helper function to extract form data
 function getFormData(formContainer) {
 	const data = {};
-	const inputs = formContainer.querySelectorAll("input, select");
+	const inputs = formContainer.querySelectorAll("input, select, textarea");
 
 	inputs.forEach(input => {
 		if (input.name) {

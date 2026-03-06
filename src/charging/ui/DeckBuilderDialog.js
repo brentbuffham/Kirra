@@ -457,6 +457,9 @@ export function showDeckBuilderDialog(referenceHole) {
         },
         onContentSelect: function (content, deckIndex, contentIndex) {
             updateContentInfo(content, deckIndex, contentIndex);
+        },
+        onContextMenu: function (type, item, index, screenX, screenY) {
+            showSectionContextMenu(type, item, index, screenX, screenY, workingCharging, sectionView, refHole, formulaPanel, function () { updateSummary(); formulaPanel.refreshIndexedVars(); }, showInlineWarning, isFixedSpacer, findGapFillDeck);
         }
     });
     sectionView.setData(workingCharging);
@@ -642,7 +645,17 @@ export function showDeckBuilderDialog(referenceHole) {
                     var warnSpan = document.createElement("span");
                     warnSpan.style.color = "#CC0000";
                     warnSpan.style.fontWeight = "bold";
-                    warnSpan.textContent = "\u26A0 Critical at " + critD.toFixed(1) + "m depth";
+                    warnSpan.style.display = "inline-flex";
+                    warnSpan.style.alignItems = "center";
+                    warnSpan.style.gap = "4px";
+                    var warnIcon = document.createElement("img");
+                    warnIcon.src = "icons/alert-triangle-filled.png";
+                    warnIcon.width = 24;
+                    warnIcon.height = 24;
+                    warnIcon.style.filter = "invert(55%) sepia(90%) saturate(600%) hue-rotate(5deg) brightness(105%)";
+                    warnIcon.style.verticalAlign = "middle";
+                    warnSpan.appendChild(warnIcon);
+                    warnSpan.appendChild(document.createTextNode(" Critical at " + critD.toFixed(1) + "m depth"));
                     row.appendChild(warnSpan);
                 }
             }
@@ -688,9 +701,26 @@ export function showDeckBuilderDialog(referenceHole) {
     function showInlineWarning(message) {
         var row = document.getElementById("deckBuilderPropsRow");
         if (!row) return;
-        row.innerHTML = '<span style="color:#ff9800;">\u26A0 ' + message + "</span>";
+        row.textContent = "";
+        var span = document.createElement("span");
+        span.style.color = "#ff9800";
+        span.style.display = "inline-flex";
+        span.style.alignItems = "center";
+        span.style.gap = "4px";
+        var icon = document.createElement("img");
+        icon.src = "icons/alert-triangle-filled.png";
+        icon.width = 24;
+        icon.height = 24;
+        icon.style.filter = "invert(55%) sepia(90%) saturate(600%) hue-rotate(5deg) brightness(105%)";
+        span.appendChild(icon);
+        span.appendChild(document.createTextNode(" " + message));
+        row.appendChild(span);
         setTimeout(function () {
-            row.innerHTML = "<span style='opacity:0.5;'>Click a deck to edit properties</span>";
+            row.textContent = "";
+            var hint = document.createElement("span");
+            hint.style.opacity = "0.5";
+            hint.textContent = "Click a deck to edit properties";
+            row.appendChild(hint);
         }, 3000);
     }
 
@@ -1093,7 +1123,7 @@ function editPrimer(workingCharging, sectionView, refHole, formulaPanel) {
 
     var depthDisplayValue = primer.depthFormula ? primer.depthFormula : (primer.lengthFromCollar || 0).toFixed(1);
     var fields = [
-        { label: "Depth from Collar (m)", name: "depthFromCollar", type: "text", value: depthDisplayValue, placeholder: "e.g. 8.5 or fx:chargeBase[4]-0.3" },
+        { label: "Depth from Collar (m)", name: "depthFromCollar", type: "formula", value: depthDisplayValue, placeholder: "e.g. 8.5 or fx:chargeBase[4]-0.3" },
         { label: "Detonator", name: "detonatorName", type: "select", options: detOptions, value: primer.detonator.productName || "" },
         { label: "Detonator Qty", name: "detonatorQty", type: "number", value: String(primer.detonator.quantity || 1), step: "1", min: "1", max: "10" },
         { label: "Delay (ms)", name: "delayMs", type: "number", value: String(primer.detonator.delayMs || 0), step: "1" },
@@ -1129,7 +1159,7 @@ function editPrimer(workingCharging, sectionView, refHole, formulaPanel) {
 
     // Wire formula field to the Formula Builder panel
     if (formulaPanel) {
-        var depthField = formContent.querySelector('input[name="depthFromCollar"]');
+        var depthField = formContent.querySelector('[name="depthFromCollar"]');
         if (depthField) {
             depthField.addEventListener("focus", function () { formulaPanel.setActiveField(depthField); });
         }
@@ -1206,6 +1236,148 @@ function editPrimer(workingCharging, sectionView, refHole, formulaPanel) {
         }
     });
     editDialog.show();
+}
+
+/**
+ * Show a right-click context menu on a deck, primer, or content item in the section view.
+ */
+function showSectionContextMenu(type, item, index, screenX, screenY, workingCharging, sectionView, refHole, formulaPanel, onUpdate, showInlineWarning, isFixedSpacer, findGapFillDeck) {
+    // Remove any existing context menu
+    var existing = document.getElementById("sectionViewContextMenu");
+    if (existing) existing.remove();
+
+    var menu = document.createElement("div");
+    menu.id = "sectionViewContextMenu";
+    menu.className = "tree-context-menu";
+    menu.style.display = "block";
+    menu.style.left = screenX + "px";
+    menu.style.top = screenY + "px";
+    menu.style.zIndex = "30000";
+
+    function addItem(label, iconSrc, onClick, disabled) {
+        var row = document.createElement("div");
+        row.className = "tree-context-item";
+        if (iconSrc) {
+            var iconSpan = document.createElement("span");
+            var icon = document.createElement("img");
+            icon.src = iconSrc;
+            icon.width = 18;
+            icon.height = 18;
+            icon.style.display = "inline-block";
+            icon.style.verticalAlign = "middle";
+            if (window.darkModeEnabled) icon.style.filter = "invert(1)";
+            iconSpan.appendChild(icon);
+            row.appendChild(iconSpan);
+        }
+        var textSpan = document.createElement("span");
+        textSpan.textContent = label;
+        row.appendChild(textSpan);
+        if (disabled) {
+            row.style.opacity = "0.4";
+            row.style.pointerEvents = "none";
+        } else {
+            row.addEventListener("click", function () {
+                menu.remove();
+                onClick();
+            });
+        }
+        menu.appendChild(row);
+    }
+
+    function addSeparator() {
+        var sep = document.createElement("div");
+        sep.className = "tree-context-separator";
+        menu.appendChild(sep);
+    }
+
+    if (type === "deck") {
+        var deckIndex = index;
+        var decks = workingCharging.decks;
+        var deckNum = deckIndex + 1; // 1-based for formula references
+
+        addItem("Edit Deck " + deckNum, "icons/table-row.png", function () {
+            editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel);
+        });
+
+        addSeparator();
+
+        // Link top to deck above (deckBase[N-1])
+        var hasAbove = deckIndex > 0;
+        addItem("Link Top to Deck " + (deckNum - 1) + " Base", "icons/arrow-big-up-line.png", function () {
+            var formula = "fx:deckBase[" + deckIndex + "]"; // deckIndex is 0-based, formula is 1-based = deckIndex
+            item.topDepthFormula = formula;
+            var ctx = buildFormulaCtxFromDecks(workingCharging);
+            var resolved = evaluateFormula(formula, ctx);
+            if (resolved != null) item.topDepth = resolved;
+            workingCharging.modified = new Date().toISOString();
+            sectionView.setData(workingCharging);
+            onUpdate();
+        }, !hasAbove);
+
+        // Link base to deck below (deckTop[N+1])
+        var hasBelow = deckIndex < decks.length - 1;
+        addItem("Link Base to Deck " + (deckNum + 1) + " Top", "icons/arrow-big-down-line.png", function () {
+            var formula = "fx:deckTop[" + (deckNum + 1) + "]";
+            item.baseDepthFormula = formula;
+            var ctx = buildFormulaCtxFromDecks(workingCharging);
+            var resolved = evaluateFormula(formula, ctx);
+            if (resolved != null) item.baseDepth = resolved;
+            workingCharging.modified = new Date().toISOString();
+            sectionView.setData(workingCharging);
+            onUpdate();
+        }, !hasBelow);
+
+        addSeparator();
+
+        addItem("Remove Deck " + deckNum, "icons/trash.png", function () {
+            removeSelected(workingCharging, sectionView, onUpdate, showInlineWarning, isFixedSpacer, findGapFillDeck);
+        });
+
+    } else if (type === "primer") {
+        addItem("Edit Primer " + (index + 1), "icons/table-row.png", function () {
+            editPrimer(workingCharging, sectionView, refHole, formulaPanel);
+        });
+
+        addSeparator();
+
+        addItem("Remove Primer " + (index + 1), "icons/trash.png", function () {
+            workingCharging.primers.splice(index, 1);
+            sectionView.selectedPrimerIndex = -1;
+            sectionView.setData(workingCharging);
+            onUpdate();
+        });
+
+    } else if (type === "content") {
+        addItem("Edit Content", "icons/table-row.png", function () {
+            editEmbeddedContent(workingCharging, sectionView, onUpdate);
+        });
+
+        addSeparator();
+
+        addItem("Remove Content", "icons/trash.png", function () {
+            var cDeck = workingCharging.decks[sectionView._selectedContentDeckIndex];
+            if (cDeck && cDeck.contains && cDeck.contains[sectionView._selectedContentIndex]) {
+                cDeck.contains.splice(sectionView._selectedContentIndex, 1);
+                sectionView._selectedContentDeckIndex = -1;
+                sectionView._selectedContentIndex = -1;
+                sectionView.setData(workingCharging);
+                onUpdate();
+            }
+        });
+    }
+
+    document.body.appendChild(menu);
+
+    // Close on click outside
+    function closeMenu(e) {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener("mousedown", closeMenu, true);
+        }
+    }
+    setTimeout(function () {
+        document.addEventListener("mousedown", closeMenu, true);
+    }, 0);
 }
 
 /**
@@ -1333,7 +1505,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel)
             options: productOptions,
             value: deck.product ? deck.product.name : ""
         },
-        { label: "Top Depth (m)", name: "topDepth", type: "text", value: deck.topDepthFormula || deck.topDepth.toFixed(3), placeholder: "e.g. 3.5 or fx:stemLength" }
+        { label: "Top Depth (m)", name: "topDepth", type: "formula", value: deck.topDepthFormula || deck.topDepth.toFixed(3), placeholder: "e.g. 3.5 or fx:stemLength" }
     ];
 
     // DECOUPLED: show quantity instead of base depth (length = qty × product length)
@@ -1346,7 +1518,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel)
             // Show length formula as informational hint in the base depth field
             baseDisplayValue = deck.lengthFormula;
         }
-        fields.push({ label: "Base Depth (m)", name: "baseDepth", type: "text", value: baseDisplayValue, placeholder: "e.g. 10.0 or fx:holeLength or fill" });
+        fields.push({ label: "Base Depth (m)", name: "baseDepth", type: "formula", value: baseDisplayValue, placeholder: "e.g. 10.0 or fx:holeLength or fill" });
     }
 
     // Use Mass checkbox and Mass (kg) field
@@ -1389,7 +1561,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel)
     // Toggle Mass (kg) field visibility based on Use Mass checkbox
     var useMassCheckbox = formContent.querySelector('input[name="useMass"]');
     var massField = formContent.querySelector('input[name="massKg"]');
-    var baseDepthField = formContent.querySelector('input[name="baseDepth"]') || formContent.querySelector('input[name="quantity"]');
+    var baseDepthField = formContent.querySelector('[name="baseDepth"]') || formContent.querySelector('[name="quantity"]');
     if (useMassCheckbox && massField) {
         // Walk up to the row container (parent of the input's container)
         var massRow = massField.parentElement;
@@ -1405,8 +1577,8 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel)
 
     // Wire formula fields to the Formula Builder panel
     if (formulaPanel) {
-        var topField = formContent.querySelector('input[name="topDepth"]');
-        var baseField2 = formContent.querySelector('input[name="baseDepth"]');
+        var topField = formContent.querySelector('[name="topDepth"]');
+        var baseField2 = formContent.querySelector('[name="baseDepth"]');
         if (topField) {
             topField.addEventListener("focus", function () { formulaPanel.setActiveField(topField); });
         }
@@ -1416,7 +1588,7 @@ function editDeck(workingCharging, sectionView, refHole, onUpdate, formulaPanel)
     }
 
     // Calculate dialog height based on extra fields
-    var dialogHeight = 340;
+    var dialogHeight = 370;
     if (isDecoupled) dialogHeight += 45; // overlap pattern field
     dialogHeight += 90; // useMass + massKg fields
 

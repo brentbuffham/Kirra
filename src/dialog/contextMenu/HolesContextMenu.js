@@ -621,8 +621,15 @@ export function showHolePropertyEditor(hole) {
 							var cDepth = cModel.criticalDepth(cd.length);
 							if (cDepth !== null) {
 								var critLine = document.createElement("span");
-								critLine.style.cssText = "color:#ff4444;font-weight:bold;font-size:10px;";
-								critLine.textContent = "\u26A0 Critical at " + cDepth.toFixed(1) + "m";
+								critLine.style.cssText = "color:#ff4444;font-weight:bold;font-size:10px;display:inline-flex;align-items:center;gap:3px;";
+								var critIcon = document.createElement("img");
+								critIcon.src = "icons/alert-triangle-filled.png";
+								critIcon.width = 24;
+								critIcon.height = 24;
+								critIcon.style.filter = "invert(55%) sepia(90%) saturate(600%) hue-rotate(5deg) brightness(105%)";
+								critIcon.style.verticalAlign = "middle";
+								critLine.appendChild(critIcon);
+								critLine.appendChild(document.createTextNode(" Critical at " + cDepth.toFixed(1) + "m"));
 								summaryDiv.appendChild(critLine);
 								summaryDiv.appendChild(document.createElement("br"));
 							}

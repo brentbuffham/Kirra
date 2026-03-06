@@ -47,6 +47,7 @@
         "three.meshline": "^1.4.0",
         "triangle-wasm": "^1.0.0",
         "trimesh-boolean": "^0.3.0",
-        "troika-three-text": "^0.52.4"
+        "troika-three-text": "^0.52.4",
+        "xlsx": "^0.18.5"
     }
 }

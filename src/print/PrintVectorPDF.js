@@ -12,6 +12,7 @@ import { getTemplate, getPaperDimensions } from "./PrintTemplates.js";
 import { PrintLayoutManager } from "./PrintLayoutManager.js";
 import { PrintCaptureManager } from "./PrintCaptureManager.js";
 import { getActiveLegends } from "../overlay/index.js";
+import { buildMassLabels } from "../draw/canvas2DDrawing.js";
 import ClipperLib from "clipper-lib";
 
 // ============== LINE CLIPPING HELPERS ==============
@@ -1631,7 +1632,7 @@ export function generateTrueVectorPDF(context, userInput, mode) {
 
                                         // Draw delay text at midpoint of connector
                                         var delayMs = hole.timingDelayMilliseconds;
-                                        if (delayMs !== undefined && delayMs !== null && displayOptions.connectorDelay !== false) {
+                                        if (delayMs !== undefined && delayMs !== null && displayOptions.delayValue) {
                                             var midX = (startCoords[0] + endCoords[0]) / 2;
                                             var midY = (startCoords[1] + endCoords[1]) / 2;
                                             if (isPointInRect(midX, midY, mapZone)) {
@@ -1688,7 +1689,7 @@ export function generateTrueVectorPDF(context, userInput, mode) {
 
                                         // Draw delay text at control point of curved connector
                                         var delayMs2 = hole.timingDelayMilliseconds;
-                                        if (delayMs2 !== undefined && delayMs2 !== null && displayOptions.connectorDelay !== false) {
+                                        if (delayMs2 !== undefined && delayMs2 !== null && displayOptions.delayValue) {
                                             if (isPointInRect(controlX, controlY, mapZone)) {
                                                 var txtColor2 = getContrastColor(connColor);
                                                 var txtRgb2 = hexToRgb(txtColor2);
@@ -1726,76 +1727,104 @@ export function generateTrueVectorPDF(context, userInput, mode) {
                     pdf.setFontSize(fontSize);
                     pdf.setFont("helvetica", "normal");
 
-                    // Right side of collar labels (ID, Dia, Len, and additional labels)
-                    var labelY = collarCoords[1] - textOffset;
+                    // Right side of collar labels (stacked top-down, matching raster positions)
+                    var rightX = collarCoords[0] + textOffset;
+                    var rightY = collarCoords[1] - textOffset;
                     var labelSpacing = fontSize * 0.4;
 
                     if (displayOptions.holeID) {
                         pdf.setTextColor(0, 0, 0);
-                        pdf.text(hole.holeID || "", collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
-                    }
-                    if (displayOptions.holeDia) {
-                        pdf.setTextColor(0, 128, 0);
-                        pdf.text(parseFloat(hole.holeDiameter).toFixed(0), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                        pdf.text(hole.holeID || "", rightX, rightY);
+                        rightY += labelSpacing;
                     }
                     if (displayOptions.holeLen) {
-                        pdf.setTextColor(0, 0, 255);
-                        pdf.text(parseFloat(hole.holeLengthCalculated).toFixed(1), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                        pdf.setTextColor(0, 0, 67);
+                        pdf.text(parseFloat(hole.holeLengthCalculated).toFixed(1), rightX, rightY);
+                        rightY += labelSpacing;
                     }
-                    if (displayOptions.xValue) {
-                        pdf.setTextColor(0, 0, 0);
-                        pdf.text("X:" + parseFloat(hole.startXLocation).toFixed(2), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
-                    }
-                    if (displayOptions.yValue) {
-                        pdf.setTextColor(0, 0, 0);
-                        pdf.text("Y:" + parseFloat(hole.startYLocation).toFixed(2), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
-                    }
-                    if (displayOptions.zValue) {
-                        pdf.setTextColor(0, 0, 0);
-                        pdf.text("Z:" + parseFloat(hole.startZLocation).toFixed(2), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                    if (displayOptions.holeDia) {
+                        pdf.setTextColor(0, 50, 0);
+                        pdf.text(parseFloat(hole.holeDiameter).toFixed(0), rightX, rightY);
+                        rightY += labelSpacing;
                     }
                     if (displayOptions.holeType) {
-                        pdf.setTextColor(128, 0, 128);
-                        pdf.text(hole.holeType || "", collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                        pdf.setTextColor(53, 0, 72);
+                        pdf.text(hole.holeType || "", rightX, rightY);
+                        rightY += labelSpacing;
                     }
                     if (displayOptions.rowID && hole.rowID) {
                         pdf.setTextColor(0, 100, 100);
-                        pdf.text("R:" + hole.rowID, collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                        pdf.text("R:" + hole.rowID, rightX, rightY);
+                        rightY += labelSpacing;
                     }
                     if (displayOptions.posID && hole.posID) {
                         pdf.setTextColor(100, 0, 100);
-                        pdf.text("P:" + hole.posID, collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                        pdf.text("P:" + hole.posID, rightX, rightY);
+                        rightY += labelSpacing;
                     }
-                    if (displayOptions.measuredLength && hole.measuredLength) {
-                        pdf.setTextColor(0, 100, 0);
-                        pdf.text("ML:" + parseFloat(hole.measuredLength).toFixed(1), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
-                    }
-                    if (displayOptions.measuredMass && hole.measuredMass) {
-                        pdf.setTextColor(100, 100, 0);
-                        pdf.text("MM:" + parseFloat(hole.measuredMass).toFixed(1), collarCoords[0] + textOffset, labelY);
-                        labelY += labelSpacing;
+                    if (displayOptions.measuredComment && hole.measuredComment) {
+                        pdf.setTextColor(70, 0, 0);
+                        pdf.text(String(hole.measuredComment), rightX, rightY);
+                        rightY += labelSpacing;
                     }
 
-                    // Left side of collar labels (Ang, Time)
+                    // Left side of collar labels (stacked top-down, right-aligned)
+                    var leftX = collarCoords[0] - textOffset;
+                    var leftY = collarCoords[1] - textOffset;
+
                     if (displayOptions.holeAng) {
-                        var textOffset2 = holeRadius * 2.5;
-                        pdf.setTextColor(128, 64, 0);
-                        pdf.text(parseFloat(hole.holeAngle).toFixed(0) + "deg", collarCoords[0] - textOffset2, collarCoords[1] - textOffset2, { align: "right" });
+                        pdf.setTextColor(67, 30, 0);
+                        pdf.text(parseFloat(hole.holeAngle).toFixed(0) + "deg", leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
                     }
                     if (displayOptions.initiationTime) {
-                        var textOffset3 = holeRadius * 2.5;
                         pdf.setTextColor(255, 0, 0);
-                        pdf.text(String(hole.holeTime || ""), collarCoords[0] - textOffset3, collarCoords[1], { align: "right" });
+                        var timeStr = hole.holeTime != null ? String(hole.holeTime) : "";
+                        if (timeStr) {
+                            pdf.text(timeStr, leftX, leftY, { align: "right" });
+                            leftY += labelSpacing;
+                        }
+                    }
+                    if (displayOptions.xValue) {
+                        pdf.setTextColor(0, 0, 0);
+                        pdf.text("X:" + parseFloat(hole.startXLocation).toFixed(2), leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
+                    }
+                    if (displayOptions.yValue) {
+                        pdf.setTextColor(0, 0, 0);
+                        pdf.text("Y:" + parseFloat(hole.startYLocation).toFixed(2), leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
+                    }
+                    if (displayOptions.zValue) {
+                        pdf.setTextColor(0, 0, 0);
+                        pdf.text("Z:" + parseFloat(hole.startZLocation).toFixed(2), leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
+                    }
+                    if (displayOptions.measuredLength && hole.measuredLength) {
+                        pdf.setTextColor(70, 0, 0);
+                        pdf.text("ML:" + parseFloat(hole.measuredLength).toFixed(1), leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
+                    }
+                    if (displayOptions.measuredMass && hole.measuredMass) {
+                        pdf.setTextColor(70, 0, 0);
+                        pdf.text("MM:" + parseFloat(hole.measuredMass).toFixed(1), leftX, leftY, { align: "right" });
+                        leftY += labelSpacing;
+                    }
+                    if (displayOptions.massPerHole) {
+                        var mLabels = buildMassLabels(hole);
+                        if (mLabels.perHole) {
+                            pdf.setTextColor(255, 0, 0);
+                            pdf.text(mLabels.perHole, leftX, leftY, { align: "right" });
+                            leftY += labelSpacing;
+                        }
+                    }
+                    if (displayOptions.massPerDeck) {
+                        var dLabels = buildMassLabels(hole);
+                        pdf.setTextColor(255, 0, 0);
+                        for (var ml = 0; ml < dLabels.perDeck.length; ml++) {
+                            pdf.text(dLabels.perDeck[ml], leftX, leftY, { align: "right" });
+                            leftY += labelSpacing;
+                        }
                     }
                 }
 
