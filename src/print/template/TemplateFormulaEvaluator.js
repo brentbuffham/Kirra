@@ -810,16 +810,16 @@ function buildFunctionLibrary(visibleHoles, scalarVars) {
 	fns.today = function (offset) {
 		var d = new Date();
 		if (offset) d.setDate(d.getDate() + parseInt(offset));
-		return d.toLocaleDateString();
+		return d.toLocaleDateString("en-AU");
 	};
 
 	fns.now = function () {
-		return new Date().toLocaleString();
+		return new Date().toLocaleString("en-AU");
 	};
 
 	fns.dateformat = function (format) {
 		var d = new Date();
-		if (!format) return d.toLocaleDateString();
+		if (!format) return d.toLocaleDateString("en-AU");
 		// Simple format tokens: YYYY, MM, DD, hh, mm, ss
 		var yyyy = d.getFullYear();
 		var MM = String(d.getMonth() + 1).padStart(2, "0");

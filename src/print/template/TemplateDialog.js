@@ -24,7 +24,8 @@ import {
 	generateReferenceXLSX
 } from "./TemplateEngine.js";
 import { getAvailableVariables } from "./TemplateVariables.js";
-import { setTemplatePreview, clearTemplatePreview, captureMapViewRaster, getPrintBoundary } from "../PrintSystem.js";
+import { setTemplatePreview, clearTemplatePreview, captureMapViewRaster, getPrintBoundary, setPaperSizeAndOrientation, printCanvasHiRes, printPaperSize, printOrientation } from "../PrintSystem.js";
+import { generateTrueVectorPDF } from "../PrintVectorPDF.js";
 import { PrintCaptureManager } from "../PrintCaptureManager.js";
 
 /**
@@ -60,7 +61,7 @@ export function showTemplatePrintDialog(options) {
 
 	// Paper size and orientation options
 	var paperSizeOptions = [
-		{ value: "", label: "From Sheet Name" },
+		{ value: "", label: "From Sheet" },
 		{ value: "A4", label: "A4" },
 		{ value: "A3", label: "A3" },
 		{ value: "A2", label: "A2" },
@@ -71,14 +72,17 @@ export function showTemplatePrintDialog(options) {
 		{ value: "Tabloid", label: "Tabloid" }
 	];
 	var orientationOptions = [
-		{ value: "", label: "From Sheet Name" },
+		{ value: "", label: "From Sheet" },
 		{ value: "landscape", label: "Landscape" },
 		{ value: "portrait", label: "Portrait" }
 	];
 
 	// Build form content
 	var formFields = [
-		{ name: "savedTemplate", label: "Saved Template", type: "select", options: [{ value: "", label: "-- Select or import --" }], value: prefs.lastTemplate || "" },
+		{ name: "savedTemplate", label: "Saved Template", type: "select", options: [
+			{ value: "__kirra_inbuilt__", label: "Kirra Inbuilt" },
+			{ value: "", label: "-- Select or Import --" }
+		], value: prefs.lastTemplate || "__kirra_inbuilt__" },
 		{ name: "sheetSelect", label: "Sheet", type: "select", options: [{ value: "", label: "All Sheets" }], value: "" },
 		{ name: "paperSizeOverride", label: "Paper Size", type: "select", options: paperSizeOptions, value: "" },
 		{ name: "orientationOverride", label: "Orientation", type: "select", options: orientationOptions, value: "" },
@@ -86,7 +90,8 @@ export function showTemplatePrintDialog(options) {
 		{ name: "designer", label: "Designer", type: "text", value: prefs.designer || "" },
 		{ name: "entityFilter", label: "Entity Filter", type: "select", options: entityOptions, value: "" },
 		{ name: "outputFormat", label: "Output Format", type: "select", options: [
-			{ value: "pdf", label: "PDF (Rendered Document)" },
+			{ value: "pdf", label: "PDF Raster (High-Res Image)" },
+			{ value: "pdf-vector", label: "PDF Vector (Scalable)" },
 			{ value: "xlsx", label: "XLSX (Populated Spreadsheet)" }
 		], value: prefs.outputFormat || "pdf" }
 	];
@@ -121,9 +126,19 @@ export function showTemplatePrintDialog(options) {
 	infoArea.textContent = "No template loaded. Import an .xlsx file or select a saved template.";
 	formContent.appendChild(infoArea);
 
+	// Track whether print preview was already on before dialog opened
+	var printPreviewToggle = document.getElementById("addPrintPreviewToggle");
+	var printPreviewWasOn = printPreviewToggle ? printPreviewToggle.checked : false;
+
+	// Force print preview ON when dialog opens
+	if (printPreviewToggle && !printPreviewToggle.checked) {
+		printPreviewToggle.checked = true;
+		printPreviewToggle.dispatchEvent(new Event("change"));
+	}
+
 	// Create dialog with footer buttons via FloatingDialog options
 	var dialog = new FloatingDialog({
-		title: "Print PDF from Template",
+		title: "Print",
 		content: formContent,
 		width: 480,
 		height: 460,
@@ -133,6 +148,11 @@ export function showTemplatePrintDialog(options) {
 		onCancel: function () {
 			// Clear the template preview overlay when dialog closes
 			clearTemplatePreview();
+			// Restore print preview state if it was off before dialog opened
+			if (!printPreviewWasOn && printPreviewToggle) {
+				printPreviewToggle.checked = false;
+				printPreviewToggle.dispatchEvent(new Event("change"));
+			}
 			if (typeof window.drawData === "function") {
 				window.drawData(window.allBlastHoles, window.selectedHole);
 			}
@@ -205,6 +225,9 @@ export function showTemplatePrintDialog(options) {
 	fileInput.addEventListener("change", function () {
 		if (fileInput.files && fileInput.files.length > 0) {
 			var file = fileInput.files[0];
+			// Switch to template mode when importing
+			if (savedSelect) savedSelect.value = "";
+			toggleKirraInbuiltMode(false);
 			loadTemplateFromFile(file);
 		}
 	});
@@ -213,8 +236,13 @@ export function showTemplatePrintDialog(options) {
 	if (savedSelect) {
 		savedSelect.addEventListener("change", function () {
 			var name = savedSelect.value;
-			if (name) {
+			if (name === "__kirra_inbuilt__") {
+				toggleKirraInbuiltMode(true);
+			} else if (name) {
+				toggleKirraInbuiltMode(false);
 				loadTemplateFromSaved(name);
+			} else {
+				toggleKirraInbuiltMode(false);
 			}
 		});
 	}
@@ -250,6 +278,14 @@ export function showTemplatePrintDialog(options) {
 	var orientSelect = formContent.querySelector('[name="orientationOverride"]');
 
 	function onPaperOverrideChange() {
+		var isInbuilt = savedSelect && savedSelect.value === "__kirra_inbuilt__";
+		if (isInbuilt) {
+			// In Kirra Inbuilt mode, directly sync with Kirra controls
+			var ps = paperSelect ? paperSelect.value : "A3";
+			var orient = orientSelect ? orientSelect.value : "landscape";
+			setPaperSizeAndOrientation(ps, orient);
+			return;
+		}
 		if (!loadedTemplate) return;
 		var selectedSheet = sheetSelect ? sheetSelect.value : "";
 		var sheetCfg = null;
@@ -266,15 +302,131 @@ export function showTemplatePrintDialog(options) {
 	if (paperSelect) paperSelect.addEventListener("change", onPaperOverrideChange);
 	if (orientSelect) orientSelect.addEventListener("change", onPaperOverrideChange);
 
-	// Auto-load last used saved template
-	if (prefs.lastTemplate) {
+	/**
+	 * Toggle UI between Kirra Inbuilt mode and XLSX template mode.
+	 */
+	function toggleKirraInbuiltMode(isInbuilt) {
+		// Show/hide template-specific rows
+		var sheetRow = formContent.querySelector('[name="sheetSelect"]');
+		if (sheetRow && sheetRow.parentElement) sheetRow.parentElement.style.display = isInbuilt ? "none" : "";
+		fileRow.style.display = isInbuilt ? "none" : "";
+
+		// Update output format options — XLSX only available for templates
+		var outputSelect = formContent.querySelector('[name="outputFormat"]');
+		if (outputSelect) {
+			for (var i = 0; i < outputSelect.options.length; i++) {
+				if (outputSelect.options[i].value === "xlsx") {
+					outputSelect.options[i].disabled = isInbuilt;
+					if (isInbuilt && outputSelect.value === "xlsx") {
+						outputSelect.value = "pdf";
+					}
+				}
+			}
+		}
+
+		// Update paper size / orientation — remove "From Sheet" option for inbuilt
+		var paperSel = formContent.querySelector('[name="paperSizeOverride"]');
+		var orientSel = formContent.querySelector('[name="orientationOverride"]');
+		if (isInbuilt) {
+			// For Kirra Inbuilt, set dropdowns to current Kirra values
+			if (paperSel) {
+				if (paperSel.options[0] && paperSel.options[0].value === "") paperSel.options[0].style.display = "none";
+				paperSel.value = printPaperSize || "A3";
+			}
+			if (orientSel) {
+				if (orientSel.options[0] && orientSel.options[0].value === "") orientSel.options[0].style.display = "none";
+				orientSel.value = printOrientation || "landscape";
+			}
+			// Sync Kirra print preview
+			var ps = paperSel ? paperSel.value : "A3";
+			var orient = orientSel ? orientSel.value : "landscape";
+			setPaperSizeAndOrientation(ps, orient);
+			clearTemplatePreview();
+
+			loadedTemplate = null;
+			loadedTemplateData = null;
+			infoArea.textContent = "Kirra Inbuilt: Uses the built-in print pipeline.\nSupports 2D and 3D modes, Voronoi, surfaces, clipping.";
+			infoArea.style.whiteSpace = "pre-wrap";
+		} else {
+			// For templates, restore "From Sheet" option
+			if (paperSel && paperSel.options[0] && paperSel.options[0].value === "") paperSel.options[0].style.display = "";
+			if (orientSel && orientSel.options[0] && orientSel.options[0].value === "") orientSel.options[0].style.display = "";
+		}
+	}
+
+	// Auto-load last used saved template or default to Kirra Inbuilt
+	if (prefs.lastTemplate && prefs.lastTemplate !== "__kirra_inbuilt__") {
 		setTimeout(function () {
 			if (savedSelect) savedSelect.value = prefs.lastTemplate;
+			toggleKirraInbuiltMode(false);
 			loadTemplateFromSaved(prefs.lastTemplate);
 		}, 100);
+	} else {
+		// Default to Kirra Inbuilt
+		setTimeout(function () {
+			if (savedSelect) savedSelect.value = "__kirra_inbuilt__";
+			toggleKirraInbuiltMode(true);
+		}, 50);
 	}
 
 	// ── Internal functions ──
+
+	function handleKirraInbuiltPrint() {
+		var formData = getFormData(formContent);
+		var ctx = options.context || {};
+
+		// Save preferences
+		saveTemplatePrefs({
+			lastTemplate: "__kirra_inbuilt__",
+			blastName: formData.blastName || "",
+			designer: formData.designer || "",
+			outputFormat: formData.outputFormat || "pdf"
+		});
+
+		// Get paper size and orientation from the dialog controls
+		var ps = formData.paperSizeOverride || printPaperSize || "A3";
+		var orient = formData.orientationOverride || printOrientation || "landscape";
+
+		// Sync Kirra controls to match dialog settings
+		setPaperSizeAndOrientation(ps, orient);
+
+		// Detect 2D/3D mode
+		var dimension2D3DBtn = document.getElementById("dimension2D-3DBtn");
+		var isIn3DMode = dimension2D3DBtn && dimension2D3DBtn.checked === true;
+		var mode = isIn3DMode ? "3D" : "2D";
+
+		// Build user input for the inbuilt pipeline
+		var userInput = {
+			blastName: formData.blastName || "Untitled Blast",
+			designer: formData.designer || "",
+			fileName: (formData.blastName || "blast_report").replace(/[^a-zA-Z0-9_-]/g, "_"),
+			paperSize: ps,
+			orientation: orient,
+			outputType: formData.outputFormat === "pdf-vector" ? "vector" : "raster"
+		};
+
+		// Build the enhanced print context matching what setupPrintEventHandlers creates
+		var printContext = Object.assign({}, ctx, {
+			getPrintBoundary: getPrintBoundary,
+			mode: mode,
+			is3DMode: isIn3DMode,
+			printPaperSize: ps,
+			printOrientation: orient,
+			userInput: userInput
+		});
+
+		// Close dialog before printing
+		dialog.close();
+
+		// Clear template preview so inbuilt pipeline uses Kirra boundary
+		clearTemplatePreview();
+
+		if (userInput.outputType === "vector") {
+			generateTrueVectorPDF(printContext, userInput, mode);
+		} else {
+			printCanvasHiRes(printContext);
+		}
+	}
 
 	function refreshSavedTemplates() {
 		listSavedTemplates().then(function (templates) {
@@ -282,14 +434,15 @@ export function showTemplatePrintDialog(options) {
 			if (!savedSelect) return;
 			// Preserve current selection
 			var current = savedSelect.value;
-			// Clear options
-			while (savedSelect.options.length > 1) savedSelect.remove(1);
-			// Add saved templates
+			// Clear all options after the first two (Kirra Inbuilt + "-- Select or Import --")
+			while (savedSelect.options.length > 2) savedSelect.remove(2);
+			// Add saved templates before the "-- Select or Import --" option
+			var importOption = savedSelect.options[1]; // "-- Select or Import --"
 			for (var i = 0; i < templates.length; i++) {
 				var opt = document.createElement("option");
 				opt.value = templates[i].name;
 				opt.textContent = templates[i].name + " (" + templates[i].savedAt.substring(0, 10) + ")";
-				savedSelect.appendChild(opt);
+				savedSelect.insertBefore(opt, importOption);
 			}
 			// Restore selection
 			if (current) savedSelect.value = current;
@@ -414,6 +567,11 @@ export function showTemplatePrintDialog(options) {
 	}
 
 	function activateTemplatePreview(cfg, sheetName) {
+		// Sync Kirra print boundary with the template's paper size/orientation
+		// This updates the on-screen print preview so the user can zoom/pan within it
+		setPaperSizeAndOrientation(cfg.paperSize, cfg.orientation);
+
+		// Also set template preview for the simple paper rectangle overlay
 		setTemplatePreview({
 			widthMm: cfg.widthMm,
 			heightMm: cfg.heightMm,
@@ -424,6 +582,13 @@ export function showTemplatePrintDialog(options) {
 	}
 
 	function handleGenerate() {
+		var isKirraInbuilt = savedSelect && savedSelect.value === "__kirra_inbuilt__";
+
+		if (isKirraInbuilt) {
+			handleKirraInbuiltPrint();
+			return;
+		}
+
 		if (!loadedTemplate) {
 			alert("Please import or select a template first.");
 			return;

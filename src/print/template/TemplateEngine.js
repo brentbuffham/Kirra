@@ -23,7 +23,10 @@
 
 import ExcelJS from "exceljs";
 import { isTemplateFormula, evaluateAllCells } from "./TemplateFormulaEvaluator.js";
-import { buildTemplateContext, getAvailableVariables } from "./TemplateVariables.js";
+import { buildTemplateContext } from "./TemplateVariables.js";
+
+// Bundled reference template XLSX (Vite resolves this to a URL at build time)
+import referenceTemplateUrl from "../../referenceFiles/XLSX/KirraCustomPrintTemplate.xlsx?url";
 
 // ── Cell-ref helpers (replaces XLSX.utils) ──────────────────────────────
 
@@ -76,32 +79,88 @@ var PAPER_SIZES_MM = {
 	Tabloid: { width: 279, height: 432 }
 };
 
+// ExcelJS paperSize numbers -> paper name
+var EXCEL_PAPER_SIZE_MAP = {
+	1: "Letter", 5: "Legal", 8: "A3", 9: "A4", 11: "A5",
+	17: "Tabloid", 12: "B4", 13: "B5"
+};
+
 /**
- * Parse sheet name to extract paper size and orientation.
- * Formats: "A3-Landscape", "A4 Portrait", "A3_L", "A4_P", or just "Sheet1" (default)
+ * Parse sheet config from ExcelJS worksheet pageSetup and sheet name.
+ * Prefers actual XLSX pageSetup properties over sheet name parsing.
  *
  * @param {string} sheetName
- * @returns {{ paperSize: string, orientation: string, widthMm: number, heightMm: number }}
+ * @param {Object} [worksheet] - ExcelJS worksheet (optional, for reading pageSetup)
+ * @returns {{ paperSize: string, orientation: string, widthMm: number, heightMm: number,
+ *             margins: { left: number, right: number, top: number, bottom: number },
+ *             scale: number, fitToPage: boolean, horizontalCentered: boolean, verticalCentered: boolean }}
  */
-export function parseSheetConfig(sheetName) {
+export function parseSheetConfig(sheetName, worksheet) {
 	var name = (sheetName || "").trim().toUpperCase();
 
-	// Try to find paper size
-	var paperSize = "A3"; // default
-	var orientation = "landscape"; // default
+	// Defaults
+	var paperSize = "A3";
+	var orientation = "landscape";
+	// Default margins in mm (converted from XLSX inches: 0.25" sides, 0.75" top/bottom)
+	var margins = { left: 6.35, right: 6.35, top: 19.05, bottom: 19.05 };
+	var scale = 100;
+	var fitToPage = false;
+	var horizontalCentered = false;
+	var verticalCentered = false;
 
-	for (var size in PAPER_SIZES_MM) {
-		if (name.indexOf(size.toUpperCase()) !== -1) {
-			paperSize = size;
-			break;
+	// ── 1. Try reading actual XLSX pageSetup from the worksheet ──
+	var hasPageSetup = false;
+	if (worksheet && worksheet.pageSetup) {
+		var ps = worksheet.pageSetup;
+
+		// Paper size from XLSX numeric code
+		if (ps.paperSize && EXCEL_PAPER_SIZE_MAP[ps.paperSize]) {
+			paperSize = EXCEL_PAPER_SIZE_MAP[ps.paperSize];
+			hasPageSetup = true;
+		}
+
+		// Orientation
+		if (ps.orientation) {
+			orientation = ps.orientation === "portrait" ? "portrait" : "landscape";
+			hasPageSetup = true;
+		}
+
+		// Scale (percentage)
+		if (ps.scale && ps.scale !== 100) {
+			scale = ps.scale;
+		}
+
+		// Fit to page
+		if (ps.fitToPage || ps.fitToWidth || ps.fitToHeight) {
+			fitToPage = true;
+		}
+
+		// Centering
+		if (ps.horizontalCentered) horizontalCentered = true;
+		if (ps.verticalCentered) verticalCentered = true;
+
+		// Margins (ExcelJS stores in inches, convert to mm: 1 inch = 25.4mm)
+		if (ps.margins) {
+			if (ps.margins.left != null) margins.left = ps.margins.left * 25.4;
+			if (ps.margins.right != null) margins.right = ps.margins.right * 25.4;
+			if (ps.margins.top != null) margins.top = ps.margins.top * 25.4;
+			if (ps.margins.bottom != null) margins.bottom = ps.margins.bottom * 25.4;
 		}
 	}
 
-	// Try to find orientation
-	if (name.indexOf("PORT") !== -1 || name.indexOf("_P") !== -1) {
-		orientation = "portrait";
-	} else if (name.indexOf("LAND") !== -1 || name.indexOf("_L") !== -1) {
-		orientation = "landscape";
+	// ── 2. Fallback: parse sheet name if no pageSetup found ──
+	if (!hasPageSetup) {
+		for (var size in PAPER_SIZES_MM) {
+			if (name.indexOf(size.toUpperCase()) !== -1) {
+				paperSize = size;
+				break;
+			}
+		}
+		if (name.indexOf("PORT") !== -1 || name.indexOf("_P") !== -1) {
+			orientation = "portrait";
+		} else if (name.indexOf("LAND") !== -1 || name.indexOf("_L") !== -1) {
+			orientation = "landscape";
+		}
 	}
 
 	var dims = PAPER_SIZES_MM[paperSize] || PAPER_SIZES_MM.A3;
@@ -114,7 +173,12 @@ export function parseSheetConfig(sheetName) {
 		heightMm = Math.max(dims.width, dims.height);
 	}
 
-	return { paperSize: paperSize, orientation: orientation, widthMm: widthMm, heightMm: heightMm };
+	return {
+		paperSize: paperSize, orientation: orientation,
+		widthMm: widthMm, heightMm: heightMm,
+		margins: margins, scale: scale, fitToPage: fitToPage,
+		horizontalCentered: horizontalCentered, verticalCentered: verticalCentered
+	};
 }
 
 // ── Template loading ──────────────────────────────────────────────────
@@ -146,7 +210,7 @@ export async function loadTemplate(source) {
 
 	workbook.eachSheet(function (ws, sheetId) {
 		var sheetName = ws.name;
-		var config = parseSheetConfig(sheetName);
+		var config = parseSheetConfig(sheetName, ws);
 
 		// Extract merges (ExcelJS stores as array of range strings like "A1:C3")
 		var merges = [];
@@ -294,7 +358,7 @@ function getCellStringValue(cell) {
 	}
 	// Date
 	if (cell.value instanceof Date) {
-		return cell.value.toLocaleDateString();
+		return cell.value.toLocaleDateString("en-AU");
 	}
 	return String(cell.value);
 }
@@ -341,10 +405,8 @@ function convertExcelJSStyle(style) {
 				if (b.color) {
 					if (b.color.argb) {
 						bColor = b.color.argb;
-					} else if (b.color.indexed !== undefined) {
-						bColor = "000000"; // Indexed colors — default to black
 					}
-					// Theme colors also default to black (proper theme resolution would need workbook theme)
+					// indexed colors and theme colors default to black (already set)
 				}
 				result.border[side] = { style: b.style, color: bColor };
 			}
@@ -569,13 +631,14 @@ export function renderToPDF(template, evaluated, jsPDFInstance, renderCallbacks)
 function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks, templateImages) {
 	var config = evalSheet.config;
 
-	// Calculate column widths and row heights in mm
-	var colWidths = calculateColumnWidthsMm(templateSheet, config.widthMm);
-	var rowHeights = calculateRowHeightsMm(templateSheet, config.heightMm);
+	// Use XLSX page margins if available, otherwise default 2%
+	var margins = config.margins || { left: config.widthMm * 0.02, right: config.widthMm * 0.02, top: config.heightMm * 0.02, bottom: config.heightMm * 0.02 };
+	var marginX = margins.left;
+	var marginY = margins.top;
 
-	// Page margins — must match the 2% used in calculateColumnWidthsMm/calculateRowHeightsMm
-	var marginX = config.widthMm * 0.02;
-	var marginY = config.heightMm * 0.02;
+	// Calculate column widths and row heights in mm
+	var colWidths = calculateColumnWidthsMm(templateSheet, config.widthMm, margins);
+	var rowHeights = calculateRowHeightsMm(templateSheet, config.heightMm, margins);
 
 	// Calculate cumulative positions, starting from the page margin so content is centered
 	var colX = [marginX];
@@ -767,9 +830,10 @@ function interpolateAnchor(idx, offset, positions, dimInfo, isCol) {
  * Calculate column widths in mm from column info.
  * @param {Object} sheet - Template sheet
  * @param {number} pageWidthMm - Total page width
+ * @param {Object} [margins] - Page margins { left, right } in mm
  * @returns {number[]} Column widths in mm
  */
-function calculateColumnWidthsMm(sheet, pageWidthMm) {
+function calculateColumnWidthsMm(sheet, pageWidthMm, margins) {
 	var cols = sheet.cols || [];
 	var numCols = cols.length || 1;
 
@@ -787,9 +851,10 @@ function calculateColumnWidthsMm(sheet, pageWidthMm) {
 		totalChars += charWidth;
 	}
 
-	// Scale to page width (with small margin)
-	var margin = pageWidthMm * 0.02; // 2% margin each side
-	var usableWidth = pageWidthMm - margin * 2;
+	// Scale to page width using XLSX margins
+	var marginLeft = margins ? margins.left : pageWidthMm * 0.02;
+	var marginRight = margins ? margins.right : pageWidthMm * 0.02;
+	var usableWidth = pageWidthMm - marginLeft - marginRight;
 	var result = [];
 	for (var c = 0; c < numCols; c++) {
 		result.push(totalChars > 0 ? (widths[c] / totalChars) * usableWidth : defaultWidth);
@@ -802,9 +867,10 @@ function calculateColumnWidthsMm(sheet, pageWidthMm) {
  * Calculate row heights in mm from row info.
  * @param {Object} sheet - Template sheet
  * @param {number} pageHeightMm - Total page height
+ * @param {Object} [margins] - Page margins { top, bottom } in mm
  * @returns {number[]} Row heights in mm
  */
-function calculateRowHeightsMm(sheet, pageHeightMm) {
+function calculateRowHeightsMm(sheet, pageHeightMm, margins) {
 	var rows = sheet.rows || [];
 	var numRows = rows.length || 1;
 
@@ -819,9 +885,10 @@ function calculateRowHeightsMm(sheet, pageHeightMm) {
 		totalPts += ptHeight;
 	}
 
-	// Scale to page height (with margin)
-	var margin = pageHeightMm * 0.02;
-	var usableHeight = pageHeightMm - margin * 2;
+	// Scale to page height using XLSX margins
+	var marginTop = margins ? margins.top : pageHeightMm * 0.02;
+	var marginBottom = margins ? margins.bottom : pageHeightMm * 0.02;
+	var usableHeight = pageHeightMm - marginTop - marginBottom;
 	var result = [];
 	for (var r = 0; r < numRows; r++) {
 		result.push(totalPts > 0 ? (heights[r] / totalPts) * usableHeight : pageHeightMm / numRows);
@@ -1127,150 +1194,21 @@ export async function deleteSavedTemplate(name) {
 	});
 }
 
-// ── Reference XLSX generator ──────────────────────────────────────────
+// ── Reference XLSX ────────────────────────────────────────────────────
 
 /**
- * Generate a reference/how-to XLSX file with all supported formulas,
- * examples, and a sample template sheet.
+ * Fetch the bundled KirraCustomPrintTemplate.xlsx reference file.
+ * This is the actual template designed in Excel with proper print layout,
+ * page setup, margins, and centering — not a programmatically generated file.
  *
  * @returns {Promise<Blob>} XLSX file as Blob
  */
 export async function generateReferenceXLSX() {
-	var wb = new ExcelJS.Workbook();
-
-	// ── Sheet 1: How-To Guide ──
-	var howTo = [
-		["KIRRA TEMPLATE ENGINE - HOW TO"],
-		[""],
-		["GETTING STARTED"],
-		["1. Design your template layout in this spreadsheet (or Google Sheets)"],
-		["2. Use merged cells for headings, images, and larger content areas"],
-		["3. Put fx: prefix before any formula cell (e.g. fx:today())"],
-		["4. Save as .xlsx and import into Kirra via File > Print from Template"],
-		["5. Choose output: populated XLSX or rendered PDF"],
-		[""],
-		["SHEET NAMING CONVENTION"],
-		["Sheet name controls paper size and orientation:"],
-		["  A3-Landscape, A4-Portrait, A2-Landscape, A1_L, A4_P, etc."],
-		["  Default: A3 Landscape if not specified"],
-		["  Each sheet = one page in multi-page output"],
-		[""],
-		["FORMULA SYNTAX"],
-		['  All formulas start with fx: prefix (won\'t trigger Excel/Sheets formulas)'],
-		["  String concatenation: use & operator"],
-		['  Example: fx:"Drill: " & round(sum(holeLength[i]),1) & " (m)"'],
-		["  Result:  Drill: 1927.3 (m)"],
-		[""],
-		["ITERATION WITH [i]"],
-		["  field[i] iterates over all visible blast holes"],
-		["  Use inside aggregation functions: sum(), count(), avg(), etc."],
-		["  Example: fx:sum(holeLength[i])  ->  sums all hole lengths"],
-		["  Example: fx:avg(holeDiameter[i])  ->  average diameter"],
-		["  Example: fx:countif(holeType[i], \"Production\")  ->  count production holes"],
-		[""],
-		["SPECIAL RENDER CELLS"],
-		["  These produce graphics (images) in the merged cell area:"],
-		["  fx:northArrow  -  North arrow indicator"],
-		["  fx:scale  -  Scale bar"],
-		["  fx:logo  -  User logo"],
-		["  fx:qrcode  -  QR code"],
-		["  fx:mapView  -  Current map/3D view screenshot"],
-		["  fx:legend(relief, h)  -  Horizontal legend for burden relief"],
-		["  fx:legend(slope, v)  -  Vertical legend for slope"],
-		["  fx:connectorCount  -  Connector count table"],
-		["  fx:sectionView(H001)  -  Hole section view"],
-		[""],
-		["IMAGES IN TEMPLATES"],
-		["  Embed images directly in the XLSX (Insert > Image in Excel/Sheets)"],
-		["  Images are preserved when the template is processed"],
-		["  For dynamic images, use render functions (fx:logo, fx:mapView, etc.)"],
-		[""],
-		["GOOGLE SHEETS"],
-		["  Fully compatible - fx: prefix does not trigger Sheets formulas"],
-		["  Design in Google Sheets, download as .xlsx, import into Kirra"],
-		["  Merged cells, conditional formatting, images all supported"]
-	];
-	var wsHowTo = wb.addWorksheet("How-To");
-	wsHowTo.addRows(howTo);
-	wsHowTo.getColumn(1).width = 90;
-
-	// ── Sheet 2: Formula Reference ──
-	var vars = getAvailableVariables();
-
-	var refData = [
-		["FORMULA REFERENCE", "", "", ""],
-		["Name", "Type", "Description", "Example"]
-	];
-
-	// Group headers and entries
-	var currentType = "";
-	for (var i = 0; i < vars.length; i++) {
-		var v = vars[i];
-		if (v.type !== currentType) {
-			currentType = v.type;
-			var typeLabels = {
-				scalar: "SCALAR VARIABLES",
-				iterated: "ITERATED FIELDS (use [i])",
-				"function": "FUNCTIONS",
-				operator: "OPERATORS",
-				render: "RENDER FUNCTIONS (Graphics)"
-			};
-			refData.push([""]);
-			refData.push([typeLabels[currentType] || currentType.toUpperCase()]);
-		}
-		refData.push([v.name, v.type, v.description, v.example || ""]);
+	var response = await fetch(referenceTemplateUrl);
+	if (!response.ok) {
+		throw new Error("Failed to fetch reference template: " + response.status);
 	}
-
-	var wsRef = wb.addWorksheet("Formula Reference");
-	wsRef.addRows(refData);
-	wsRef.getColumn(1).width = 35;
-	wsRef.getColumn(2).width = 12;
-	wsRef.getColumn(3).width = 50;
-	wsRef.getColumn(4).width = 45;
-
-	// ── Sheet 3: Sample Template (A3-Landscape) ──
-	var sample = [
-		["fx:blastName", "", "", "", "", "", "", "fx:logo"],
-		[""],
-		["Entity:", "fx:entityNames", "", "Date:", 'fx:dateformat("DD/MM/YYYY")', "", "Designer:", "fx:designer"],
-		[""],
-		["DRILL SUMMARY", "", "", "", "CHARGING SUMMARY"],
-		["Holes:", "fx:count(holeID[i])", "", "", "Products:", 'fx:productList(", ")'],
-		["Total Drill:", 'fx:round(sum(holeLength[i]),1) & " m"', "", "", "Total Mass:", 'fx:round(totalMass,1) & " kg"'],
-		["Avg Depth:", 'fx:round(avg(holeLength[i]),1) & " m"', "", "", "Powder Factor:", 'fx:round(powderFactor,2) & " kg/m3"'],
-		["Avg Diameter:", 'fx:fixed(avg(holeDiameter[i]),0) & " mm"', "", "", "Connectors:", 'fx:connectorList(", ")'],
-		[""],
-		["HOLE TYPES", "", "", "", "TIMING"],
-		['fx:groupCount(holeType[i], "\\n", "desc")', "", "", "", "Min Firing:", "fx:min(holeTime[i]) & \" ms\""],
-		["", "", "", "", "Max Firing:", "fx:max(holeTime[i]) & \" ms\""],
-		[""],
-		["GEOMETRY", "", "", "", "VOLUME"],
-		["Avg Burden:", 'fx:round(avg(burden[i]),2) & " m"', "", "", "Total Volume:", 'fx:round(totalVolume,1) & " m3"'],
-		["Avg Spacing:", 'fx:round(avg(spacing[i]),2) & " m"', "", "", "Surface Area:", 'fx:round(totalSurfaceArea,1) & " m2"'],
-		["Avg Angle:", 'fx:round(avg(holeAngle[i]),1) & " deg"'],
-		[""],
-		["", "", "fx:mapView"],
-		[""],
-		["", "", "", "", "", "", "fx:northArrow", "fx:scale"]
-	];
-	var wsSample = wb.addWorksheet("A3-Landscape");
-	wsSample.addRows(sample);
-	wsSample.getColumn(1).width = 16;
-	wsSample.getColumn(2).width = 24;
-	wsSample.getColumn(3).width = 12;
-	wsSample.getColumn(4).width = 4;
-	wsSample.getColumn(5).width = 16;
-	wsSample.getColumn(6).width = 24;
-	wsSample.getColumn(7).width = 12;
-	wsSample.getColumn(8).width = 16;
-	// Add some merges for the sample
-	wsSample.mergeCells("A1:F1");    // Title merged
-	wsSample.mergeCells("H1:H2");    // Logo area
-	wsSample.mergeCells("C19:F21");  // Map view area
-
-	// Generate XLSX buffer
-	var buf = await wb.xlsx.writeBuffer();
-	return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+	return response.blob();
 }
 
 /**

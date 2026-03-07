@@ -97,9 +97,9 @@ export function buildTemplateContext(options) {
 		kadCount: window.loadedKADs ? window.loadedKADs.size : 0,
 
 		// Date/time (also available via today()/now() functions)
-		date: new Date().toLocaleDateString(),
-		time: new Date().toLocaleTimeString(),
-		datetime: new Date().toLocaleString()
+		date: new Date().toLocaleDateString("en-AU"),
+		time: new Date().toLocaleTimeString("en-AU"),
+		datetime: new Date().toLocaleString("en-AU")
 	};
 
 	// Add per-entity stats as entityName_holeCount, entityName_drillMetres, etc.

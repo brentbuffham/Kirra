@@ -551,18 +551,22 @@ export function isTemplatePreview() {
 
 /**
  * Capture the current map view as a high-resolution raster image.
- * Uses drawDataForPrinting to render holes, surfaces, images, KADs
- * onto a clean offscreen canvas at print resolution.
+ * Supports both 2D (canvas) and 3D (WebGL) modes.
+ * Uses the Kirra print boundary (respects user zoom/pan).
  *
  * @param {Object} context - Application context (same as printToPDF context)
- * @param {number} targetWidthMm - Target width in mm (for aspect ratio and DPI calc)
+ * @param {number} targetWidthMm - Target width in mm
  * @param {number} targetHeightMm - Target height in mm
- * @param {number} [dpi=200] - DPI for raster output (200 is good for embedded images)
+ * @param {number} [dpi=200] - DPI for raster output
  * @returns {string|null} PNG data URL, or null on failure
  */
 export function captureMapViewRaster(context, targetWidthMm, targetHeightMm, dpi) {
 	dpi = dpi || 200;
 	var mmToPx = dpi / 25.4;
+
+	// Detect 2D/3D mode
+	var dimension2D3DBtn = document.getElementById("dimension2D-3DBtn");
+	var isIn3DMode = dimension2D3DBtn && dimension2D3DBtn.checked === true;
 
 	// Save original print canvas state
 	var origWidth = printCanvas.width;
@@ -598,16 +602,69 @@ export function captureMapViewRaster(context, targetWidthMm, targetHeightMm, dpi
 		printCtx.rect(0, 0, pxW, pxH);
 		printCtx.clip();
 
-		// Render data using the existing print rendering pipeline
-		// Suppress overlay text (hole count, scale, date) for template raster captures
-		var captureContext = Object.assign({}, context, { suppressOverlayText: true });
-		drawDataForPrinting(printCtx, printArea, captureContext);
+		// Temporarily clear template preview so getPrintBoundary uses the Kirra
+		// print boundary (respects user's zoom/pan) instead of the template rectangle
+		var savedTemplatePreview = templatePreviewConfig;
+		templatePreviewConfig = null;
+
+		try {
+			if (isIn3DMode && context.threeRenderer) {
+				// --- 3D Mode: Capture WebGL canvas ---
+				var threeCanvas = context.threeRenderer.getCanvas();
+				var renderer = context.threeRenderer.renderer;
+
+				if (threeCanvas && renderer) {
+					var boundary3D = get3DPrintBoundary();
+					var canvasRect = threeCanvas.getBoundingClientRect();
+					var hiResMultiplier = 3;
+
+					// Save original renderer state
+					var originalPixelRatio = renderer.getPixelRatio();
+					var displayWidth = canvasRect.width;
+					var displayHeight = canvasRect.height;
+
+					// Render at high resolution
+					var hiResWidth = Math.round(displayWidth * hiResMultiplier);
+					var hiResHeight = Math.round(displayHeight * hiResMultiplier);
+					renderer.setPixelRatio(1);
+					renderer.setSize(hiResWidth, hiResHeight, false);
+
+					var camera = context.threeRenderer.camera;
+					if (camera) camera.updateProjectionMatrix();
+					context.threeRenderer.render();
+
+					var hiResCanvas = renderer.domElement;
+
+					if (boundary3D && boundary3D.width > 0 && boundary3D.height > 0) {
+						// Crop to 3D print boundary
+						var srcX = boundary3D.x * hiResMultiplier;
+						var srcY = boundary3D.y * hiResMultiplier;
+						var srcW = boundary3D.width * hiResMultiplier;
+						var srcH = boundary3D.height * hiResMultiplier;
+						printCtx.drawImage(hiResCanvas, srcX, srcY, srcW, srcH, printArea.x, printArea.y, printArea.width, printArea.height);
+					} else {
+						// No boundary — draw full canvas
+						printCtx.drawImage(hiResCanvas, 0, 0, hiResCanvas.width, hiResCanvas.height, printArea.x, printArea.y, printArea.width, printArea.height);
+					}
+
+					// Restore renderer
+					renderer.setPixelRatio(originalPixelRatio);
+					renderer.setSize(displayWidth, displayHeight, false);
+					context.threeRenderer.render();
+				}
+			} else {
+				// --- 2D Mode: Use drawDataForPrinting ---
+				var captureContext = Object.assign({}, context, { suppressOverlayText: true });
+				drawDataForPrinting(printCtx, printArea, captureContext);
+			}
+		} finally {
+			templatePreviewConfig = savedTemplatePreview;
+		}
 
 		printCtx.restore();
 
 		// Capture
 		var dataURL = printCanvas.toDataURL("image/png", 1.0);
-
 		return (dataURL && dataURL.length > 100) ? dataURL : null;
 	} catch (e) {
 		console.warn("[PrintSystem] captureMapViewRaster failed:", e.message);
@@ -1378,6 +1435,33 @@ export function changeOrientation(drawDataCallback) {
             drawDataCallback(); // Redraw with new orientation
         }
     }
+}
+
+// Step 14b) Programmatically set paper size and orientation (used by template dialog)
+export function setPaperSizeAndOrientation(paperSize, orientation) {
+	if (paperSize) {
+		printPaperSize = paperSize;
+		var paperSizeSelect = document.getElementById("paperSize");
+		if (paperSizeSelect) paperSizeSelect.value = paperSize;
+	}
+	if (orientation) {
+		printOrientation = orientation.toLowerCase();
+		var orientationSelect = document.getElementById("orientation");
+		if (orientationSelect) orientationSelect.value = printOrientation;
+	}
+	cachedLayoutManager = null;
+
+	// Ensure print mode is active
+	if (!printMode) {
+		printMode = true;
+		var toggle = document.getElementById("addPrintPreviewToggle");
+		if (toggle) toggle.checked = true;
+	}
+
+	// Trigger redraw
+	if (typeof window.drawData === "function") {
+		window.drawData(window.allBlastHoles, window.selectedHole);
+	}
 }
 
 // Step 15) Toggle print preview mode

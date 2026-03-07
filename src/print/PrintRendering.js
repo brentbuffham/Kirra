@@ -1128,15 +1128,17 @@ export function printData(allBlastHoles, selectedHole, context) {
 
         // Filter visible holes for Voronoi calculations
         const visibleBlastHoles = allBlastHoles.filter((hole) => hole.visible !== false);
-        
+
         // VORONOI PF & OVERLAYS
+        try {
         const tri = context.delaunayTriangles(visibleBlastHoles, context.maxEdgeLength);
         const blastBoundaryPolygon = context.createBlastBoundaryPolygon(tri.resultTriangles);
         const offsetBoundaryPolygon = context.offsetPolygonClipper(blastBoundaryPolygon, context.getAverageDistance(visibleBlastHoles) / 2);
 
         // Voronoi Powder Factor
+        console.log("[PrintRendering] voronoiPF:", displayOptions.voronoiPF, "selectedVoronoiMetric:", context.selectedVoronoiMetric, "visibleHoles:", visibleBlastHoles.length);
         if (displayOptions.voronoiPF) {
-            // console.log("DEBUG: VORONOI PF");
+            console.log("[PrintRendering] Rendering Voronoi cells for metric:", context.selectedVoronoiMetric);
             switch (context.selectedVoronoiMetric) {
                 case "powderFactor":
                     // console.log("Drawing Powder Factor");
@@ -1390,6 +1392,9 @@ export function printData(allBlastHoles, selectedHole, context) {
                 }
             }
         }
+        } catch (voronoiErr) {
+            console.error("[PrintRendering] Voronoi rendering error:", voronoiErr.message, voronoiErr.stack);
+        }
 
         // Slope Map
         if (displayOptions.slopeMap) {
@@ -1594,9 +1599,12 @@ export function printVoronoiLegendAndCells(visibleBlastHoles, selectedVoronoiMet
 
     const voronoiMetrics = context.getVoronoiMetrics(visibleBlastHoles, context.useToeLocation);
     //modes available: min, max, average, mode
+    console.log("[PrintRendering] voronoiMetrics count:", voronoiMetrics.length);
 
     const clippedCells = context.clipVoronoiCells(voronoiMetrics);
+    console.log("[PrintRendering] clippedCells count:", clippedCells.length, "printCanvas:", printCanvas.width, "x", printCanvas.height);
 
+    var cellLogCount = 0;
     for (const cell of clippedCells) {
         const value = cell[selectedVoronoiMetric];
         if (!cell.polygon || value == null) continue;
@@ -1604,9 +1612,13 @@ export function printVoronoiLegendAndCells(visibleBlastHoles, selectedVoronoiMet
         for (let j = 0; j < cell.polygon.length; j++) {
             const pt = cell.polygon[j];
             const [x, y] = context.worldToCanvas(pt.x !== undefined ? pt.x : pt[0], pt.y !== undefined ? pt.y : pt[1]);
+            if (cellLogCount < 2 && j === 0) {
+                console.log("[PrintRendering] Cell", cellLogCount, "pt0 world:", pt.x, pt.y, "-> canvas:", x, y, "value:", value, "color:", getColorForMetric(value));
+            }
             if (j === 0) printCtx.moveTo(x, y);
             else printCtx.lineTo(x, y);
         }
+        cellLogCount++;
         printCtx.closePath();
         printCtx.fillStyle = getColorForMetric(value);
         printCtx.fill();
