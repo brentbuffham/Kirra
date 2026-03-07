@@ -21,9 +21,47 @@
  *   - Merged cells, conditional formatting, images all supported
  */
 
-import * as XLSX from "xlsx";
-import { isTemplateFormula, evaluateTemplateFormula, evaluateAllCells } from "./TemplateFormulaEvaluator.js";
+import ExcelJS from "exceljs";
+import { isTemplateFormula, evaluateAllCells } from "./TemplateFormulaEvaluator.js";
 import { buildTemplateContext, getAvailableVariables } from "./TemplateVariables.js";
+
+// ── Cell-ref helpers (replaces XLSX.utils) ──────────────────────────────
+
+/**
+ * Encode a {r, c} (0-indexed) to a cell reference like "A1".
+ */
+function encodeCell(pos) {
+	var col = "";
+	var c = pos.c;
+	while (c >= 0) {
+		col = String.fromCharCode((c % 26) + 65) + col;
+		c = Math.floor(c / 26) - 1;
+	}
+	return col + (pos.r + 1);
+}
+
+/**
+ * Decode a cell reference like "A1" to {r, c} (0-indexed).
+ */
+function decodeCell(ref) {
+	var match = ref.match(/^([A-Z]+)(\d+)$/);
+	if (!match) return { r: 0, c: 0 };
+	var col = 0;
+	for (var i = 0; i < match[1].length; i++) {
+		col = col * 26 + (match[1].charCodeAt(i) - 64);
+	}
+	return { r: parseInt(match[2], 10) - 1, c: col - 1 };
+}
+
+/**
+ * Decode a range string like "A1:Z10" to {s: {r,c}, e: {r,c}} (0-indexed).
+ */
+function decodeRange(rangeStr) {
+	var parts = rangeStr.split(":");
+	var s = decodeCell(parts[0]);
+	var e = parts.length > 1 ? decodeCell(parts[1]) : { r: s.r, c: s.c };
+	return { s: s, e: e };
+}
 
 // ── Paper size lookup ─────────────────────────────────────────────────
 
@@ -95,13 +133,8 @@ export async function loadTemplate(source) {
 		data = source;
 	}
 
-	var workbook = XLSX.read(data, {
-		type: "array",
-		cellStyles: true,
-		cellDates: true,
-		bookImages: true,  // Extract embedded images
-		sheetStubs: true   // Include empty cells for merged region tracking
-	});
+	var workbook = new ExcelJS.Workbook();
+	await workbook.xlsx.load(data);
 
 	// Build template structure
 	var template = {
@@ -111,92 +144,161 @@ export async function loadTemplate(source) {
 		fileName: source instanceof File ? source.name : "template.xlsx"
 	};
 
-	for (var i = 0; i < workbook.SheetNames.length; i++) {
-		var sheetName = workbook.SheetNames[i];
-		var ws = workbook.Sheets[sheetName];
+	workbook.eachSheet(function (ws, sheetId) {
+		var sheetName = ws.name;
 		var config = parseSheetConfig(sheetName);
+
+		// Extract merges (ExcelJS stores as array of range strings like "A1:C3")
+		var merges = [];
+		if (ws.model && ws.model.merges) {
+			for (var i = 0; i < ws.model.merges.length; i++) {
+				merges.push(decodeRange(ws.model.merges[i]));
+			}
+		}
+
+		// Extract column widths (ExcelJS columns are 1-indexed)
+		var cols = [];
+		if (ws.columns) {
+			for (var c = 0; c < ws.columns.length; c++) {
+				var col = ws.columns[c];
+				cols.push({ wch: col && col.width ? col.width : 10 });
+			}
+		}
+
+		// Extract row heights
+		var rows = [];
+		var maxRow = ws.rowCount || 0;
+		for (var r = 1; r <= maxRow; r++) {
+			var row = ws.getRow(r);
+			rows.push({ hpt: row.height || 20 });
+		}
+
+		// Extract cell data using our helpers
+		var cellData = extractCellValues(ws);
 
 		template.sheets.push({
 			name: sheetName,
 			worksheet: ws,
 			config: config,
-			merges: ws["!merges"] || [],
-			cols: ws["!cols"] || [],
-			rows: ws["!rows"] || [],
-			cells: extractCellValues(ws),
-			formulaCells: extractFormulaCells(ws)
+			merges: merges,
+			cols: cols,
+			rows: rows,
+			cells: cellData.cells,
+			formulaCells: cellData.formulaCells,
+			cellStyles: cellData.cellStyles
 		});
-	}
+	});
 
 	return template;
 }
 
 /**
- * Extract all cell values from a worksheet.
- * @param {Object} ws - SheetJS worksheet
- * @returns {Object} { "A1": "value", "B2": "fx:...", ... }
+ * Extract all cell values and formula cells from an ExcelJS worksheet.
+ * @param {Object} ws - ExcelJS worksheet
+ * @returns {{ cells: Object, formulaCells: string[], cellStyles: Object }}
  */
 function extractCellValues(ws) {
 	var cells = {};
-	var range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+	var formulaCells = [];
+	var cellStyles = {};
 
-	for (var r = range.s.r; r <= range.e.r; r++) {
-		for (var c = range.s.c; c <= range.e.c; c++) {
-			var ref = XLSX.utils.encode_cell({ r: r, c: c });
-			var cell = ws[ref];
-			if (cell) {
-				// Use formatted value if available, otherwise raw value
-				cells[ref] = cell.w || (cell.v !== undefined ? String(cell.v) : "");
+	ws.eachRow({ includeEmpty: true }, function (row, rowNumber) {
+		row.eachCell({ includeEmpty: false }, function (cell, colNumber) {
+			var ref = encodeCell({ r: rowNumber - 1, c: colNumber - 1 });
+			var val = getCellStringValue(cell);
+			cells[ref] = val;
+
+			// Store style for PDF rendering
+			if (cell.style) {
+				cellStyles[ref] = convertExcelJSStyle(cell.style);
 			}
-		}
-	}
 
-	return cells;
+			if (isTemplateFormula(val)) {
+				formulaCells.push(ref);
+			}
+		});
+	});
+
+	return { cells: cells, formulaCells: formulaCells, cellStyles: cellStyles };
 }
 
 /**
- * Extract only cells containing "fx:" formulas.
- * @param {Object} ws - SheetJS worksheet
- * @returns {string[]} Array of cell references with formulas
+ * Get the string value of an ExcelJS cell.
+ * Handles rich text, formulas, and plain values.
  */
-function extractFormulaCells(ws) {
-	var formulaCells = [];
-	var range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+function getCellStringValue(cell) {
+	if (cell.value === null || cell.value === undefined) return "";
+	// Rich text object
+	if (typeof cell.value === "object" && cell.value.richText) {
+		return cell.value.richText.map(function (part) { return part.text || ""; }).join("");
+	}
+	// Formula result
+	if (typeof cell.value === "object" && cell.value.formula) {
+		var result = cell.value.result;
+		return result !== undefined && result !== null ? String(result) : "";
+	}
+	// Date
+	if (cell.value instanceof Date) {
+		return cell.value.toLocaleDateString();
+	}
+	return String(cell.value);
+}
 
-	for (var r = range.s.r; r <= range.e.r; r++) {
-		for (var c = range.s.c; c <= range.e.c; c++) {
-			var ref = XLSX.utils.encode_cell({ r: r, c: c });
-			var cell = ws[ref];
-			if (cell) {
-				var val = cell.w || (cell.v !== undefined ? String(cell.v) : "");
-				if (isTemplateFormula(val)) {
-					formulaCells.push(ref);
-				}
+/**
+ * Convert ExcelJS style to a simpler format matching the old SheetJS style structure.
+ * Used by PDF rendering.
+ */
+function convertExcelJSStyle(style) {
+	var result = {};
+
+	if (style.font) {
+		result.font = {};
+		if (style.font.size) result.font.sz = style.font.size;
+		if (style.font.bold) result.font.bold = true;
+		if (style.font.italic) result.font.italic = true;
+		if (style.font.color) {
+			result.font.color = {};
+			if (style.font.color.argb) {
+				result.font.color.rgb = style.font.color.argb;
+			} else if (style.font.color.theme !== undefined) {
+				// Theme colors - default to black
+				result.font.color.rgb = "000000";
 			}
 		}
 	}
 
-	return formulaCells;
+	if (style.alignment) {
+		result.alignment = {};
+		if (style.alignment.horizontal) result.alignment.horizontal = style.alignment.horizontal;
+		if (style.alignment.vertical) result.alignment.vertical = style.alignment.vertical;
+	}
+
+	if (style.fill && style.fill.fgColor) {
+		result.fill = { fgColor: {} };
+		if (style.fill.fgColor.argb) {
+			result.fill.fgColor.rgb = style.fill.fgColor.argb;
+		}
+	}
+
+	return result;
 }
 
 /**
  * Extract embedded images from workbook.
- * @param {Object} workbook - SheetJS workbook
- * @returns {Object[]} Array of { name, data (Uint8Array), type }
+ * @param {Object} workbook - ExcelJS workbook
+ * @returns {Object[]} Array of { name, data, type }
  */
 function extractImages(workbook) {
 	var images = [];
 
-	// SheetJS stores images in workbook.Custprops or media
-	// The bookImages option extracts them into workbook.Media
-	if (workbook.Media) {
-		for (var i = 0; i < workbook.Media.length; i++) {
-			var media = workbook.Media[i];
+	if (workbook.model && workbook.model.media) {
+		for (var i = 0; i < workbook.model.media.length; i++) {
+			var media = workbook.model.media[i];
 			images.push({
-				name: media.Name || "image_" + i,
-				data: media.Data,
-				type: media.ContentType || "image/png",
-				path: media.Path || ""
+				name: media.name || "image_" + i,
+				data: media.buffer,
+				type: media.type === "png" ? "image/png" : "image/" + (media.extension || media.type || "png"),
+				path: ""
 			});
 		}
 	}
@@ -248,6 +350,7 @@ export function evaluateTemplate(template, options) {
 			merges: sheet.merges,
 			cols: sheet.cols,
 			rows: sheet.rows,
+			cellStyles: sheet.cellStyles,
 			worksheet: sheet.worksheet
 		});
 	}
@@ -263,51 +366,40 @@ export function evaluateTemplate(template, options) {
  *
  * @param {Object} template - Original parsed template
  * @param {Object} evaluated - Result from evaluateTemplate()
- * @returns {Blob} XLSX file as Blob
+ * @returns {Promise<Blob>} XLSX file as Blob
  */
-export function exportAsXLSX(template, evaluated) {
-	// Clone the original workbook
+export async function exportAsXLSX(template, evaluated) {
 	var wb = template.workbook;
 
 	// Update cell values with evaluated results
 	for (var i = 0; i < evaluated.sheets.length; i++) {
 		var sheet = evaluated.sheets[i];
-		var ws = wb.Sheets[sheet.name];
+		var ws = wb.getWorksheet(sheet.name);
 		if (!ws) continue;
 
 		// Update text cells
 		for (var ref in sheet.textCells) {
 			if (sheet.textCells.hasOwnProperty(ref)) {
 				var val = sheet.textCells[ref];
-				if (ws[ref]) {
-					// Preserve style, update value
-					ws[ref].v = val;
-					ws[ref].w = val;
-					ws[ref].t = "s"; // string type
-					// Remove any formula reference
-					delete ws[ref].f;
-				} else {
-					ws[ref] = { v: val, w: val, t: "s" };
-				}
+				var pos = decodeCell(ref);
+				var cell = ws.getCell(pos.r + 1, pos.c + 1);
+				cell.value = val;
 			}
 		}
 
-		// Render cells get placeholder text (actual rendering happens in PDF output)
-		for (var ref in sheet.renderCells) {
-			if (sheet.renderCells.hasOwnProperty(ref)) {
-				var render = sheet.renderCells[ref];
-				if (ws[ref]) {
-					ws[ref].v = "[" + render.renderType + "]";
-					ws[ref].w = "[" + render.renderType + "]";
-					ws[ref].t = "s";
-					delete ws[ref].f;
-				}
+		// Render cells get placeholder text
+		for (var rRef in sheet.renderCells) {
+			if (sheet.renderCells.hasOwnProperty(rRef)) {
+				var render = sheet.renderCells[rRef];
+				var rPos = decodeCell(rRef);
+				var rCell = ws.getCell(rPos.r + 1, rPos.c + 1);
+				rCell.value = "[" + render.renderType + "]";
 			}
 		}
 	}
 
 	// Generate XLSX buffer
-	var buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+	var buf = await wb.xlsx.writeBuffer();
 	return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
@@ -350,7 +442,18 @@ export function renderToPDF(template, evaluated, jsPDFInstance, renderCallbacks)
 		}
 
 		var sheet = evaluated.sheets[i];
-		renderSheetToPDF(doc, sheet, template.sheets[i], renderCallbacks);
+
+		// Find matching template sheet by name (not index) since evaluated.sheets may be filtered
+		var matchedTemplate = null;
+		for (var t = 0; t < template.sheets.length; t++) {
+			if (template.sheets[t].name === sheet.name) {
+				matchedTemplate = template.sheets[t];
+				break;
+			}
+		}
+		if (!matchedTemplate) matchedTemplate = template.sheets[i] || template.sheets[0];
+
+		renderSheetToPDF(doc, sheet, matchedTemplate, renderCallbacks);
 	}
 
 	return doc;
@@ -366,7 +469,6 @@ export function renderToPDF(template, evaluated, jsPDFInstance, renderCallbacks)
  * @param {Object} renderCallbacks - Render callbacks for special tokens
  */
 function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
-	var ws = templateSheet.worksheet;
 	var config = evalSheet.config;
 
 	// Calculate column widths and row heights in mm
@@ -387,13 +489,12 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 	var mergeMap = buildMergeMap(evalSheet.merges);
 
 	// Draw cell borders and backgrounds
-	drawCellBorders(doc, ws, colX, rowY, evalSheet.merges);
+	drawCellBorders(doc, evalSheet, colX, rowY, evalSheet.merges);
 
 	// Draw text cells
 	for (var ref in evalSheet.textCells) {
 		if (!evalSheet.textCells.hasOwnProperty(ref)) continue;
 
-		var cellPos = XLSX.utils.decode_cell(ref);
 		var val = evalSheet.textCells[ref];
 		if (!val || val === "") continue;
 
@@ -401,45 +502,49 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 		var bounds = getCellBounds(ref, colX, rowY, mergeMap);
 		if (!bounds) continue;
 
-		// Get cell style
-		var cellStyle = ws[ref] ? ws[ref].s : null;
+		// Get cell style from stored styles
+		var cellStyle = evalSheet.cellStyles ? evalSheet.cellStyles[ref] : null;
 
 		// Draw text
 		drawCellText(doc, val, bounds, cellStyle);
 	}
 
 	// Draw render cells (graphics)
-	for (var ref in evalSheet.renderCells) {
-		if (!evalSheet.renderCells.hasOwnProperty(ref)) continue;
+	for (var rRef in evalSheet.renderCells) {
+		if (!evalSheet.renderCells.hasOwnProperty(rRef)) continue;
 
-		var render = evalSheet.renderCells[ref];
-		var bounds = getCellBounds(ref, colX, rowY, mergeMap);
-		if (!bounds) continue;
+		var render = evalSheet.renderCells[rRef];
+		var rBounds = getCellBounds(rRef, colX, rowY, mergeMap);
+		if (!rBounds) continue;
 
 		var callback = renderCallbacks[render.renderType];
 		if (callback) {
-			callback(doc, bounds.x, bounds.y, bounds.width, bounds.height, render.args);
+			callback(doc, rBounds.x, rBounds.y, rBounds.width, rBounds.height, render.args);
 		}
 	}
 }
 
 /**
- * Calculate column widths in mm from XLSX column info.
+ * Calculate column widths in mm from column info.
  * @param {Object} sheet - Template sheet
  * @param {number} pageWidthMm - Total page width
  * @returns {number[]} Column widths in mm
  */
 function calculateColumnWidthsMm(sheet, pageWidthMm) {
-	var ws = sheet.worksheet;
-	var range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-	var numCols = range.e.c + 1;
 	var cols = sheet.cols || [];
+	var numCols = cols.length || 1;
+
+	// Also check worksheet for actual column count
+	var ws = sheet.worksheet;
+	if (ws && ws.columnCount && ws.columnCount > numCols) {
+		numCols = ws.columnCount;
+	}
 
 	// Default: equal width
 	var defaultWidth = pageWidthMm / numCols;
 	var widths = [];
 
-	// XLSX column width is in "characters" (~7px each at default font)
+	// Column width is in "characters" (~1 unit each)
 	// Convert to proportional mm
 	var totalChars = 0;
 	for (var c = 0; c < numCols; c++) {
@@ -461,19 +566,16 @@ function calculateColumnWidthsMm(sheet, pageWidthMm) {
 }
 
 /**
- * Calculate row heights in mm from XLSX row info.
+ * Calculate row heights in mm from row info.
  * @param {Object} sheet - Template sheet
  * @param {number} pageHeightMm - Total page height
  * @returns {number[]} Row heights in mm
  */
 function calculateRowHeightsMm(sheet, pageHeightMm) {
-	var ws = sheet.worksheet;
-	var range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-	var numRows = range.e.r + 1;
 	var rows = sheet.rows || [];
+	var numRows = rows.length || 1;
 
-	// XLSX row height is in points (1pt = 0.353mm)
-	var ptToMm = 0.353;
+	// Row height is in points (1pt = 0.353mm)
 	var heights = [];
 	var totalPts = 0;
 
@@ -507,7 +609,7 @@ function buildMergeMap(merges) {
 		// Map every cell in the merge to the merge region
 		for (var r = m.s.r; r <= m.e.r; r++) {
 			for (var c = m.s.c; c <= m.e.c; c++) {
-				var ref = XLSX.utils.encode_cell({ r: r, c: c });
+				var ref = encodeCell({ r: r, c: c });
 				map[ref] = m;
 			}
 		}
@@ -524,7 +626,7 @@ function buildMergeMap(merges) {
  * @returns {{ x: number, y: number, width: number, height: number }|null}
  */
 function getCellBounds(ref, colX, rowY, mergeMap) {
-	var pos = XLSX.utils.decode_cell(ref);
+	var pos = decodeCell(ref);
 	var merge = mergeMap[ref];
 
 	var startCol, endCol, startRow, endRow;
@@ -560,23 +662,23 @@ function getCellBounds(ref, colX, rowY, mergeMap) {
 /**
  * Draw cell borders on the PDF.
  * @param {Object} doc - jsPDF instance
- * @param {Object} ws - Worksheet
+ * @param {Object} evalSheet - Evaluated sheet with cellStyles
  * @param {number[]} colX - Cumulative column X positions
  * @param {number[]} rowY - Cumulative row Y positions
  * @param {Object[]} merges - Merged regions
  */
-function drawCellBorders(doc, ws, colX, rowY, merges) {
-	var range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+function drawCellBorders(doc, evalSheet, colX, rowY, merges) {
+	var numCols = colX.length - 1;
+	var numRows = rowY.length - 1;
 	var mergeMap = buildMergeMap(merges);
+	var cellStyles = evalSheet.cellStyles || {};
 
 	doc.setDrawColor(180, 180, 180); // Light grey borders
 	doc.setLineWidth(0.1);
 
-	var margin = colX[colX.length - 1] * 0.02 / colX.length;
-
-	for (var r = range.s.r; r <= range.e.r; r++) {
-		for (var c = range.s.c; c <= range.e.c; c++) {
-			var ref = XLSX.utils.encode_cell({ r: r, c: c });
+	for (var r = 0; r < numRows; r++) {
+		for (var c = 0; c < numCols; c++) {
+			var ref = encodeCell({ r: r, c: c });
 			var merge = mergeMap[ref];
 
 			// Skip non-origin cells in merged regions
@@ -586,14 +688,11 @@ function drawCellBorders(doc, ws, colX, rowY, merges) {
 			if (!bounds) continue;
 
 			// Check for cell background fill
-			var cell = ws[ref];
-			if (cell && cell.s && cell.s.fill && cell.s.fill.fgColor) {
-				var fg = cell.s.fill.fgColor;
-				if (fg.rgb) {
-					var rgb = hexToRGB(fg.rgb);
-					doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-					doc.rect(bounds.x, bounds.y, bounds.width, bounds.height, "F");
-				}
+			var style = cellStyles[ref];
+			if (style && style.fill && style.fill.fgColor && style.fill.fgColor.rgb) {
+				var rgb = hexToRGB(style.fill.fgColor.rgb);
+				doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+				doc.rect(bounds.x, bounds.y, bounds.width, bounds.height, "F");
 			}
 
 			// Draw border
@@ -607,7 +706,7 @@ function drawCellBorders(doc, ws, colX, rowY, merges) {
  * @param {Object} doc - jsPDF instance
  * @param {string} text - Cell text
  * @param {Object} bounds - { x, y, width, height }
- * @param {Object|null} style - XLSX cell style
+ * @param {Object|null} style - Cell style
  */
 function drawCellText(doc, text, bounds, style) {
 	if (!text) return;
@@ -766,13 +865,10 @@ export async function deleteSavedTemplate(name) {
  * Generate a reference/how-to XLSX file with all supported formulas,
  * examples, and a sample template sheet.
  *
- * This file can be opened in Excel or Google Sheets. Users can use it
- * as a starting point for building their own templates.
- *
- * @returns {Blob} XLSX file as Blob
+ * @returns {Promise<Blob>} XLSX file as Blob
  */
-export function generateReferenceXLSX() {
-	var wb = XLSX.utils.book_new();
+export async function generateReferenceXLSX() {
+	var wb = new ExcelJS.Workbook();
 
 	// ── Sheet 1: How-To Guide ──
 	var howTo = [
@@ -826,9 +922,9 @@ export function generateReferenceXLSX() {
 		["  Design in Google Sheets, download as .xlsx, import into Kirra"],
 		["  Merged cells, conditional formatting, images all supported"]
 	];
-	var wsHowTo = XLSX.utils.aoa_to_sheet(howTo);
-	wsHowTo["!cols"] = [{ wch: 90 }];
-	XLSX.utils.book_append_sheet(wb, wsHowTo, "How-To");
+	var wsHowTo = wb.addWorksheet("How-To");
+	wsHowTo.addRows(howTo);
+	wsHowTo.getColumn(1).width = 90;
 
 	// ── Sheet 2: Formula Reference ──
 	var vars = getAvailableVariables();
@@ -857,9 +953,12 @@ export function generateReferenceXLSX() {
 		refData.push([v.name, v.type, v.description, v.example || ""]);
 	}
 
-	var wsRef = XLSX.utils.aoa_to_sheet(refData);
-	wsRef["!cols"] = [{ wch: 35 }, { wch: 12 }, { wch: 50 }, { wch: 45 }];
-	XLSX.utils.book_append_sheet(wb, wsRef, "Formula Reference");
+	var wsRef = wb.addWorksheet("Formula Reference");
+	wsRef.addRows(refData);
+	wsRef.getColumn(1).width = 35;
+	wsRef.getColumn(2).width = 12;
+	wsRef.getColumn(3).width = 50;
+	wsRef.getColumn(4).width = 45;
 
 	// ── Sheet 3: Sample Template (A3-Landscape) ──
 	var sample = [
@@ -886,23 +985,23 @@ export function generateReferenceXLSX() {
 		[""],
 		["", "", "", "", "", "", "fx:northArrow", "fx:scale"]
 	];
-	var wsSample = XLSX.utils.aoa_to_sheet(sample);
-	wsSample["!cols"] = [
-		{ wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 4 },
-		{ wch: 16 }, { wch: 24 }, { wch: 12 }, { wch: 16 }
-	];
+	var wsSample = wb.addWorksheet("A3-Landscape");
+	wsSample.addRows(sample);
+	wsSample.getColumn(1).width = 16;
+	wsSample.getColumn(2).width = 24;
+	wsSample.getColumn(3).width = 12;
+	wsSample.getColumn(4).width = 4;
+	wsSample.getColumn(5).width = 16;
+	wsSample.getColumn(6).width = 24;
+	wsSample.getColumn(7).width = 12;
+	wsSample.getColumn(8).width = 16;
 	// Add some merges for the sample
-	wsSample["!merges"] = [
-		{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },  // Title merged
-		{ s: { r: 0, c: 7 }, e: { r: 1, c: 7 } },   // Logo area
-		{ s: { r: 18, c: 2 }, e: { r: 20, c: 5 } },  // Map view area
-		{ s: { r: 21, c: 6 }, e: { r: 21, c: 6 } },  // North arrow
-		{ s: { r: 21, c: 7 }, e: { r: 21, c: 7 } }   // Scale
-	];
-	XLSX.utils.book_append_sheet(wb, wsSample, "A3-Landscape");
+	wsSample.mergeCells("A1:F1");    // Title merged
+	wsSample.mergeCells("H1:H2");    // Logo area
+	wsSample.mergeCells("C19:F21");  // Map view area
 
-	// Generate XLSX
-	var buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+	// Generate XLSX buffer
+	var buf = await wb.xlsx.writeBuffer();
 	return new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 

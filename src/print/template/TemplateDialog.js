@@ -56,6 +56,7 @@ export function showTemplatePrintDialog(options) {
 	// Build form content (file type not supported by createEnhancedFormContent, added manually)
 	var formFields = [
 		{ name: "savedTemplate", label: "Saved Template", type: "select", options: [{ value: "", label: "-- Select or import --" }], value: "" },
+		{ name: "sheetSelect", label: "Sheet", type: "select", options: [{ value: "", label: "All Sheets" }], value: "" },
 		{ name: "blastName", label: "Blast Name", type: "text", value: "" },
 		{ name: "designer", label: "Designer", type: "text", value: "" },
 		{ name: "entityFilter", label: "Entity Filter", type: "select", options: entityOptions, value: "" },
@@ -136,8 +137,9 @@ export function showTemplatePrintDialog(options) {
 		},
 		onOption3: function () {
 			// Download Reference XLSX
-			var blob = generateReferenceXLSX();
-			downloadBlob(blob, "Kirra_Template_Reference.xlsx");
+			generateReferenceXLSX().then(function (blob) {
+				downloadBlob(blob, "Kirra_Template_Reference.xlsx");
+			});
 			return false; // Don't close dialog
 		},
 		onOption4: function () {
@@ -265,6 +267,18 @@ export function showTemplatePrintDialog(options) {
 		}
 		infoArea.textContent = lines.join("\n");
 		infoArea.style.whiteSpace = "pre-wrap";
+
+		// Update sheet selector
+		var sheetSelect = formContent.querySelector('[name="sheetSelect"]');
+		if (sheetSelect) {
+			while (sheetSelect.options.length > 1) sheetSelect.remove(1);
+			for (var j = 0; j < template.sheets.length; j++) {
+				var opt = document.createElement("option");
+				opt.value = template.sheets[j].name;
+				opt.textContent = template.sheets[j].name;
+				sheetSelect.appendChild(opt);
+			}
+		}
 	}
 
 	function handleGenerate() {
@@ -281,19 +295,41 @@ export function showTemplatePrintDialog(options) {
 			scale: options.scale || 0
 		};
 
-		// First sheet config for paper size
-		if (loadedTemplate.sheets.length > 0) {
-			evalOptions.paperSize = loadedTemplate.sheets[0].config.paperSize;
-			evalOptions.orientation = loadedTemplate.sheets[0].config.orientation;
+		// Use selected sheet config for paper size, or first sheet as fallback
+		var selectedSheetName = formData.sheetSelect || "";
+		var configSheet = null;
+		if (selectedSheetName) {
+			for (var si = 0; si < loadedTemplate.sheets.length; si++) {
+				if (loadedTemplate.sheets[si].name === selectedSheetName) {
+					configSheet = loadedTemplate.sheets[si];
+					break;
+				}
+			}
+		}
+		if (!configSheet && loadedTemplate.sheets.length > 0) {
+			configSheet = loadedTemplate.sheets[0];
+		}
+		if (configSheet) {
+			evalOptions.paperSize = configSheet.config.paperSize;
+			evalOptions.orientation = configSheet.config.orientation;
 		}
 
 		var evaluated = evaluateTemplate(loadedTemplate, evalOptions);
 
+		// Filter to selected sheet if one is chosen
+		var selectedSheet = formData.sheetSelect || "";
+		if (selectedSheet) {
+			evaluated.sheets = evaluated.sheets.filter(function (s) {
+				return s.name === selectedSheet;
+			});
+		}
+
 		if (formData.outputFormat === "xlsx") {
-			// Generate populated XLSX
-			var blob = exportAsXLSX(loadedTemplate, evaluated);
-			var fileName = (formData.blastName || "blast_report").replace(/[^a-zA-Z0-9_-]/g, "_") + ".xlsx";
-			downloadBlob(blob, fileName);
+			// Generate populated XLSX (async)
+			exportAsXLSX(loadedTemplate, evaluated).then(function (blob) {
+				var fileName = (formData.blastName || "blast_report").replace(/[^a-zA-Z0-9_-]/g, "_") + ".xlsx";
+				downloadBlob(blob, fileName);
+			});
 		} else {
 			// Generate PDF
 			generatePDF(loadedTemplate, evaluated, formData, options.renderCallbacks || {});

@@ -25,6 +25,7 @@ import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import { evaluate } from "mathjs";
 import { deduplicatePoints, decimatePoints } from "./helpers/PointDeduplication.js";
+import { checkAndOfferDecimation, trimUnreferencedPoints } from "./dialog/popups/surface/SurfaceDecimationDialog.js";
 import { triangulate as workerTriangulate, triangulateBasic as workerTriangulateBasic, terminateWorker as terminateTriangulationWorker } from "./helpers/TriangulationService.js";
 import { showWorkerProgressDialog } from "./dialog/popups/generic/WorkerProgressDialog.js";
 import { BlastHole } from "./models/BlastHole.js";
@@ -9445,7 +9446,8 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 									var dtmLayer = getOrCreateLayerForImport("surface", fileName);
 									var dtmLayerId = dtmLayer ? dtmLayer.layerId : null;
 
-									data.surfaces.forEach(function (surface) {
+									for (var si = 0; si < data.surfaces.length; si++) {
+										var surface = data.surfaces[si];
 										// Step 6c) Create a proper surface record with id and points for TreeView/DB
 										var surfaceId = surface.name || ("DTM_Surface_" + Date.now());
 
@@ -9482,6 +9484,14 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 											layerId: dtmLayerId  // Step 21a) Assign layer ID
 										};
 
+										// Step 6c.0a) Trim unreferenced points (surface groups may share a large points array)
+										trimUnreferencedPoints(surfaceData);
+
+										// Step 6c.0b) Check triangle count and offer decimation if over budget
+										if (surfaceData.triangles.length > 2000000) {
+											surfaceData = await checkAndOfferDecimation(surfaceData);
+										}
+
 										window.loadedSurfaces.set(surfaceId, surfaceData);
 
 										// Step 21b) Add surface to layer's entities set
@@ -9500,7 +9510,7 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 												console.error("Failed to save STR+DTM surface:", saveError);
 											}
 										}, 0);
-									});
+									}
 
 									showModalMessage("Import Complete", "Imported " + data.surfaces.length + " surface(s)", "success");
 
@@ -9700,7 +9710,8 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 								var dtmLayerStandalone = getOrCreateLayerForImport("surface", file.name);
 								var dtmLayerIdStandalone = dtmLayerStandalone ? dtmLayerStandalone.layerId : null;
 
-								data.surfaces.forEach(function (surface) {
+								for (var si2 = 0; si2 < data.surfaces.length; si2++) {
+									var surface = data.surfaces[si2];
 									// Generate unique surface ID
 									var surfaceId = surface.name || ("DTM_Surface_" + Date.now());
 
@@ -9729,6 +9740,12 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 										layerId: dtmLayerIdStandalone
 									};
 
+									// Trim unreferenced points and check triangle budget
+									trimUnreferencedPoints(surfaceData);
+									if (surfaceData.triangles.length > 2000000) {
+										surfaceData = await checkAndOfferDecimation(surfaceData);
+									}
+
 									// Add to loadedSurfaces Map
 									loadedSurfaces.set(surfaceId, surfaceData);
 
@@ -9748,7 +9765,7 @@ document.querySelectorAll(".surpac-input-btn").forEach(function (button) {
 											console.error("Failed to save DTM surface:", saveError);
 										}
 									}, 0);
-								});
+								}
 
 								console.log("Imported " + data.surfaces.length + " surfaces with " +
 									data.surfaces.reduce(function (sum, s) { return sum + s.triangles.length; }, 0) + " triangles from DTM");
@@ -33275,6 +33292,31 @@ async function loadAllDataWithProgress() {
 			updateLoadingProgress(loadingDialog, "Charging data: none found", 95);
 		}
 
+		// Step 5b) Apply layer visibility to child entities
+		// Layers are loaded before surfaces/drawings, but the surface/drawing
+		// records store their own .visible flag which may not match the layer state.
+		// Propagate hidden layers to their children now.
+		if (allDrawingLayers) {
+			allDrawingLayers.forEach(function (layer) {
+				if (layer.visible === false && layer.entities && allKADDrawingsMap) {
+					layer.entities.forEach(function (entityName) {
+						var entity = allKADDrawingsMap.get(entityName);
+						if (entity) entity.visible = false;
+					});
+				}
+			});
+		}
+		if (allSurfaceLayers) {
+			allSurfaceLayers.forEach(function (layer) {
+				if (layer.visible === false && layer.entities && loadedSurfaces) {
+					layer.entities.forEach(function (surfaceId) {
+						var surface = loadedSurfaces.get(surfaceId);
+						if (surface) surface.visible = false;
+					});
+				}
+			});
+		}
+
 		// Step 6) Complete
 		updateLoadingProgress(loadingDialog, "Complete! All data loaded successfully", 100);
 		console.log("📊 Data load complete: " + holeCount + " holes, " + kadCount + " KADs, " + surfaceCount + " surfaces, " + imageCount + " images");
@@ -33367,12 +33409,13 @@ async function loadAllSurfacesIntoMemory() {
 		var request = store.getAll();
 
 		return new Promise(function (resolve) {
-			request.onsuccess = function () {
+			request.onsuccess = async function () {
 				var surfaces = request.result || [];
 				console.log("📊 IndexedDB returned " + surfaces.length + " surface(s)");
 				var texturedSurfaceIds = [];
 
-				surfaces.forEach(function (surfaceData, index) {
+				for (var index = 0; index < surfaces.length; index++) {
+					var surfaceData = surfaces[index];
 					console.log("🔍 Processing surface " + (index + 1) + ": " + surfaceData.id + ", isTexturedMesh: " + surfaceData.isTexturedMesh);
 					// Step 1) Create base surface entry
 					var surfaceEntry = {
@@ -33467,8 +33510,14 @@ async function loadAllSurfacesIntoMemory() {
 						surfaceEntry.flyrockParams = surfaceData.flyrockParams || null;
 					}
 
+					// Trim unreferenced points and check triangle budget on reload
+					trimUnreferencedPoints(surfaceEntry);
+					if (surfaceEntry.triangles && surfaceEntry.triangles.length > 2000000) {
+						surfaceEntry = await checkAndOfferDecimation(surfaceEntry);
+					}
+
 					loadedSurfaces.set(surfaceData.id, surfaceEntry);
-				});
+				}
 
 				console.log("📊 Loaded " + loadedSurfaces.size + " surfaces into memory");
 

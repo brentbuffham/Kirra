@@ -2,97 +2,82 @@
 //=============================================================
 // DXF 3DFACE WRITER - SURFACE TRIANGLES
 //=============================================================
-// Step 1) Exports surface triangles as DXF 3DFACE entities
-// Step 2) Creates one 3DFACE per triangle
-// Step 3) Compatible with AutoCAD, QCAD, LibreCAD, etc.
-// Step 4) Created: 2026-01-05
+// Exports surface triangles as DXF 3DFACE entities.
+// Produces AC1015 (AutoCAD 2000) compatible DXF with proper
+// entity handles, subclass markers, and table structure.
+// Compatible with AutoCAD, Vulcan, Surpac, QCAD, LibreCAD.
 
 import BaseWriter from "../BaseWriter.js";
 
-// Step 5) DXF3DFACEWriter class
 class DXF3DFACEWriter extends BaseWriter {
 	constructor(options = {}) {
 		super(options);
-
-		// Step 6) Writer options
 		this.layerName = options.layerName || "SURFACE";
 		this.decimalPlaces = options.decimalPlaces !== undefined ? options.decimalPlaces : 3;
-		this.handleCounter = 256; // DXF handle counter
+		// Start handles well above any reserved/special values.
+		// Handles are hex strings — start at 0x200 to avoid collisions
+		// with table object handles which start at 0x1-0x1F.
+		this.handleCounter = 0x200;
 	}
 
-	// Step 7) Main write method
+	nextHandle() {
+		var h = this.handleCounter.toString(16).toUpperCase();
+		this.handleCounter++;
+		return h;
+	}
+
 	async write(data) {
-		// Step 8) Validate input data
 		if (!data) {
 			throw new Error("Invalid data: data object required");
 		}
 
-		// Step 9) Generate DXF content
 		var dxf = "";
 
 		if (data.triangles && Array.isArray(data.triangles)) {
-			// Step 10) Export triangles directly
 			dxf = this.generateDXF(data.triangles, data.layerName || this.layerName);
 		} else if (data.surface && data.surface.triangles && Array.isArray(data.surface.triangles)) {
-			// Step 11) Export triangles from surface object
 			dxf = this.generateDXF(data.surface.triangles, data.layerName || this.layerName);
 		} else if (data.faces && Array.isArray(data.faces)) {
-			// Step 12) Export faces (from OBJ-style data)
 			dxf = this.generateDXFFromFaces(data.faces, data.vertices, data.layerName || this.layerName);
 		} else {
 			throw new Error("Invalid data: triangles, surface, or faces required");
 		}
 
-		// Step 13) Create and return blob
 		return this.createBlob(dxf, "application/dxf");
 	}
 
-	// Step 14) Generate DXF from triangles
 	generateDXF(triangles, layerName) {
 		var dxf = "";
+		dxf += this.writeHeader();
+		dxf += this.writeClasses();
+		dxf += this.writeTables(layerName);
+		dxf += this.writeBlocks();
 
-		// Step 15) Write DXF header
-		dxf += this.writeDXFHeader();
-
-		// Step 16) Write DXF tables section
-		dxf += this.writeDXFTables(layerName);
-
-		// Step 17) Write ENTITIES section
+		// ENTITIES section
 		dxf += "0\nSECTION\n2\nENTITIES\n";
-
-		// Step 18) Write each triangle as a 3DFACE
 		for (var i = 0; i < triangles.length; i++) {
 			var triangle = triangles[i];
 			dxf += this.write3DFace(triangle.vertices, layerName);
 		}
-
-		// Step 19) End ENTITIES section
 		dxf += "0\nENDSEC\n";
 
-		// Step 20) Write DXF EOF
-		dxf += "0\nEOF\n";
+		// OBJECTS section (required by AC1015)
+		dxf += this.writeObjects();
 
+		dxf += "0\nEOF\n";
 		return dxf;
 	}
 
-	// Step 21) Generate DXF from faces (OBJ-style)
 	generateDXFFromFaces(faces, vertices, layerName) {
 		var dxf = "";
+		dxf += this.writeHeader();
+		dxf += this.writeClasses();
+		dxf += this.writeTables(layerName);
+		dxf += this.writeBlocks();
 
-		// Step 22) Write DXF header
-		dxf += this.writeDXFHeader();
-
-		// Step 23) Write DXF tables section
-		dxf += this.writeDXFTables(layerName);
-
-		// Step 24) Write ENTITIES section
 		dxf += "0\nSECTION\n2\nENTITIES\n";
-
-		// Step 25) Write each face as a 3DFACE
 		for (var i = 0; i < faces.length; i++) {
 			var face = faces[i];
-
-			// Step 26) Extract vertices for this face
 			var faceVertices = [];
 			for (var j = 0; j < face.length && j < 4; j++) {
 				var vertexIndex = face[j];
@@ -100,103 +85,275 @@ class DXF3DFACEWriter extends BaseWriter {
 					faceVertices.push(vertices[vertexIndex]);
 				}
 			}
-
-			// Step 27) Only export if we have at least 3 vertices
 			if (faceVertices.length >= 3) {
 				dxf += this.write3DFace(faceVertices, layerName);
 			}
 		}
-
-		// Step 28) End ENTITIES section
 		dxf += "0\nENDSEC\n";
 
-		// Step 29) Write DXF EOF
+		dxf += this.writeObjects();
 		dxf += "0\nEOF\n";
-
 		return dxf;
 	}
 
-	// Step 30) Write DXF header section
-	writeDXFHeader() {
-		var header = "";
-		header += "0\nSECTION\n2\nHEADER\n";
-		header += "9\n$ACADVER\n1\nAC1015\n"; // AutoCAD 2000 format
-		header += "9\n$INSUNITS\n70\n1\n"; // Units: inches
-		header += "0\nENDSEC\n";
-		return header;
+	// ── HEADER section ──
+	writeHeader() {
+		var s = "";
+		s += "0\nSECTION\n2\nHEADER\n";
+		s += "9\n$ACADVER\n1\nAC1015\n";
+		s += "9\n$HANDSEED\n5\nFFFFF\n"; // Next available handle (high value)
+		s += "9\n$INSUNITS\n70\n6\n"; // 6 = meters
+		s += "0\nENDSEC\n";
+		return s;
 	}
 
-	// Step 31) Write DXF tables section
-	writeDXFTables(layerName) {
-		var tables = "";
-		tables += "0\nSECTION\n2\nTABLES\n";
-
-		// Step 32) LAYER table
-		tables += "0\nTABLE\n2\nLAYER\n70\n1\n";
-		tables += "0\nLAYER\n";
-		tables += "2\n" + layerName + "\n";
-		tables += "70\n0\n"; // Flags
-		tables += "62\n7\n"; // Color (7 = white)
-		tables += "6\nCONTINUOUS\n"; // Linetype
-		tables += "0\nENDTAB\n";
-
-		// Step 33) End TABLES section
-		tables += "0\nENDSEC\n";
-		return tables;
+	// ── CLASSES section (required but can be empty) ──
+	writeClasses() {
+		return "0\nSECTION\n2\nCLASSES\n0\nENDSEC\n";
 	}
 
-	// Step 34) Write single 3DFACE entity
+	// ── TABLES section ──
+	writeTables(layerName) {
+		var s = "";
+		s += "0\nSECTION\n2\nTABLES\n";
+
+		// VPORT table
+		var vportTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nVPORT\n";
+		s += "5\n" + vportTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// LTYPE table with CONTINUOUS linetype
+		var ltypeTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nLTYPE\n";
+		s += "5\n" + ltypeTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n1\n";
+
+		var continuousHandle = this.nextHandle();
+		s += "0\nLTYPE\n";
+		s += "5\n" + continuousHandle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbLinetypeTableRecord\n";
+		s += "2\nCONTINUOUS\n";
+		s += "70\n0\n";
+		s += "3\nSolid line\n";
+		s += "72\n65\n";
+		s += "73\n0\n";
+		s += "40\n0.0\n";
+		s += "0\nENDTAB\n";
+
+		// LAYER table
+		var layerTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nLAYER\n";
+		s += "5\n" + layerTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n1\n";
+
+		// Layer "0" (default, required)
+		var layer0Handle = this.nextHandle();
+		s += "0\nLAYER\n";
+		s += "5\n" + layer0Handle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbLayerTableRecord\n";
+		s += "2\n0\n";
+		s += "70\n0\n";
+		s += "62\n7\n";
+		s += "6\nCONTINUOUS\n";
+
+		// Surface layer
+		var layerHandle = this.nextHandle();
+		s += "0\nLAYER\n";
+		s += "5\n" + layerHandle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbLayerTableRecord\n";
+		s += "2\n" + layerName + "\n";
+		s += "70\n0\n";
+		s += "62\n7\n";
+		s += "6\nCONTINUOUS\n";
+		s += "0\nENDTAB\n";
+
+		// STYLE table (text styles — required)
+		var styleTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nSTYLE\n";
+		s += "5\n" + styleTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// VIEW table
+		var viewTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nVIEW\n";
+		s += "5\n" + viewTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// UCS table
+		var ucsTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nUCS\n";
+		s += "5\n" + ucsTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// APPID table
+		var appidTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nAPPID\n";
+		s += "5\n" + appidTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n1\n";
+
+		var acadAppHandle = this.nextHandle();
+		s += "0\nAPPID\n";
+		s += "5\n" + acadAppHandle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbRegAppTableRecord\n";
+		s += "2\nACAD\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// DIMSTYLE table
+		var dimstyleTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nDIMSTYLE\n";
+		s += "5\n" + dimstyleTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n0\n";
+		s += "0\nENDTAB\n";
+
+		// BLOCK_RECORD table
+		var blockRecTableHandle = this.nextHandle();
+		s += "0\nTABLE\n2\nBLOCK_RECORD\n";
+		s += "5\n" + blockRecTableHandle + "\n";
+		s += "100\nAcDbSymbolTable\n";
+		s += "70\n2\n";
+
+		// *Model_Space block record
+		this._modelSpaceBlockRecHandle = this.nextHandle();
+		s += "0\nBLOCK_RECORD\n";
+		s += "5\n" + this._modelSpaceBlockRecHandle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbBlockTableRecord\n";
+		s += "2\n*Model_Space\n";
+
+		// *Paper_Space block record
+		this._paperSpaceBlockRecHandle = this.nextHandle();
+		s += "0\nBLOCK_RECORD\n";
+		s += "5\n" + this._paperSpaceBlockRecHandle + "\n";
+		s += "100\nAcDbSymbolTableRecord\n";
+		s += "100\nAcDbBlockTableRecord\n";
+		s += "2\n*Paper_Space\n";
+
+		s += "0\nENDTAB\n";
+		s += "0\nENDSEC\n";
+		return s;
+	}
+
+	// ── BLOCKS section ──
+	writeBlocks() {
+		var s = "";
+		s += "0\nSECTION\n2\nBLOCKS\n";
+
+		// *Model_Space block
+		var msBlockHandle = this.nextHandle();
+		s += "0\nBLOCK\n";
+		s += "5\n" + msBlockHandle + "\n";
+		s += "100\nAcDbEntity\n";
+		s += "8\n0\n";
+		s += "100\nAcDbBlockBegin\n";
+		s += "2\n*Model_Space\n";
+		s += "70\n0\n";
+		s += "10\n0.0\n20\n0.0\n30\n0.0\n";
+		s += "3\n*Model_Space\n";
+		s += "1\n\n";
+		var msEndHandle = this.nextHandle();
+		s += "0\nENDBLK\n";
+		s += "5\n" + msEndHandle + "\n";
+		s += "100\nAcDbEntity\n";
+		s += "8\n0\n";
+		s += "100\nAcDbBlockEnd\n";
+
+		// *Paper_Space block
+		var psBlockHandle = this.nextHandle();
+		s += "0\nBLOCK\n";
+		s += "5\n" + psBlockHandle + "\n";
+		s += "100\nAcDbEntity\n";
+		s += "8\n0\n";
+		s += "100\nAcDbBlockBegin\n";
+		s += "2\n*Paper_Space\n";
+		s += "70\n0\n";
+		s += "10\n0.0\n20\n0.0\n30\n0.0\n";
+		s += "3\n*Paper_Space\n";
+		s += "1\n\n";
+		var psEndHandle = this.nextHandle();
+		s += "0\nENDBLK\n";
+		s += "5\n" + psEndHandle + "\n";
+		s += "100\nAcDbEntity\n";
+		s += "8\n0\n";
+		s += "100\nAcDbBlockEnd\n";
+
+		s += "0\nENDSEC\n";
+		return s;
+	}
+
+	// ── OBJECTS section (required by AC1015) ──
+	writeObjects() {
+		var dictHandle = this.nextHandle();
+		var s = "";
+		s += "0\nSECTION\n2\nOBJECTS\n";
+		s += "0\nDICTIONARY\n";
+		s += "5\n" + dictHandle + "\n";
+		s += "100\nAcDbDictionary\n";
+		s += "281\n1\n";
+		s += "0\nENDSEC\n";
+		return s;
+	}
+
+	// ── Single 3DFACE entity ──
 	write3DFace(vertices, layerName) {
-		var face = "";
+		if (!vertices || vertices.length < 3) return "";
 
-		// Step 35) 3DFACE requires at least 3 vertices
-		if (!vertices || vertices.length < 3) {
-			console.warn("3DFACE requires at least 3 vertices");
-			return "";
-		}
+		var handle = this.nextHandle();
+		var s = "";
 
-		// Step 36) Get handle for this entity
-		var handle = this.handleCounter.toString(16).toUpperCase();
-		this.handleCounter++;
+		s += "0\n3DFACE\n";
+		s += "5\n" + handle + "\n";
+		s += "330\n" + this._modelSpaceBlockRecHandle + "\n"; // Owner (Model_Space)
+		s += "100\nAcDbEntity\n";
+		s += "8\n" + layerName + "\n";
+		s += "100\nAcDbFace\n";
 
-		// Step 37) Write 3DFACE entity
-		face += "0\n3DFACE\n";
-		face += "5\n" + handle + "\n"; // Handle
-		face += "8\n" + layerName + "\n"; // Layer
-
-		// Step 38) Write first vertex
+		// Vertex 1
 		var v1 = vertices[0];
-		face += "10\n" + this.formatCoord(v1.x) + "\n";
-		face += "20\n" + this.formatCoord(v1.y) + "\n";
-		face += "30\n" + this.formatCoord(v1.z || 0) + "\n";
+		s += "10\n" + this.formatCoord(v1.x) + "\n";
+		s += "20\n" + this.formatCoord(v1.y) + "\n";
+		s += "30\n" + this.formatCoord(v1.z) + "\n";
 
-		// Step 39) Write second vertex
+		// Vertex 2
 		var v2 = vertices[1];
-		face += "11\n" + this.formatCoord(v2.x) + "\n";
-		face += "21\n" + this.formatCoord(v2.y) + "\n";
-		face += "31\n" + this.formatCoord(v2.z || 0) + "\n";
+		s += "11\n" + this.formatCoord(v2.x) + "\n";
+		s += "21\n" + this.formatCoord(v2.y) + "\n";
+		s += "31\n" + this.formatCoord(v2.z) + "\n";
 
-		// Step 40) Write third vertex
+		// Vertex 3
 		var v3 = vertices[2];
-		face += "12\n" + this.formatCoord(v3.x) + "\n";
-		face += "22\n" + this.formatCoord(v3.y) + "\n";
-		face += "32\n" + this.formatCoord(v3.z || 0) + "\n";
+		s += "12\n" + this.formatCoord(v3.x) + "\n";
+		s += "22\n" + this.formatCoord(v3.y) + "\n";
+		s += "32\n" + this.formatCoord(v3.z) + "\n";
 
-		// Step 41) Write fourth vertex (use third if only 3 vertices)
+		// Vertex 4 (repeat v3 for triangles)
 		var v4 = vertices.length > 3 ? vertices[3] : v3;
-		face += "13\n" + this.formatCoord(v4.x) + "\n";
-		face += "23\n" + this.formatCoord(v4.y) + "\n";
-		face += "33\n" + this.formatCoord(v4.z || 0) + "\n";
+		s += "13\n" + this.formatCoord(v4.x) + "\n";
+		s += "23\n" + this.formatCoord(v4.y) + "\n";
+		s += "33\n" + this.formatCoord(v4.z) + "\n";
 
-		return face;
+		return s;
 	}
 
-	// Step 42) Format coordinate with specified decimal places
 	formatCoord(value) {
-		if (value === undefined || value === null || isNaN(value)) {
-			return "0.000";
-		}
-
+		if (value === undefined || value === null || isNaN(value)) return "0.000";
 		return parseFloat(value).toFixed(this.decimalPlaces);
 	}
 }

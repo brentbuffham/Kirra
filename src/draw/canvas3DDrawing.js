@@ -124,6 +124,21 @@ export function invalidate3DAnalysisCaches() {
 import { MeshBVH, acceleratedRaycast } from "three-mesh-bvh";
 const BVH_MIN_TRIANGLES = 1000;
 
+// ── Surface triangle budget ──────────────────────────────────────────
+// GPU memory per triangle (non-indexed): 3 verts × (position 3f + color 3f + normal 3f) × 4 bytes ≈ 108 bytes
+// GPU memory per triangle (indexed):   ~30-40 bytes avg (shared vertices + index)
+// 2M triangles non-indexed ≈ 216 MB GPU, indexed ≈ 70 MB GPU
+var MAX_SURFACE_TRIANGLES_3D = 2000000;
+var _totalGPUSurfaceTriangles = 0;
+var MAX_TOTAL_GPU_SURFACE_TRIANGLES = 5000000;
+var _surfaceBudgetWarnings = new Set();
+
+/** Reset the GPU triangle budget (call when surfaces are cleared from the scene). */
+export function resetSurfaceTriangleBudget() {
+	_totalGPUSurfaceTriangles = 0;
+	_surfaceBudgetWarnings.clear();
+}
+
 // Note: These functions access global variables from kirra.js via window object:
 // - threeInitialized, threeRenderer, worldToThreeLocal
 // - holeScale, currentScale, darkModeEnabled
@@ -184,6 +199,8 @@ function hexToThreeColor(hexColor) {
 export function clearThreeJS() {
 	if (window.threeInitialized && window.threeRenderer) {
 		window.threeRenderer.clearAllGeometry();
+		// Reset surface triangle budget since all surfaces were removed
+		resetSurfaceTriangleBudget();
 		// Invalidate analysis caches since geometry was removed
 		invalidate3DAnalysisCaches();
 		// Clear cached downhole timing range so it recalculates on next draw
@@ -1090,6 +1107,9 @@ function _rebuildDirectShaderAnalysisMesh(surfaceId, surfaceData) {
 export function drawSurfaceThreeJS(surfaceId, triangles, minZ, maxZ, gradient, transparency, surfaceData) {
 	if (!window.threeInitialized || !window.threeRenderer) return;
 
+	// Skip surfaces that the user chose to exclude from 3D rendering
+	if (surfaceData && surfaceData._skipped3DTooBig) return;
+
 	// Step 12a) Check if this is a textured mesh with pre-loaded Three.js object
 	// Check if mesh actually has textures
 	var hasTexture = false;
@@ -1398,11 +1418,29 @@ export function drawSurfaceThreeJS(surfaceId, triangles, minZ, maxZ, gradient, t
 		return; // CRITICAL: Return here to prevent adding duplicate meshes!
 	}
 
+	// Step 11a) Triangle budget guard — prevent GPU memory exhaustion
+	var triCount = triangles.length;
+	if (triCount > MAX_SURFACE_TRIANGLES_3D || (_totalGPUSurfaceTriangles + triCount) > MAX_TOTAL_GPU_SURFACE_TRIANGLES) {
+		if (!_surfaceBudgetWarnings.has(surfaceId)) {
+			_surfaceBudgetWarnings.add(surfaceId);
+			var estMB = Math.round(triCount * 108 / 1048576);
+			var reason = triCount > MAX_SURFACE_TRIANGLES_3D
+				? "Surface has " + triCount.toLocaleString() + " triangles (limit: " + MAX_SURFACE_TRIANGLES_3D.toLocaleString() + ", ~" + estMB + " MB GPU)"
+				: "Total GPU triangle budget exceeded (" + (_totalGPUSurfaceTriangles + triCount).toLocaleString() + " > " + MAX_TOTAL_GPU_SURFACE_TRIANGLES.toLocaleString() + ")";
+			console.warn("⚠️ [drawSurfaceThreeJS] Skipping 3D render for '" + surfaceId + "': " + reason + ". Surface is still visible in 2D.");
+			if (surfaceData) {
+				surfaceData._skipped3DTooBig = true;
+			}
+		}
+		return;
+	}
+
 	// Step 11b) Create mesh with vertex colors — pass origin offsets so
 	// createSurface transforms world→local inline (no intermediate copy)
 	var surfaceMesh = GeometryFactory.createSurface(triangles, colorFunction, transparency, {
 		originX: originX,
-		originY: originY
+		originY: originY,
+		points: surfaceData ? surfaceData.points : null
 	});
 
 	// Step 11c) Check if mesh creation succeeded (returns null if no valid triangles)
@@ -1424,6 +1462,9 @@ export function drawSurfaceThreeJS(surfaceId, triangles, minZ, maxZ, gradient, t
 
 	window.threeRenderer.surfacesGroup.add(surfaceMesh);
 	window.threeRenderer.surfaceMeshMap.set(surfaceId, surfaceMesh);
+
+	// Track GPU triangle budget
+	_totalGPUSurfaceTriangles += triCount;
 }
 
 // Step 13) Draw contour lines in Three.js (positioned at collar elevation)

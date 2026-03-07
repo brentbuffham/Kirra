@@ -530,6 +530,33 @@ class KAPParser extends BaseParser {
 			}
 		}
 
+		// ============ APPLY LAYER VISIBILITY TO ENTITIES ============
+		// Layers are restored after surfaces/drawings, so propagate
+		// layer.visible state to all child entities now.
+		if (window.allDrawingLayers) {
+			window.allDrawingLayers.forEach(function (layer) {
+				if (layer.visible === false && layer.entities && window.allKADDrawingsMap) {
+					layer.entities.forEach(function (entityName) {
+						var entity = window.allKADDrawingsMap.get(entityName);
+						if (entity) {
+							entity.visible = false;
+						}
+					});
+				}
+			});
+		}
+		if (window.allSurfaceLayers) {
+			window.allSurfaceLayers.forEach(function (layer) {
+				if (layer.visible === false && layer.entities) {
+					layer.entities.forEach(function (surfaceId) {
+						if (window.loadedSurfaces && window.loadedSurfaces.has(surfaceId)) {
+							window.loadedSurfaces.get(surfaceId).visible = false;
+						}
+					});
+				}
+			});
+		}
+
 		// ============ REFRESH APPLICATION STATE ============
 		try {
 			// Recalculate massPerHole from charging
