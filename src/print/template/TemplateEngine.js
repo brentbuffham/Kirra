@@ -156,25 +156,76 @@ export async function loadTemplate(source) {
 			}
 		}
 
-		// Extract column widths (ExcelJS columns are 1-indexed)
-		var cols = [];
-		if (ws.columns) {
-			for (var c = 0; c < ws.columns.length; c++) {
-				var col = ws.columns[c];
-				cols.push({ wch: col && col.width ? col.width : 10 });
+		// Extract cell data using our helpers (before row/col — we need cell refs to find used range)
+		var cellData = extractCellValues(ws);
+
+		// Determine actual used range from cell values and merges only
+		var usedMaxRow = 0;
+		var usedMaxCol = 0;
+		for (var cellRef in cellData.cells) {
+			if (cellData.cells.hasOwnProperty(cellRef)) {
+				var pos = decodeCell(cellRef);
+				if (pos.r + 1 > usedMaxRow) usedMaxRow = pos.r + 1;
+				if (pos.c + 1 > usedMaxCol) usedMaxCol = pos.c + 1;
+			}
+		}
+		// NOTE: styles intentionally excluded from used-range — ExcelJS reports
+		// styles for ALL cells up to ws.rowCount/columnCount, which inflates the
+		// used range back to the full sheet dimensions (e.g. 62 rows instead of 33).
+		// Only cell VALUES and MERGES determine the actual content extent.
+
+		// Also check merges for extent
+		if (ws.model && ws.model.merges) {
+			for (var mi = 0; mi < ws.model.merges.length; mi++) {
+				var mRange = decodeRange(ws.model.merges[mi]);
+				if (mRange.e.r + 1 > usedMaxRow) usedMaxRow = mRange.e.r + 1;
+				if (mRange.e.c + 1 > usedMaxCol) usedMaxCol = mRange.e.c + 1;
 			}
 		}
 
-		// Extract row heights
+		// Extract column widths (only used columns)
+		var cols = [];
+		var numCols = Math.max(usedMaxCol, 1);
+		for (var c = 0; c < numCols; c++) {
+			var colWidth = 10; // default
+			try {
+				var wsCol = ws.getColumn(c + 1);
+				if (wsCol && wsCol.width != null) {
+					colWidth = wsCol.width;
+				}
+			} catch (e) { /* use default */ }
+			cols.push({ wch: colWidth });
+		}
+
+		// Extract row heights (only used rows)
 		var rows = [];
-		var maxRow = ws.rowCount || 0;
-		for (var r = 1; r <= maxRow; r++) {
+		var numRows = Math.max(usedMaxRow, 1);
+		for (var r = 1; r <= numRows; r++) {
 			var row = ws.getRow(r);
 			rows.push({ hpt: row.height || 20 });
 		}
 
-		// Extract cell data using our helpers
-		var cellData = extractCellValues(ws);
+		// Extract embedded image positions
+		var sheetImages = [];
+		try {
+			var wsImages = ws.getImages();
+			for (var imgIdx = 0; imgIdx < wsImages.length; imgIdx++) {
+				var img = wsImages[imgIdx];
+				var imgModel = img.model || img;
+				var tl = imgModel.range ? imgModel.range.tl : null;
+				if (tl && imgModel.imageId !== undefined) {
+					var br = imgModel.range.br || null;
+					sheetImages.push({
+						imageId: imgModel.imageId,
+						tl: { col: tl.nativeCol || 0, colOff: tl.nativeColOff || 0, row: tl.nativeRow || 0, rowOff: tl.nativeRowOff || 0 },
+						br: br ? { col: br.nativeCol || 0, colOff: br.nativeColOff || 0, row: br.nativeRow || 0, rowOff: br.nativeRowOff || 0 } : null,
+						ext: imgModel.range.ext || null
+					});
+				}
+			}
+		} catch (imgErr) {
+			console.warn("[TemplateEngine] Could not extract images from sheet '" + sheetName + "':", imgErr);
+		}
 
 		template.sheets.push({
 			name: sheetName,
@@ -185,7 +236,8 @@ export async function loadTemplate(source) {
 			rows: rows,
 			cells: cellData.cells,
 			formulaCells: cellData.formulaCells,
-			cellStyles: cellData.cellStyles
+			cellStyles: cellData.cellStyles,
+			images: sheetImages
 		});
 	});
 
@@ -203,21 +255,24 @@ function extractCellValues(ws) {
 	var cellStyles = {};
 
 	ws.eachRow({ includeEmpty: true }, function (row, rowNumber) {
-		row.eachCell({ includeEmpty: false }, function (cell, colNumber) {
+		row.eachCell({ includeEmpty: true }, function (cell, colNumber) {
 			var ref = encodeCell({ r: rowNumber - 1, c: colNumber - 1 });
 			var val = getCellStringValue(cell);
-			cells[ref] = val;
+			if (val) cells[ref] = val;
 
-			// Store style for PDF rendering
-			if (cell.style) {
+			// Store style for PDF rendering (including empty cells — borders, fills)
+			if (cell.style && (cell.style.font || cell.style.border || cell.style.fill || cell.style.alignment)) {
 				cellStyles[ref] = convertExcelJSStyle(cell.style);
 			}
 
-			if (isTemplateFormula(val)) {
+			if (val && isTemplateFormula(val)) {
 				formulaCells.push(ref);
 			}
 		});
 	});
+
+	console.log("[TemplateEngine] Extracted " + Object.keys(cells).length + " cells, " +
+		formulaCells.length + " formulas: " + formulaCells.map(function (r) { return r + "=" + cells[r]; }).join(", "));
 
 	return { cells: cells, formulaCells: formulaCells, cellStyles: cellStyles };
 }
@@ -273,6 +328,30 @@ function convertExcelJSStyle(style) {
 		if (style.alignment.vertical) result.alignment.vertical = style.alignment.vertical;
 	}
 
+	// Extract border info
+	if (style.border) {
+		result.border = {};
+		var sides = ["top", "bottom", "left", "right"];
+		for (var bi = 0; bi < sides.length; bi++) {
+			var side = sides[bi];
+			var b = style.border[side];
+			if (b && b.style && b.style !== "none") {
+				// Resolve color: argb > indexed > theme > default black
+				var bColor = "000000";
+				if (b.color) {
+					if (b.color.argb) {
+						bColor = b.color.argb;
+					} else if (b.color.indexed !== undefined) {
+						bColor = "000000"; // Indexed colors — default to black
+					}
+					// Theme colors also default to black (proper theme resolution would need workbook theme)
+				}
+				result.border[side] = { style: b.style, color: bColor };
+			}
+		}
+		if (Object.keys(result.border).length === 0) delete result.border;
+	}
+
 	if (style.fill && style.fill.fgColor) {
 		result.fill = { fgColor: {} };
 		if (style.fill.fgColor.argb) {
@@ -318,6 +397,10 @@ function extractImages(workbook) {
 export function evaluateTemplate(template, options) {
 	var context = buildTemplateContext(options);
 
+	console.log("[TemplateEngine] Evaluating template with " + context.visibleHoles.length + " visible holes, " +
+		Object.keys(context.scalarVars).length + " scalar vars");
+	console.log("[TemplateEngine] Scalar vars:", JSON.stringify(context.scalarVars, null, 2));
+
 	var result = {
 		sheets: [],
 		context: context
@@ -339,6 +422,21 @@ export function evaluateTemplate(template, options) {
 				} else {
 					textCells[ref] = cell.value;
 				}
+			}
+		}
+
+		console.log("[TemplateEngine] Sheet '" + sheet.name + "': " +
+			Object.keys(textCells).length + " text cells, " +
+			Object.keys(renderCells).length + " render cells");
+		// Log evaluated formula results
+		for (var eRef in textCells) {
+			if (textCells.hasOwnProperty(eRef) && sheet.formulaCells && sheet.formulaCells.indexOf(eRef) !== -1) {
+				console.log("[TemplateEngine]   " + eRef + ": " + sheet.cells[eRef] + " → " + JSON.stringify(textCells[eRef]));
+			}
+		}
+		for (var rRef2 in renderCells) {
+			if (renderCells.hasOwnProperty(rRef2)) {
+				console.log("[TemplateEngine]   " + rRef2 + ": → [render:" + renderCells[rRef2].renderType + "]");
 			}
 		}
 
@@ -453,7 +551,7 @@ export function renderToPDF(template, evaluated, jsPDFInstance, renderCallbacks)
 		}
 		if (!matchedTemplate) matchedTemplate = template.sheets[i] || template.sheets[0];
 
-		renderSheetToPDF(doc, sheet, matchedTemplate, renderCallbacks);
+		renderSheetToPDF(doc, sheet, matchedTemplate, renderCallbacks, template.images);
 	}
 
 	return doc;
@@ -468,19 +566,23 @@ export function renderToPDF(template, evaluated, jsPDFInstance, renderCallbacks)
  * @param {Object} templateSheet - Original template sheet data
  * @param {Object} renderCallbacks - Render callbacks for special tokens
  */
-function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
+function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks, templateImages) {
 	var config = evalSheet.config;
 
 	// Calculate column widths and row heights in mm
 	var colWidths = calculateColumnWidthsMm(templateSheet, config.widthMm);
 	var rowHeights = calculateRowHeightsMm(templateSheet, config.heightMm);
 
-	// Calculate cumulative positions
-	var colX = [0];
+	// Page margins — must match the 2% used in calculateColumnWidthsMm/calculateRowHeightsMm
+	var marginX = config.widthMm * 0.02;
+	var marginY = config.heightMm * 0.02;
+
+	// Calculate cumulative positions, starting from the page margin so content is centered
+	var colX = [marginX];
 	for (var c = 0; c < colWidths.length; c++) {
 		colX.push(colX[c] + colWidths[c]);
 	}
-	var rowY = [0];
+	var rowY = [marginY];
 	for (var r = 0; r < rowHeights.length; r++) {
 		rowY.push(rowY[r] + rowHeights[r]);
 	}
@@ -491,12 +593,24 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 	// Draw cell borders and backgrounds
 	drawCellBorders(doc, evalSheet, colX, rowY, evalSheet.merges);
 
+	// Track which merged origins have been rendered (skip duplicates from ExcelJS filling merged cells)
+	var renderedMergeOrigins = {};
+
 	// Draw text cells
 	for (var ref in evalSheet.textCells) {
 		if (!evalSheet.textCells.hasOwnProperty(ref)) continue;
 
 		var val = evalSheet.textCells[ref];
 		if (!val || val === "") continue;
+
+		// Skip non-origin cells in merged regions
+		var merge = mergeMap[ref];
+		if (merge) {
+			var originRef = encodeCell({ r: merge.s.r, c: merge.s.c });
+			if (ref !== originRef) continue; // Not the origin — skip
+			if (renderedMergeOrigins[originRef]) continue; // Already rendered
+			renderedMergeOrigins[originRef] = true;
+		}
 
 		// Get cell bounds (accounting for merges)
 		var bounds = getCellBounds(ref, colX, rowY, mergeMap);
@@ -510,8 +624,18 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 	}
 
 	// Draw render cells (graphics)
+	var renderedRenderOrigins = {};
 	for (var rRef in evalSheet.renderCells) {
 		if (!evalSheet.renderCells.hasOwnProperty(rRef)) continue;
+
+		// Skip non-origin cells in merged regions
+		var rMerge = mergeMap[rRef];
+		if (rMerge) {
+			var rOriginRef = encodeCell({ r: rMerge.s.r, c: rMerge.s.c });
+			if (rRef !== rOriginRef) continue;
+			if (renderedRenderOrigins[rOriginRef]) continue;
+			renderedRenderOrigins[rOriginRef] = true;
+		}
 
 		var render = evalSheet.renderCells[rRef];
 		var rBounds = getCellBounds(rRef, colX, rowY, mergeMap);
@@ -522,6 +646,121 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 			callback(doc, rBounds.x, rBounds.y, rBounds.width, rBounds.height, render.args);
 		}
 	}
+
+	// Draw embedded XLSX images
+	drawEmbeddedImages(doc, templateSheet, templateImages, colX, rowY);
+}
+
+/**
+ * Draw embedded XLSX images onto the PDF page.
+ * Maps image anchors (col/row positions) to PDF mm coordinates.
+ *
+ * @param {Object} doc - jsPDF instance
+ * @param {Object} templateSheet - Template sheet with .images array
+ * @param {Object[]} templateImages - Template-level image data array from extractImages()
+ * @param {number[]} colX - Cumulative column X positions in mm
+ * @param {number[]} rowY - Cumulative row Y positions in mm
+ */
+function drawEmbeddedImages(doc, templateSheet, templateImages, colX, rowY) {
+	if (!templateSheet.images || templateSheet.images.length === 0) return;
+	if (!templateImages || templateImages.length === 0) return;
+
+	for (var i = 0; i < templateSheet.images.length; i++) {
+		var imgAnchor = templateSheet.images[i];
+		var mediaItem = templateImages[imgAnchor.imageId];
+		if (!mediaItem || !mediaItem.data) continue;
+
+		// Convert image buffer to data URL
+		var dataUrl;
+		try {
+			var buffer = mediaItem.data;
+			var bytes = new Uint8Array(buffer instanceof ArrayBuffer ? buffer : buffer.buffer || buffer);
+			var binary = "";
+			for (var b = 0; b < bytes.length; b++) {
+				binary += String.fromCharCode(bytes[b]);
+			}
+			var mimeType = mediaItem.type || "image/png";
+			// jsPDF needs format string: PNG, JPEG, etc.
+			var format = "PNG";
+			if (mimeType.indexOf("jpeg") !== -1 || mimeType.indexOf("jpg") !== -1) format = "JPEG";
+			else if (mimeType.indexOf("gif") !== -1) format = "GIF";
+			dataUrl = "data:" + mimeType + ";base64," + btoa(binary);
+		} catch (e) {
+			console.warn("[TemplateEngine] Failed to convert image " + i + " to data URL:", e);
+			continue;
+		}
+
+		// Calculate position from top-left anchor
+		var tl = imgAnchor.tl;
+		var x = interpolateAnchor(tl.col, tl.colOff, colX, templateSheet.cols, true);
+		var y = interpolateAnchor(tl.row, tl.rowOff, rowY, templateSheet.rows, false);
+
+		// Calculate size from bottom-right anchor or ext
+		var w, h;
+		if (imgAnchor.br) {
+			var br = imgAnchor.br;
+			var x2 = interpolateAnchor(br.col, br.colOff, colX, templateSheet.cols, true);
+			var y2 = interpolateAnchor(br.row, br.rowOff, rowY, templateSheet.rows, false);
+			w = x2 - x;
+			h = y2 - y;
+		} else if (imgAnchor.ext) {
+			// ext is in EMU (English Metric Units): 1 inch = 914400 EMU, 1mm = 36000 EMU
+			w = (imgAnchor.ext.width || 0) / 36000;
+			h = (imgAnchor.ext.height || 0) / 36000;
+		} else {
+			// Fallback: span one cell
+			var nextCol = Math.min(tl.col + 1, colX.length - 1);
+			var nextRow = Math.min(tl.row + 1, rowY.length - 1);
+			w = colX[nextCol] - colX[tl.col];
+			h = rowY[nextRow] - rowY[tl.row];
+		}
+
+		if (w > 0 && h > 0) {
+			try {
+				doc.addImage(dataUrl, format, x, y, w, h);
+			} catch (e) {
+				console.warn("[TemplateEngine] Failed to add image " + i + " to PDF:", e);
+			}
+		}
+	}
+}
+
+/**
+ * Interpolate an anchor position (col/row + offset) to PDF mm coordinate.
+ * @param {number} idx - Column or row index (0-based)
+ * @param {number} offset - Sub-cell offset in EMU
+ * @param {number[]} positions - Cumulative positions array (colX or rowY)
+ * @param {Object[]} dimInfo - Column widths or row heights info
+ * @param {boolean} isCol - true for columns, false for rows
+ * @returns {number} Position in mm
+ */
+function interpolateAnchor(idx, offset, positions, dimInfo, isCol) {
+	// Base position at the start of the cell
+	var clampedIdx = Math.min(idx, positions.length - 1);
+	var pos = positions[clampedIdx] || 0;
+
+	// Add fractional offset within the cell
+	if (offset && clampedIdx < positions.length - 1) {
+		var cellSize = positions[clampedIdx + 1] - positions[clampedIdx];
+		// Offset is in EMU; full cell width in EMU depends on column/row
+		// ExcelJS uses nativeColOff/nativeRowOff in EMU (914400 EMU/inch)
+		// Column width EMU ~ charWidth * 640000 (ExcelJS default)
+		// Row height EMU ~ ptHeight * 10000 (ExcelJS default)
+		var info = dimInfo && dimInfo[idx];
+		var fullEmu;
+		if (isCol) {
+			var charWidth = info && info.wch ? info.wch : 10;
+			fullEmu = charWidth * 640000 / 10; // approximate
+		} else {
+			var ptHeight = info && info.hpt ? info.hpt : 20;
+			fullEmu = ptHeight * 10000;
+		}
+		if (fullEmu > 0) {
+			pos += (offset / fullEmu) * cellSize;
+		}
+	}
+
+	return pos;
 }
 
 /**
@@ -533,12 +772,6 @@ function renderSheetToPDF(doc, evalSheet, templateSheet, renderCallbacks) {
 function calculateColumnWidthsMm(sheet, pageWidthMm) {
 	var cols = sheet.cols || [];
 	var numCols = cols.length || 1;
-
-	// Also check worksheet for actual column count
-	var ws = sheet.worksheet;
-	if (ws && ws.columnCount && ws.columnCount > numCols) {
-		numCols = ws.columnCount;
-	}
 
 	// Default: equal width
 	var defaultWidth = pageWidthMm / numCols;
@@ -649,11 +882,9 @@ function getCellBounds(ref, colX, rowY, mergeMap) {
 	endCol = Math.min(endCol, colX.length - 2);
 	endRow = Math.min(endRow, rowY.length - 2);
 
-	var margin = colX[colX.length - 1] * 0.02 / colX.length; // tiny margin offset
-
 	return {
-		x: colX[startCol] + margin,
-		y: rowY[startRow] + margin,
+		x: colX[startCol],
+		y: rowY[startRow],
 		width: colX[endCol + 1] - colX[startCol],
 		height: rowY[endRow + 1] - rowY[startRow]
 	};
@@ -673,8 +904,17 @@ function drawCellBorders(doc, evalSheet, colX, rowY, merges) {
 	var mergeMap = buildMergeMap(merges);
 	var cellStyles = evalSheet.cellStyles || {};
 
-	doc.setDrawColor(180, 180, 180); // Light grey borders
-	doc.setLineWidth(0.1);
+	// Check if ANY cell has explicit borders — if not, draw default gridlines
+	var hasAnyExplicitBorder = false;
+	for (var checkRef in cellStyles) {
+		if (cellStyles.hasOwnProperty(checkRef) && cellStyles[checkRef].border) {
+			var b = cellStyles[checkRef].border;
+			if (b.top || b.bottom || b.left || b.right) {
+				hasAnyExplicitBorder = true;
+				break;
+			}
+		}
+	}
 
 	for (var r = 0; r < numRows; r++) {
 		for (var c = 0; c < numCols; c++) {
@@ -695,8 +935,41 @@ function drawCellBorders(doc, evalSheet, colX, rowY, merges) {
 				doc.rect(bounds.x, bounds.y, bounds.width, bounds.height, "F");
 			}
 
-			// Draw border
-			doc.rect(bounds.x, bounds.y, bounds.width, bounds.height, "S");
+			if (hasAnyExplicitBorder) {
+				// Draw explicitly defined borders from the Excel template
+				if (style && style.border) {
+					var bx = bounds.x, by = bounds.y, bw = bounds.width, bh = bounds.height;
+					if (style.border.top) {
+						var tc = hexToRGB(style.border.top.color);
+						doc.setDrawColor(tc[0], tc[1], tc[2]);
+						doc.setLineWidth(style.border.top.style === "thick" ? 0.5 : style.border.top.style === "medium" ? 0.3 : 0.15);
+						doc.line(bx, by, bx + bw, by);
+					}
+					if (style.border.bottom) {
+						var bc = hexToRGB(style.border.bottom.color);
+						doc.setDrawColor(bc[0], bc[1], bc[2]);
+						doc.setLineWidth(style.border.bottom.style === "thick" ? 0.5 : style.border.bottom.style === "medium" ? 0.3 : 0.15);
+						doc.line(bx, by + bh, bx + bw, by + bh);
+					}
+					if (style.border.left) {
+						var lc = hexToRGB(style.border.left.color);
+						doc.setDrawColor(lc[0], lc[1], lc[2]);
+						doc.setLineWidth(style.border.left.style === "thick" ? 0.5 : style.border.left.style === "medium" ? 0.3 : 0.15);
+						doc.line(bx, by, bx, by + bh);
+					}
+					if (style.border.right) {
+						var rc = hexToRGB(style.border.right.color);
+						doc.setDrawColor(rc[0], rc[1], rc[2]);
+						doc.setLineWidth(style.border.right.style === "thick" ? 0.5 : style.border.right.style === "medium" ? 0.3 : 0.15);
+						doc.line(bx + bw, by, bx + bw, by + bh);
+					}
+				}
+			} else {
+				// No explicit borders in template — draw light default gridlines
+				doc.setDrawColor(200, 200, 200);
+				doc.setLineWidth(0.1);
+				doc.rect(bounds.x, bounds.y, bounds.width, bounds.height, "S");
+			}
 		}
 	}
 }
@@ -719,7 +992,7 @@ function drawCellText(doc, text, bounds, style) {
 
 	if (style) {
 		// Font size
-		if (style.font && style.font.sz) fontSize = style.font.sz * 0.75; // pt to approximate mm-friendly size
+		if (style.font && style.font.sz) fontSize = style.font.sz; // jsPDF setFontSize takes points
 
 		// Bold/italic
 		if (style.font) {
@@ -757,13 +1030,8 @@ function drawCellText(doc, text, bounds, style) {
 	if (vAlign === "top") textY = bounds.y + padding + fontSize * 0.353;
 	else if (vAlign === "bottom") textY = bounds.y + bounds.height - padding;
 
-	// Truncate text to fit cell width
-	var maxWidth = bounds.width - padding * 2;
-
-	doc.text(String(text), textX, textY, {
-		align: align,
-		maxWidth: maxWidth > 0 ? maxWidth : undefined
-	});
+	// Allow text to overflow cell bounds — the template designer controls column widths
+	doc.text(String(text), textX, textY, { align: align });
 }
 
 /**

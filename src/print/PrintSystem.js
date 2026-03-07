@@ -33,6 +33,9 @@ var printBoundary3DOverlay = null;
 // Cached layout manager for current settings
 var cachedLayoutManager = null;
 
+// Template preview mode — simple paper rectangle for XLSX template printing
+var templatePreviewConfig = null; // { widthMm, heightMm, orientation, paperSize, sheetName }
+
 // ============== LAYOUT MANAGER HELPERS ==============
 
 // Step 1) Get or create layout manager for current settings
@@ -60,28 +63,52 @@ export function getPrintBoundary(canvas) {
     // This fixes issues where printMode variable gets out of sync with UI state
     var toggle = document.getElementById("addPrintPreviewToggle");
     var isPreviewActive = printMode || (toggle && toggle.checked);
-    
+
     if (!isPreviewActive) return null;
 
-    // Step 2b) Determine current mode
+    // Step 2b) Template preview mode — simple paper rectangle
+    if (templatePreviewConfig) {
+        var cfg = templatePreviewConfig;
+        var pageAspect = cfg.widthMm / cfg.heightMm;
+        var margin = 30;
+        var availW = canvas.width - margin * 2;
+        var availH = canvas.height - margin * 2;
+        var canvasAspect = availW / availH;
+        var pw, ph;
+        if (canvasAspect > pageAspect) {
+            ph = availH; pw = ph * pageAspect;
+        } else {
+            pw = availW; ph = pw / pageAspect;
+        }
+        var px = (canvas.width - pw) / 2;
+        var py = (canvas.height - ph) / 2;
+        var inX = pw * 0.02;
+        var inY = ph * 0.02;
+        return {
+            x: px, y: py, width: pw, height: ph,
+            innerX: px + inX, innerY: py + inY,
+            innerWidth: pw - inX * 2, innerHeight: ph - inY * 2,
+            marginPercent: 0.02
+        };
+    }
+
+    // Step 2c) Default Kirra preview mode
     var dimension2D3DBtn = document.getElementById("dimension2D-3DBtn");
     var isIn3DMode = dimension2D3DBtn && dimension2D3DBtn.checked === true;
     var mode = isIn3DMode ? "3D" : "2D";
 
-    // Step 2c) Get layout manager
+    // Step 2d) Get layout manager
     var layoutMgr = getLayoutManager(mode);
-    
-    // Step 2d) Calculate FULL preview positions (same as drawPrintBoundary uses)
+
+    // Step 2e) Calculate FULL preview positions (same as drawPrintBoundary uses)
     var preview = layoutMgr.calculateFullPreviewPositions(canvas.width, canvas.height, 30);
-    
-    // Step 2e) Return both map zone (outer) and mapInner (data area) for coordinate transformation
-    // The outer zone is the black border, inner is where data should be positioned
+
+    // Step 2f) Return both map zone (outer) and mapInner (data area) for coordinate transformation
     var mapZone = preview.map;
     var mapInner = preview.mapInner;
-    
-    // Step 2f) Calculate margin percent from the difference
-    var marginX = mapInner.x - mapZone.x;
-    var marginPercent = mapZone.width > 0 ? marginX / mapZone.width : 0;
+
+    var marginXDiff = mapInner.x - mapZone.x;
+    var marginPercent = mapZone.width > 0 ? marginXDiff / mapZone.width : 0;
 
     return {
         x: mapZone.x,
@@ -97,157 +124,200 @@ export function getPrintBoundary(canvas) {
 }
 
 // Step 3) Draw full template preview on 2D canvas
-// Shows map zone (print boundary), footer zone with all cells, and labels
-// Simplified: Only shows the black template boundary - no red/blue dashed lines
+// Two modes:
+//   Default (Kirra): Map zone + footer zone with labeled columns
+//   Template (XLSX): Simple paper rectangle with content area
 export function drawPrintBoundary(ctx, canvas) {
-    // Step 3a) Check if print preview is active - check BOTH the variable AND the checkbox
+    // Step 3a) Check if print preview is active
     var toggle = document.getElementById("addPrintPreviewToggle");
     var isPreviewActive = printMode || (toggle && toggle.checked);
-    
-    if (!isPreviewActive) return;
 
-    // Step 3b) Determine current mode
+    if (!isPreviewActive) return;
+    if (isPrinting) return;
+
+    ctx.save();
+
+    // Step 3b) Template preview mode — simple paper rectangle
+    if (templatePreviewConfig) {
+        drawTemplatePreview(ctx, canvas);
+        ctx.restore();
+        return;
+    }
+
+    // Step 3c) Default Kirra preview mode — full template layout
+    drawDefaultPreview(ctx, canvas);
+    ctx.restore();
+}
+
+// Step 3d) Draw XLSX template preview — simple paper rectangle with content area
+function drawTemplatePreview(ctx, canvas) {
+    var cfg = templatePreviewConfig;
+    var pageW = cfg.widthMm;
+    var pageH = cfg.heightMm;
+    var pageAspect = pageW / pageH;
+    var margin = 30;
+
+    // Fit page rectangle into canvas maintaining aspect ratio
+    var availW = canvas.width - margin * 2;
+    var availH = canvas.height - margin * 2;
+    var canvasAspect = availW / availH;
+
+    var previewW, previewH;
+    if (canvasAspect > pageAspect) {
+        previewH = availH;
+        previewW = previewH * pageAspect;
+    } else {
+        previewW = availW;
+        previewH = previewW / pageAspect;
+    }
+
+    var px = (canvas.width - previewW) / 2;
+    var py = (canvas.height - previewH) / 2;
+
+    // Page outline — thin grey
+    ctx.strokeStyle = "#999999";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(px, py, previewW, previewH);
+
+    // Content / map area — 2% inset (matching PDF margins)
+    var insetX = previewW * 0.02;
+    var insetY = previewH * 0.02;
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.strokeRect(px + insetX, py + insetY, previewW - insetX * 2, previewH - insetY * 2);
+
+    // Orientation indicator in center
+    ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+    ctx.font = "bold 20px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var orientLabel = cfg.orientation === "portrait" ? "PORTRAIT" : "LANDSCAPE";
+    ctx.fillText(orientLabel, px + previewW / 2, py + previewH / 2);
+
+    // Label bar at top
+    var labelText = "Template: " + cfg.paperSize + " " + cfg.orientation;
+    if (cfg.sheetName) labelText += " — " + cfg.sheetName;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(px, py - 22, Math.min(labelText.length * 7 + 20, previewW), 20);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(labelText, px + 5, py - 8);
+}
+
+// Step 3e) Draw default Kirra template preview — map zone + footer with labeled columns
+function drawDefaultPreview(ctx, canvas) {
     var dimension2D3DBtn = document.getElementById("dimension2D-3DBtn");
     var isIn3DMode = dimension2D3DBtn && dimension2D3DBtn.checked === true;
     var mode = isIn3DMode ? "3D" : "2D";
 
-    // Step 3c) Get layout manager
     var layoutMgr = getLayoutManager(mode);
-    
-    // Step 3d) Get full template preview positions
     var preview = layoutMgr.calculateFullPreviewPositions(canvas.width, canvas.height, 30);
 
-    ctx.save();
+    // Map zone outline — the PRINT BOUNDARY (black solid line)
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.strokeRect(preview.map.x, preview.map.y, preview.map.width, preview.map.height);
 
-    // Only draw preview in non-printing mode
-    if (!isPrinting) {
-        // Step 3e) Draw map zone outline - the PRINT BOUNDARY (black solid line)
-        // This is the only boundary shown - data will be clipped to this area
-        ctx.strokeStyle = "#333333";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([]);
-        ctx.strokeRect(preview.map.x, preview.map.y, preview.map.width, preview.map.height);
+    // "[MAP]" label in center
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    ctx.font = "bold 24px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("[MAP]", preview.map.x + preview.map.width / 2, preview.map.y + preview.map.height / 2);
 
-        // Step 3g) Draw "[MAP]" label in center of map zone
-        ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        ctx.font = "bold 24px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("[MAP]", preview.map.x + preview.map.width / 2, preview.map.y + preview.map.height / 2);
+    // Footer zone outline
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(preview.footer.x, preview.footer.y, preview.footer.width, preview.footer.height);
 
-        // Step 3h) Draw footer zone outline
-        ctx.strokeStyle = "#333333";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(preview.footer.x, preview.footer.y, preview.footer.width, preview.footer.height);
+    // Footer column borders and labels
+    ctx.font = "10px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#000000";
 
-        // Step 3i) Draw footer column borders and labels
-        ctx.font = "10px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "#000000";
+    for (var i = 0; i < preview.footerColumns.length; i++) {
+        var col = preview.footerColumns[i];
+        ctx.strokeStyle = "#666666";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(col.x, col.y, col.width, col.height);
 
-        for (var i = 0; i < preview.footerColumns.length; i++) {
-            var col = preview.footerColumns[i];
-            
-            // Draw column border
+        var colLabel = "";
+        if (col.id === "navIndicator" || col.id === "navLogoColumn") {
+            colLabel = mode === "3D" ? "[XYZ GIZMO]" : "[NORTH ARROW]";
+        } else if (col.id === "connectorCount") {
+            colLabel = "CONNECTOR\nCOUNT";
+        } else if (col.id === "legend") {
+            colLabel = "LEGEND";
+        } else if (col.id === "blastStatistics") {
+            colLabel = "BLAST\nSTATISTICS";
+        } else if (col.id === "logo") {
+            colLabel = "[LOGO]\nblastingapps.com";
+        }
+
+        if (colLabel) {
+            var lines = colLabel.split("\n");
+            var lineHeight = 12;
+            var startY = col.y + col.height / 2 - (lines.length - 1) * lineHeight / 2;
+            for (var l = 0; l < lines.length; l++) {
+                ctx.fillText(lines[l], col.x + col.width / 2, startY + l * lineHeight);
+            }
+        }
+    }
+
+    // Title block rows
+    for (var j = 0; j < preview.titleBlockRows.length; j++) {
+        var row = preview.titleBlockRows[j];
+        ctx.strokeStyle = "#666666";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(row.x, row.y, row.width, row.height);
+
+        var rowLabel = "";
+        if (row.id === "title") rowLabel = "TITLE\n[BLASTNAME]";
+        else if (row.id === "date") rowLabel = "DATE\n[DATE/TIME]";
+        else if (row.id === "scaleDesigner") rowLabel = "Scale: [CALC]\nDesigner: [ENTRY]";
+
+        if (rowLabel) {
+            var rLines = rowLabel.split("\n");
+            var rLineHeight = 10;
+            var rStartY = row.y + row.height / 2 - (rLines.length - 1) * rLineHeight / 2;
+            ctx.font = "9px Arial";
+            for (var rl = 0; rl < rLines.length; rl++) {
+                ctx.fillText(rLines[rl], row.x + row.width / 2, rStartY + rl * rLineHeight);
+            }
+        }
+    }
+
+    // Nav/logo rows for portrait mode
+    if (preview.navLogoRows) {
+        for (var k = 0; k < preview.navLogoRows.length; k++) {
+            var navRow = preview.navLogoRows[k];
             ctx.strokeStyle = "#666666";
             ctx.lineWidth = 0.5;
-            ctx.strokeRect(col.x, col.y, col.width, col.height);
+            ctx.strokeRect(navRow.x, navRow.y, navRow.width, navRow.height);
 
-            // Draw column label based on ID
-            var colLabel = "";
-            if (col.id === "navIndicator" || col.id === "navLogoColumn") {
-                colLabel = mode === "3D" ? "[XYZ GIZMO]" : "[NORTH ARROW]";
-            } else if (col.id === "connectorCount") {
-                colLabel = "CONNECTOR\nCOUNT";
-            } else if (col.id === "legend") {
-                colLabel = "LEGEND";
-            } else if (col.id === "blastStatistics") {
-                colLabel = "BLAST\nSTATISTICS";
-            } else if (col.id === "logo") {
-                colLabel = "[LOGO]\nblastingapps.com";
-            } else if (col.id === "titleBlock") {
-                // Title block has internal rows - don't label the whole column
-                colLabel = "";
-            }
+            var navLabel = "";
+            if (navRow.id === "navIndicator") navLabel = mode === "3D" ? "[XYZ]" : "[N]";
+            else if (navRow.id === "logo") navLabel = "[QR]";
 
-            if (colLabel) {
-                // Draw multi-line label
-                var lines = colLabel.split("\n");
-                var lineHeight = 12;
-                var startY = col.y + col.height / 2 - (lines.length - 1) * lineHeight / 2;
-                for (var l = 0; l < lines.length; l++) {
-                    ctx.fillText(lines[l], col.x + col.width / 2, startY + l * lineHeight);
-                }
+            if (navLabel) {
+                ctx.font = "8px Arial";
+                ctx.fillText(navLabel, navRow.x + navRow.width / 2, navRow.y + navRow.height / 2);
             }
         }
+    }
 
-        // Step 3j) Draw title block rows
-        for (var j = 0; j < preview.titleBlockRows.length; j++) {
-            var row = preview.titleBlockRows[j];
-            
-            // Draw row border
-            ctx.strokeStyle = "#666666";
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(row.x, row.y, row.width, row.height);
-
-            // Draw row label
-            var rowLabel = "";
-            if (row.id === "title") {
-                rowLabel = "TITLE\n[BLASTNAME]";
-            } else if (row.id === "date") {
-                rowLabel = "DATE\n[DATE/TIME]";
-            } else if (row.id === "scaleDesigner") {
-                rowLabel = "Scale: [CALC]\nDesigner: [ENTRY]";
-            }
-
-            if (rowLabel) {
-                var rLines = rowLabel.split("\n");
-                var rLineHeight = 10;
-                var rStartY = row.y + row.height / 2 - (rLines.length - 1) * rLineHeight / 2;
-                ctx.font = "9px Arial";
-                for (var rl = 0; rl < rLines.length; rl++) {
-                    ctx.fillText(rLines[rl], row.x + row.width / 2, rStartY + rl * rLineHeight);
-                }
-            }
-        }
-
-        // Step 3k) Draw nav/logo rows for portrait mode
-        if (preview.navLogoRows) {
-            for (var k = 0; k < preview.navLogoRows.length; k++) {
-                var navRow = preview.navLogoRows[k];
-                
-                // Draw row border
-                ctx.strokeStyle = "#666666";
-                ctx.lineWidth = 0.5;
-                ctx.strokeRect(navRow.x, navRow.y, navRow.width, navRow.height);
-
-                // Draw row label
-                var navLabel = "";
-                if (navRow.id === "navIndicator") {
-                    navLabel = mode === "3D" ? "[XYZ]" : "[N]";
-                } else if (navRow.id === "logo") {
-                    navLabel = "[QR]";
-                }
-
-                if (navLabel) {
-                    ctx.font = "8px Arial";
-                    ctx.fillText(navLabel, navRow.x + navRow.width / 2, navRow.y + navRow.height / 2);
-                }
-            }
-        }
-
-        // Step 3l) Draw print preview label
-        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        ctx.fillRect(preview.page.x, preview.page.y - 22, 200, 20);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "12px Arial";
-        ctx.textAlign = "left";
-        ctx.fillText("Print Preview: " + printPaperSize + " " + printOrientation + " (" + mode + ")", preview.page.x + 5, preview.page.y - 8);
-	}
-
-	ctx.restore();
+    // Print preview label
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(preview.page.x, preview.page.y - 22, 200, 20);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("Print Preview: " + printPaperSize + " " + printOrientation + " (" + mode + ")", preview.page.x + 5, preview.page.y - 8);
 }
 
 // ============== 3D PRINT BOUNDARY OVERLAY SYSTEM ==============
@@ -453,6 +523,100 @@ export function setPrintOrientation(orientation) {
 	// Update 3D boundary if in preview mode
 	if (printMode && window.is3DMode && window.threeRenderer) {
 		toggle3DPrintPreview(true, printPaperSize, printOrientation, window.threeRenderer);
+	}
+}
+
+// Step 9b) Set template preview mode — shows a simple paper rectangle for XLSX template printing
+export function setTemplatePreview(config) {
+	templatePreviewConfig = config; // { widthMm, heightMm, orientation, paperSize, sheetName }
+	// Also enable print mode so the preview draws
+	printMode = true;
+	var toggle = document.getElementById("addPrintPreviewToggle");
+	if (toggle) toggle.checked = true;
+	// Trigger redraw
+	if (typeof window.drawData === "function") {
+		window.drawData(window.allBlastHoles, window.selectedHole);
+	}
+}
+
+// Step 9c) Clear template preview mode
+export function clearTemplatePreview() {
+	templatePreviewConfig = null;
+}
+
+// Step 9d) Check if template preview is active
+export function isTemplatePreview() {
+	return templatePreviewConfig !== null;
+}
+
+/**
+ * Capture the current map view as a high-resolution raster image.
+ * Uses drawDataForPrinting to render holes, surfaces, images, KADs
+ * onto a clean offscreen canvas at print resolution.
+ *
+ * @param {Object} context - Application context (same as printToPDF context)
+ * @param {number} targetWidthMm - Target width in mm (for aspect ratio and DPI calc)
+ * @param {number} targetHeightMm - Target height in mm
+ * @param {number} [dpi=200] - DPI for raster output (200 is good for embedded images)
+ * @returns {string|null} PNG data URL, or null on failure
+ */
+export function captureMapViewRaster(context, targetWidthMm, targetHeightMm, dpi) {
+	dpi = dpi || 200;
+	var mmToPx = dpi / 25.4;
+
+	// Save original print canvas state
+	var origWidth = printCanvas.width;
+	var origHeight = printCanvas.height;
+	var origCtx = printCtx;
+
+	try {
+		// Resize print canvas to target size
+		var pxW = Math.round(targetWidthMm * mmToPx);
+		var pxH = Math.round(targetHeightMm * mmToPx);
+
+		// Safety check
+		var MAX_SIDE = 8192;
+		if (pxW > MAX_SIDE) { var ratio = MAX_SIDE / pxW; pxW = MAX_SIDE; pxH = Math.round(pxH * ratio); }
+		if (pxH > MAX_SIDE) { var ratio2 = MAX_SIDE / pxH; pxH = MAX_SIDE; pxW = Math.round(pxW * ratio2); }
+
+		printCanvas.width = pxW;
+		printCanvas.height = pxH;
+		printCtx = printCanvas.getContext("2d");
+
+		// White background
+		printCtx.imageSmoothingEnabled = true;
+		printCtx.imageSmoothingQuality = "high";
+		printCtx.fillStyle = "white";
+		printCtx.fillRect(0, 0, pxW, pxH);
+
+		// Define print area as the full canvas
+		var printArea = { x: 0, y: 0, width: pxW, height: pxH };
+
+		// Clip to print area
+		printCtx.save();
+		printCtx.beginPath();
+		printCtx.rect(0, 0, pxW, pxH);
+		printCtx.clip();
+
+		// Render data using the existing print rendering pipeline
+		// Suppress overlay text (hole count, scale, date) for template raster captures
+		var captureContext = Object.assign({}, context, { suppressOverlayText: true });
+		drawDataForPrinting(printCtx, printArea, captureContext);
+
+		printCtx.restore();
+
+		// Capture
+		var dataURL = printCanvas.toDataURL("image/png", 1.0);
+
+		return (dataURL && dataURL.length > 100) ? dataURL : null;
+	} catch (e) {
+		console.warn("[PrintSystem] captureMapViewRaster failed:", e.message);
+		return null;
+	} finally {
+		// Restore original print canvas
+		printCanvas.width = origWidth;
+		printCanvas.height = origHeight;
+		printCtx = origCtx || printCanvas.getContext("2d");
 	}
 }
 
@@ -1372,8 +1536,10 @@ export function setupPrintEventHandlers(contextOrGetter) {
 	if (printFromTemplateBtn) {
 		printFromTemplateBtn.addEventListener("click", function () {
 			if (typeof window.showTemplatePrintDialog === "function") {
+				var ctx = getContext();
 				window.showTemplatePrintDialog({
-					scale: printCanvas ? printCanvas.scale : 0
+					scale: printCanvas ? printCanvas.scale : 0,
+					context: ctx
 				});
 			}
 		});

@@ -27,7 +27,9 @@
  */
 export function isTemplateFormula(value) {
 	if (typeof value !== "string") return false;
-	return value.length > 3 && value.substring(0, 3) === "fx:";
+	if (value.length <= 3) return false;
+	var prefix = value.substring(0, 3).toLowerCase();
+	return prefix === "fx:";
 }
 
 /**
@@ -36,14 +38,17 @@ export function isTemplateFormula(value) {
  * @returns {string}
  */
 function stripPrefix(formula) {
-	return formula.substring(3).trim();
+	// Handle both "fx:" and "Fx:" / "FX:" etc.
+	var lower = formula.substring(0, 3).toLowerCase();
+	if (lower === "fx:") return formula.substring(3).trim();
+	return formula.trim();
 }
 
 // ── Special render tokens ─────────────────────────────────────────────
 // These produce image/graphic output, not text. The engine renders them
 // into the merged-cell region in the XLSX/PDF.
 
-var RENDER_PATTERN = /^(legend|northArrow|scale|logo|qrcode|mapView|connectorCount|sectionView)\b/;
+var RENDER_PATTERN = /^(legend|northArrow|scale|scaleText|scaleBar|logo|qrcode|mapView|connectorCount|sectionView)\b/;
 
 /**
  * Check if expression is a special render function.
@@ -125,7 +130,7 @@ var FIELD_ALIASES = {
 	measuredLength: "measuredLength",
 	measuredComment: "measuredComment",
 	timingDelay: "timingDelayMilliseconds",
-	holeTime: "holeTime",
+	holeTime: "timingDelayMilliseconds",
 	rowID: "rowID",
 	posID: "posID",
 	color: "colorHexDecimal",
@@ -550,6 +555,185 @@ function buildFunctionLibrary(visibleHoles, scalarVars) {
 		return keys.map(function (k) { return k + ": " + totals[k].toFixed(1); }).join(sep);
 	};
 
+	/**
+	 * groupAvg(valueField[i], groupField[i], sep, sortOrder) - Average per group.
+	 * Returns: "Production: 121.0\nBuffer: 89.0"
+	 */
+	fns.groupAvg = function (valueFieldOrArray, groupFieldOrArray, separator, sortOrder) {
+		var vals = Array.isArray(valueFieldOrArray) ? valueFieldOrArray : [valueFieldOrArray];
+		var groups = Array.isArray(groupFieldOrArray) ? groupFieldOrArray : [groupFieldOrArray];
+		var sep = separator !== undefined ? String(separator) : "\n";
+		var order = sortOrder ? String(sortOrder).toLowerCase() : "desc";
+
+		var sums = {};
+		var counts = {};
+		var len = Math.min(vals.length, groups.length);
+		for (var i = 0; i < len; i++) {
+			var k = String(groups[i]);
+			var n = parseFloat(vals[i]);
+			if (!isNaN(n)) {
+				sums[k] = (sums[k] || 0) + n;
+				counts[k] = (counts[k] || 0) + 1;
+			}
+		}
+
+		var keys = Object.keys(sums);
+		if (order === "alpha") keys.sort();
+		else if (order === "asc") keys.sort(function (a, b) { return (sums[a] / counts[a]) - (sums[b] / counts[b]); });
+		else keys.sort(function (a, b) { return (sums[b] / counts[b]) - (sums[a] / counts[a]); });
+
+		return keys.map(function (k) { return k + ": " + (sums[k] / counts[k]).toFixed(1); }).join(sep);
+	};
+
+	/**
+	 * groupMin(valueField[i], groupField[i], sep, sortOrder) - Min per group.
+	 */
+	fns.groupMin = function (valueFieldOrArray, groupFieldOrArray, separator, sortOrder) {
+		var vals = Array.isArray(valueFieldOrArray) ? valueFieldOrArray : [valueFieldOrArray];
+		var groups = Array.isArray(groupFieldOrArray) ? groupFieldOrArray : [groupFieldOrArray];
+		var sep = separator !== undefined ? String(separator) : "\n";
+		var order = sortOrder ? String(sortOrder).toLowerCase() : "alpha";
+
+		var mins = {};
+		var len = Math.min(vals.length, groups.length);
+		for (var i = 0; i < len; i++) {
+			var k = String(groups[i]);
+			var n = parseFloat(vals[i]);
+			if (!isNaN(n)) {
+				if (mins[k] === undefined || n < mins[k]) mins[k] = n;
+			}
+		}
+
+		var keys = Object.keys(mins);
+		if (order === "alpha") keys.sort();
+		else if (order === "asc") keys.sort(function (a, b) { return mins[a] - mins[b]; });
+		else keys.sort(function (a, b) { return mins[b] - mins[a]; });
+
+		return keys.map(function (k) { return k + ": " + mins[k].toFixed(1); }).join(sep);
+	};
+
+	/**
+	 * groupMax(valueField[i], groupField[i], sep, sortOrder) - Max per group.
+	 */
+	fns.groupMax = function (valueFieldOrArray, groupFieldOrArray, separator, sortOrder) {
+		var vals = Array.isArray(valueFieldOrArray) ? valueFieldOrArray : [valueFieldOrArray];
+		var groups = Array.isArray(groupFieldOrArray) ? groupFieldOrArray : [groupFieldOrArray];
+		var sep = separator !== undefined ? String(separator) : "\n";
+		var order = sortOrder ? String(sortOrder).toLowerCase() : "alpha";
+
+		var maxs = {};
+		var len = Math.min(vals.length, groups.length);
+		for (var i = 0; i < len; i++) {
+			var k = String(groups[i]);
+			var n = parseFloat(vals[i]);
+			if (!isNaN(n)) {
+				if (maxs[k] === undefined || n > maxs[k]) maxs[k] = n;
+			}
+		}
+
+		var keys = Object.keys(maxs);
+		if (order === "alpha") keys.sort();
+		else if (order === "asc") keys.sort(function (a, b) { return maxs[a] - maxs[b]; });
+		else keys.sort(function (a, b) { return maxs[b] - maxs[a]; });
+
+		return keys.map(function (k) { return k + ": " + maxs[k].toFixed(1); }).join(sep);
+	};
+
+	/**
+	 * groupTable(groupField[i], formatString, sep, sortOrder)
+	 * Multi-field per-group formatting with inline aggregation tokens.
+	 *
+	 * Format tokens:
+	 *   {key}           - group key value
+	 *   {count}         - count of items in group
+	 *   {sum:field}     - sum of field within group
+	 *   {avg:field}     - average of field within group
+	 *   {min:field}     - min of field within group
+	 *   {max:field}     - max of field within group
+	 *   {median:field}  - median of field within group
+	 *
+	 * Example:
+	 *   groupTable(holeType[i], "{key}: {count} holes, dia={avg:holeDiameter}mm", "\n")
+	 *   → "Production: 198 holes, dia=121.0mm\nBuffer: 42 holes, dia=89.0mm"
+	 */
+	fns.groupTable = function (groupFieldOrArray, formatStr, separator, sortOrder) {
+		var groupVals = Array.isArray(groupFieldOrArray) ? groupFieldOrArray : [groupFieldOrArray];
+		var fmt = formatStr !== undefined ? String(formatStr) : "{key}: {count}";
+		var sep = separator !== undefined ? String(separator) : "\n";
+		var order = sortOrder ? String(sortOrder).toLowerCase() : "desc";
+
+		// Build per-group hole index lists
+		var groupIndices = {};
+		for (var i = 0; i < groupVals.length; i++) {
+			var k = String(groupVals[i]);
+			if (!groupIndices[k]) groupIndices[k] = [];
+			groupIndices[k].push(i);
+		}
+
+		// Sort group keys
+		var keys = Object.keys(groupIndices);
+		if (order === "alpha") {
+			keys.sort();
+		} else if (order === "asc") {
+			keys.sort(function (a, b) { return groupIndices[a].length - groupIndices[b].length; });
+		} else {
+			keys.sort(function (a, b) { return groupIndices[b].length - groupIndices[a].length; });
+		}
+
+		// Parse format tokens: {key}, {count}, {stat:fieldName}
+		var tokenRegex = /\{(key|count|sum|avg|min|max|median)(?::([a-zA-Z_]\w*))?\}/g;
+
+		return keys.map(function (groupKey) {
+			var indices = groupIndices[groupKey];
+
+			return fmt.replace(tokenRegex, function (match, stat, fieldName) {
+				if (stat === "key") return groupKey;
+				if (stat === "count") return String(indices.length);
+
+				// Need field values for this group
+				if (!fieldName) return match; // no field specified for stat
+				var fieldVals = getFieldValues(fieldName, visibleHoles);
+				var groupFieldVals = [];
+				for (var j = 0; j < indices.length; j++) {
+					var idx = indices[j];
+					if (idx < fieldVals.length) groupFieldVals.push(fieldVals[idx]);
+				}
+
+				// Compute statistic
+				var nums = [];
+				for (var n = 0; n < groupFieldVals.length; n++) {
+					var v = parseFloat(groupFieldVals[n]);
+					if (!isNaN(v)) nums.push(v);
+				}
+				if (nums.length === 0) return "0";
+
+				if (stat === "sum") {
+					var total = 0;
+					for (var s = 0; s < nums.length; s++) total += nums[s];
+					return total.toFixed(1);
+				}
+				if (stat === "avg") {
+					var sum = 0;
+					for (var a = 0; a < nums.length; a++) sum += nums[a];
+					return (sum / nums.length).toFixed(1);
+				}
+				if (stat === "min") {
+					return Math.min.apply(null, nums).toFixed(1);
+				}
+				if (stat === "max") {
+					return Math.max.apply(null, nums).toFixed(1);
+				}
+				if (stat === "median") {
+					nums.sort(function (x, y) { return x - y; });
+					var mid = Math.floor(nums.length / 2);
+					var med = nums.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+					return med.toFixed(1);
+				}
+				return match;
+			});
+		}).join(sep);
+	};
+
 	// ── Math / Rounding ──
 
 	fns.round = function (value, decimals) {
@@ -694,7 +878,7 @@ function buildFunctionLibrary(visibleHoles, scalarVars) {
 
 	// ── Conditional ──
 
-	fns["if"] = function (condition, trueVal, falseVal) {
+	fns.$$if = function (condition, trueVal, falseVal) {
 		return condition ? trueVal : falseVal;
 	};
 
@@ -734,6 +918,11 @@ function compileExpression(expr, iteratedFields) {
 	// Replace & with + for string concatenation (JS uses + for both)
 	// Only replace & that is NOT part of && (logical AND)
 	compiled = compiled.replace(/(?<![&])&(?![&])/g, "+");
+
+	// Replace JS reserved words used as function names: if() → $$if()
+	// $$ prefix is valid JS and won't collide with mine blast naming conventions
+	// Must use function replacer to avoid $$ being interpreted as escape in replace()
+	compiled = compiled.replace(/\bif\s*\(/g, function () { return "$$if("; });
 
 	return compiled;
 }
@@ -790,38 +979,37 @@ export function evaluateTemplateFormula(formula, context) {
 	// Build function library
 	var fns = buildFunctionLibrary(visibleHoles, scalarVars);
 
-	// Merge all names and values for safe evaluation
-	var names = [];
-	var values = [];
+	// Build single context object — all scalars, field arrays, and functions
+	// Using with() so property names have NO restrictions (reserved words,
+	// digit-starting names, special chars all work)
+	var $$ctx = {};
 
 	// Add scalar variables
 	for (var key in scalarVars) {
 		if (scalarVars.hasOwnProperty(key)) {
-			names.push(key);
-			values.push(scalarVars[key]);
+			$$ctx[key] = scalarVars[key];
 		}
 	}
 
 	// Add field arrays
 	for (var key in fieldArrays) {
 		if (fieldArrays.hasOwnProperty(key)) {
-			names.push(key);
-			values.push(fieldArrays[key]);
+			$$ctx[key] = fieldArrays[key];
 		}
 	}
 
 	// Add functions
 	for (var key in fns) {
 		if (fns.hasOwnProperty(key)) {
-			names.push(key);
-			values.push(fns[key]);
+			$$ctx[key] = fns[key];
 		}
 	}
 
 	try {
-		// Use Function constructor for sandboxed evaluation
-		var fn = new Function(names.join(","), '"use strict"; return (' + compiled + ");");
-		var result = fn.apply(null, values);
+		// Evaluate using with() — no strict mode so with() is allowed.
+		// Property names can be anything: reserved words, digit-prefixed, etc.
+		var fn = new Function("$$ctx", "with($$ctx){return(" + compiled + ")}");
+		var result = fn($$ctx);
 
 		// Convert result to string
 		if (result === null || result === undefined) {

@@ -215,6 +215,10 @@ export function getAvailableVariables() {
 		{ name: "sortCount(field[i], sep, limit)", description: "Count per unique value, sorted by count desc", type: "function", example: 'sortCount(holeType[i], ", ")' },
 		{ name: "groupCount(field[i], sep, order)", description: "Group and count (order: desc/asc/alpha)", type: "function", example: 'groupCount(holeType[i], "\\n", "desc")' },
 		{ name: "groupSum(sumF[i], grpF[i], sep)", description: "Sum grouped by another field", type: "function", example: 'groupSum(holeLength[i], entityName[i], "\\n")' },
+		{ name: "groupAvg(valF[i], grpF[i], sep)", description: "Average grouped by another field", type: "function", example: 'groupAvg(holeDiameter[i], holeType[i], "\\n")' },
+		{ name: "groupMin(valF[i], grpF[i], sep)", description: "Min grouped by another field", type: "function", example: 'groupMin(holeLength[i], holeType[i], "\\n")' },
+		{ name: "groupMax(valF[i], grpF[i], sep)", description: "Max grouped by another field", type: "function", example: 'groupMax(startZ[i], holeType[i], "\\n")' },
+		{ name: "groupTable(grpF[i], fmt, sep)", description: "Multi-field per-group format. Tokens: {key} {count} {sum:f} {avg:f} {min:f} {max:f} {median:f}", type: "function", example: 'groupTable(holeType[i], "{key}: {count} holes, dia={avg:holeDiameter}mm", "\\n")' },
 
 		// ── Connector functions ──
 		{ name: "connectorList(sep)", description: "List connector delays with counts", type: "function", example: 'connectorList(", ")' },
@@ -228,11 +232,17 @@ export function getAvailableVariables() {
 		// ── Special render functions (produce graphics, not text) ──
 		{ name: "legend(type, orient)", description: "Legend graphic", type: "render", example: "legend(relief, h)" },
 		{ name: "northArrow", description: "North arrow graphic", type: "render", example: "northArrow" },
-		{ name: "scale", description: "Scale bar graphic", type: "render", example: "scale" },
+		{ name: "scale", description: "Scale bar + text (combined)", type: "render", example: "scale" },
+		{ name: "scaleBar", description: "Scale bar graphic only", type: "render", example: "scaleBar" },
+		{ name: "scaleText", description: "Scale text only (1:XXXX)", type: "render", example: "scaleText" },
 		{ name: "logo", description: "User logo image", type: "render", example: "logo" },
 		{ name: "qrcode", description: "QR code graphic", type: "render", example: "qrcode" },
-		{ name: "mapView", description: "Current map/3D view capture", type: "render", example: "mapView" },
+		{ name: "mapView", description: "Map view — default raster", type: "render", example: "mapView" },
+		{ name: "mapView(r)", description: "Raster map view (holes + surfaces + images)", type: "render", example: "mapView(r)" },
+		{ name: "mapView(r, dpi)", description: "Raster with custom DPI (default 200)", type: "render", example: "mapView(r, 300)" },
+		{ name: "mapView(v)", description: "Vector map view (holes + connectors, crisp lines)", type: "render", example: "mapView(v)" },
+		{ name: "mapView(v, pt)", description: "Vector with label font size in points", type: "render", example: "mapView(v, 8pt)" },
 		{ name: "connectorCount", description: "Connector count table (render)", type: "render", example: "connectorCount" },
-		{ name: "sectionView(holeID)", description: "Hole section view", type: "render", example: 'sectionView("H001")' }
+		{ name: "sectionView(entity, holeID)", description: "Hole section view (entityName, holeID)", type: "render", example: 'sectionView("Pattern_01", "H001")' }
 	];
 }

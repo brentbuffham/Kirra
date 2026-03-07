@@ -1511,28 +1511,30 @@ export function printData(allBlastHoles, selectedHole, context) {
             }
         }
 
-        // Holes Displayed Count
-        printCtx.fillStyle = "black";
-        printCtx.font = "16px Arial";
-        if (!visibleBlastHoles || !Array.isArray(visibleBlastHoles) || visibleBlastHoles.length < 1) {
-            printCtx.fillText("Holes Displayed: 0", 10, printCanvas.height - 85);
-        } else {
-            printCtx.fillText("Holes Displayed: " + visibleBlastHoles.length, 10, printCanvas.height - 85);
+        // Holes Displayed Count — skip overlay text when used as template raster capture
+        if (!context.suppressOverlayText) {
+            printCtx.fillStyle = "black";
+            printCtx.font = "16px Arial";
+            if (!visibleBlastHoles || !Array.isArray(visibleBlastHoles) || visibleBlastHoles.length < 1) {
+                printCtx.fillText("Holes Displayed: 0", 10, printCanvas.height - 85);
+            } else {
+                printCtx.fillText("Holes Displayed: " + visibleBlastHoles.length, 10, printCanvas.height - 85);
+            }
+            printCtx.fillText("Scale [ 1:" + context.currentScale.toFixed(4) + " ]", 10, printCanvas.height - 70);
+            printCtx.fillStyle = "blue";
+            printCtx.fillText("Version Build: " + context.buildVersion, 10, printCanvas.height - 55);
+            const now = new Date();
+            const dateNow =
+                now.toLocaleDateString("en-AU", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric"
+                }) +
+                " " +
+                now.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+            printCtx.fillStyle = "black";
+            printCtx.fillText("Date: " + dateNow, 10, printCanvas.height - 35);
         }
-        printCtx.fillText("Scale [ 1:" + context.currentScale.toFixed(4) + " ]", 10, printCanvas.height - 70);
-        printCtx.fillStyle = "blue";
-        printCtx.fillText("Version Build: " + context.buildVersion, 10, printCanvas.height - 55);
-        const now = new Date();
-        const dateNow =
-            now.toLocaleDateString("en-AU", {
-                year: "numeric",
-                month: "long",
-                day: "numeric"
-            }) +
-            " " +
-            now.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
-        printCtx.fillStyle = "black";
-        printCtx.fillText("Date: " + dateNow, 10, printCanvas.height - 35);
 
         // Step 1503) Legends are now rendered in the footer cell by PrintSystem.js
         // Legacy map overlay legends have been disabled - they were previously drawn here:
